@@ -12,9 +12,19 @@ def resource_path(relative_path):
     except Exception: base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
 
+# --- CONFIGURATION DYNAMIQUE ---
 BLEU, ROUGE, JAUNE, BLEU_C, GRIS_LIGHT = '#0a4160', '#ef4444', '#eab308', '#0ea5e9', '#64748b'
 FONT_MONO, FONT_UI = ("Courier", 24, "bold"), ("Helvetica", 12, "bold")
 ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+def apply_theme_solo(theme_data):
+    """Met à jour les couleurs globales pour le mode solo"""
+    global BLEU, ROUGE, JAUNE, BLEU_C, GRIS_LIGHT
+    BLEU = theme_data["bg"]
+    ROUGE = theme_data["accent1"]
+    JAUNE = theme_data["accent2"]
+    BLEU_C = theme_data["highlight"]
+    GRIS_LIGHT = theme_data["muted"]
 
 class BoutonPro(tk.Canvas):
     def __init__(self, parent, text, command, width=200, height=45, color="#f5deb3", hover_color="#e2bc74"):
@@ -40,12 +50,23 @@ class LogoSmout(tk.Canvas):
         for i, char in enumerate(word):
             x = i * (tile_size + gap)
             p, s = 10, tile_size - 10
-            bg, dark, light = (ROUGE, "#991b1b", "#f87171") if char == "U" else (JAUNE, "#a16207", "#fef08a")
+            bg = ROUGE if char == "U" else JAUNE
+            dark = self._adjust_color(bg, 0.7)
+            light = self._adjust_color(bg, 1.3)
             self.draw_round_rect(x+p+6, p+10, x+s+6, s+10, 20, fill="#042f48")
             self.draw_round_rect(x+p, p+5, x+s, s+5, 20, fill=dark)
             self.draw_round_rect(x+p, p, x+s, s, 20, fill=bg)
             self.draw_round_rect(x+p+5, p+5, x+s-5, p+(s/2.5), 15, fill=light)
             self.create_text(x+tile_size/2, tile_size/2, text=char, fill="white", font=("Verdana", int(tile_size*0.5), "bold"))
+    
+    def _adjust_color(self, hex_color, factor):
+        try:
+            hex_color = hex_color.lstrip('#')
+            rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+            new_rgb = [min(255, max(0, int(c * factor))) for c in rgb]
+            return '#{:02x}{:02x}{:02x}'.format(*new_rgb)
+        except: return hex_color
+
     def draw_round_rect(self, x1, y1, x2, y2, r, **kwargs):
         points = [x1+r, y1, x1+r, y1, x2-r, y1, x2-r, y1, x2, y1, x2, y1+r, x2, y1+r, x2, y2-r, x2, y2-r, x2, y2, x2-r, y2, x2-r, y2, x1+r, y2, x1+r, y2, x1, y2, x1, y2-r, x1, y2-r, x1, y1+r, x1, y1+r, x1, y1]
         return self.create_polygon(points, **kwargs, smooth=True)
@@ -135,7 +156,6 @@ class PageJeu(tk.Frame):
         conf, mots = self.controller.config, self.controller.liste_mots
         auj = datetime.datetime.now().strftime("%Y-%m-%d")
         
-        # Le blocage "Déjà joué" ne concerne que le mode du jour
         if conf["mdj"]:
             if conf.get("last_mdj") == auj:
                 tk.Label(self.game_zone, text="DÉJÀ JOUÉ AUJOURD'HUI !", font=FONT_MONO, fg=ROUGE, bg=BLEU).pack(pady=20)
@@ -163,7 +183,6 @@ class PageJeu(tk.Frame):
         self.creer_clavier(); actions = tk.Frame(self.game_zone, bg=BLEU); actions.pack(pady=20)
         BoutonPro(actions, "VALIDER", self.valider, width=130, color="#22c55e").pack(side="left", padx=10)
         BoutonPro(actions, "EFFACER", self.effacer, width=130, color="#94a3b8").pack(side="left", padx=10)
-        # Texte modifié ici : "ABANDON" au lieu de "ABANDONNER"
         BoutonPro(actions, "ABANDON", lambda: self.gestion_fin("PERDU"), width=130, color="#ef4444").pack(side="left", padx=10)
         self.overlay_fin = EcranFin(self, self.controller, self.initialiser_partie, lambda: self.controller.show_frame("PageAccueil"))
         self.debut_temps, self.timer_actif = time.time(), True; self.update_loop(); self.winfo_toplevel().bind("<Key>", self.clavier_physique); self.maj_affichage()
