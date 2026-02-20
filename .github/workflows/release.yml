@@ -25,17 +25,14 @@ jobs:
           # Récupère le corps du message (Description)
           DESCRIPTION=$(git log -1 --pretty=%b)
           
-          # Génération du tag : Summary en minuscules avec "_" à la place des espaces
-          # On supprime aussi les caractères spéciaux interdits dans les tags
-          CLEAN_TAG=$(echo "$SUMMARY" | tr '[:upper:]' '[:lower:]' | sed 's/ /_/g' | sed 's/[^a-z0-9_.-]//g')
-          
-          # Ajout du hash court pour garantir l'unicité du tag (évite l'erreur si deux commits ont le même titre)
-          FINAL_TAG="${CLEAN_TAG}-${GITHUB_SHA::7}"
+          # Génération du tag : On remplace uniquement les espaces par des "_"
+          # On garde les majuscules et on retire le hash (numéro de commit)
+          CLEAN_TAG=$(echo "$SUMMARY" | sed 's/ /_/g')
           
           echo "summary=$SUMMARY" >> $GITHUB_OUTPUT
-          echo "tag=$FINAL_TAG" >> $GITHUB_OUTPUT
+          echo "tag=$CLEAN_TAG" >> $GITHUB_OUTPUT
           
-          # Gestion multi-ligne pour la description
+          # Gestion de la description pour GitHub Actions
           echo "description<<EOF" >> $GITHUB_OUTPUT
           echo "$DESCRIPTION" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
