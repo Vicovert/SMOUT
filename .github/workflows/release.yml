@@ -3,37 +3,41 @@ name: Auto Release on Push
 on:
   push:
     branches:
-      - main  # Déclenche le workflow lors d'un push sur main
+      - main
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Indispensable pour créer une release
+      contents: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Récupère tout l'historique pour les tags
+          fetch-depth: 0
 
-      - name: Generate Tag Name
-        id: tag_name
+      - name: Extract Commit Summary and Generate Tag
+        id: vars
         run: |
-          # Génère un tag basé sur la date et le hash court du commit
-          TAG="v$(date +'%Y.%m.%d')-${GITHUB_SHA::7}"
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          # Récupère uniquement la première ligne du message de commit (le Summary)
+          SUMMARY=$(git log -1 --pretty=%s)
+          
+          # Nettoyage pour le tag (remplace les espaces/caractères spéciaux par des tirets)
+          # Un tag Git ne peut pas contenir d'espaces
+          CLEAN_TAG="v-$(echo $SUMMARY | sed 's/[^a-zA-Z0-9.-]/-/g')-${GITHUB_SHA::7}"
+          
+          echo "summary=$SUMMARY" >> $GITHUB_OUTPUT
+          echo "tag=$CLEAN_TAG" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.tag_name.outputs.tag }}
-          name: Release ${{ steps.tag_name.outputs.tag }}
+          tag_name: ${{ steps.vars.outputs.tag }}
+          name: ${{ steps.vars.outputs.summary }}
           body: |
-            Automated Release for commit ${{ github.sha }}
-            
-            Changes in this release:
-            ${{ github.event.head_commit.message }}
+            Automated Release from GitHub Desktop
+            Commit: ${{ github.sha }}
           draft: false
           prerelease: false
         env:
