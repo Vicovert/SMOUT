@@ -1,0 +1,40 @@
+name: Auto Release on Push
+
+on:
+  push:
+    branches:
+      - main  # Déclenche le workflow lors d'un push sur main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Indispensable pour créer une release
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Récupère tout l'historique pour les tags
+
+      - name: Generate Tag Name
+        id: tag_name
+        run: |
+          # Génère un tag basé sur la date et le hash court du commit
+          TAG="v$(date +'%Y.%m.%d')-${GITHUB_SHA::7}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag_name.outputs.tag }}
+          name: Release ${{ steps.tag_name.outputs.tag }}
+          body: |
+            Automated Release for commit ${{ github.sha }}
+            
+            Changes in this release:
+            ${{ github.event.head_commit.message }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
