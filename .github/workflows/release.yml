@@ -17,27 +17,31 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Extract Commit Summary and Generate Tag
+      - name: Extract Commit Info
         id: vars
         run: |
-          # Récupère uniquement la première ligne du message de commit (le Summary)
+          # Récupère le titre (Summary)
           SUMMARY=$(git log -1 --pretty=%s)
+          # Récupère le corps du message (Description)
+          DESCRIPTION=$(git log -1 --pretty=%b)
           
-          # Nettoyage pour le tag (remplace les espaces/caractères spéciaux par des tirets)
-          # Un tag Git ne peut pas contenir d'espaces
-          CLEAN_TAG="v-$(echo $SUMMARY | sed 's/[^a-zA-Z0-9.-]/-/g')-${GITHUB_SHA::7}"
+          # Création d'un tag technique (obligatoire pour Git)
+          CLEAN_TAG="release-${GITHUB_SHA::7}"
           
           echo "summary=$SUMMARY" >> $GITHUB_OUTPUT
           echo "tag=$CLEAN_TAG" >> $GITHUB_OUTPUT
+          
+          # Gestion du multi-ligne pour la description dans GitHub Actions
+          echo "description<<EOF" >> $GITHUB_OUTPUT
+          echo "$DESCRIPTION" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.vars.outputs.tag }}
           name: ${{ steps.vars.outputs.summary }}
-          body: |
-            Automated Release from GitHub Desktop
-            Commit: ${{ github.sha }}
+          body: ${{ steps.vars.outputs.description }}
           draft: false
           prerelease: false
         env:
