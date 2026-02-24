@@ -6,22 +6,33 @@ from pathlib import Path
 # --- CONFIGURATION DYNAMIQUE ---
 FIREBASE_URL = "https://smout-multi-default-rtdb.europe-west1.firebasedatabase.app/"
 BLEU, ROUGE, JAUNE, BLEU_C, GRIS_LIGHT = '#0a4160', '#ef4444', '#eab308', '#0ea5e9', '#64748b'
+GRILLE = "#1a1a1a"
 FONT_MONO, FONT_UI = ("Courier", 24, "bold"), ("Helvetica", 12, "bold")
 ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 def apply_theme_multi(theme_data):
     """Met à jour les couleurs globales du jeu"""
-    global BLEU, ROUGE, JAUNE, BLEU_C, GRIS_LIGHT
+    global BLEU, ROUGE, JAUNE, BLEU_C, GRIS_LIGHT, GRILLE
     BLEU = theme_data["bg"]
     ROUGE = theme_data["accent1"]
     JAUNE = theme_data["accent2"]
     BLEU_C = theme_data["highlight"]
     GRIS_LIGHT = theme_data["muted"]
+    GRILLE = theme_data.get("grid", get_txt_color(BLEU))
 
 def resource_path(relative_path):
     try: base_path = sys._MEIPASS
     except Exception: base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
+
+def get_txt_color(hex_color):
+    """Calcule si le texte doit être blanc ou noir selon la luminosité du fond"""
+    try:
+        hex_color = hex_color.lstrip('#')
+        r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
+        luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+        return "#1a1a1a" if luminance > 0.5 else "white"
+    except: return "white"
 
 # --- COMPOSANTS UI ---
 
@@ -42,7 +53,7 @@ class LogoSmout(tk.Canvas):
             self.draw_round_rect(x+p, p+4, x+s, s+4, 15, fill=dark)
             self.draw_round_rect(x+p, p, x+s, s, 15, fill=bg)
             self.draw_round_rect(x+p+4, p+4, x+s-4, p+(s/2.5), 12, fill=light)
-            self.create_text(x+tile_size/2, tile_size/2, text=char, fill="white", font=("Verdana", int(tile_size*0.5), "bold"))
+            self.create_text(x+tile_size/2, tile_size/2, text=char, fill=get_txt_color(bg), font=("Verdana", int(tile_size*0.5), "bold"))
     
     def _adjust_color(self, hex_color, factor):
         try:
@@ -62,7 +73,7 @@ class BoutonPro(tk.Canvas):
         self.command, self.color, self.hover_color = command, color, hover_color
         self.draw_round_rect(2, 6, width-2, height+2, 12, fill="#042f48", tags="shadow")
         self.rect = self.draw_round_rect(2, 2, width-2, height-2, 12, fill=color, tags="face")
-        self.txt = self.create_text(width/2, height/2, text=text, fill=BLEU, font=FONT_UI, tags="face")
+        self.txt = self.create_text(width/2, height/2, text=text, fill=get_txt_color(color), font=FONT_UI, tags="face")
         
         self.bind("<Button-1>", self._on_press)
         self.bind("<ButtonRelease-1>", self._on_release)
@@ -77,7 +88,7 @@ class BoutonPro(tk.Canvas):
         self.command()
 
     def set_text(self, new_text): self.itemconfig(self.txt, text=new_text)
-    def set_color(self, c, hc): self.color, self.hover_color = c, hc; self.itemconfig(self.rect, fill=c)
+    def set_color(self, c, hc): self.color, self.hover_color = c, hc; self.itemconfig(self.rect, fill=c); self.itemconfig(self.txt, fill=get_txt_color(c))
 
     def draw_round_rect(self, x1, y1, x2, y2, r, **kwargs):
         p = [x1+r,y1, x1+r,y1, x2-r,y1, x2-r,y1, x2,y1, x2,y1+r, x2,y1+r, x2,y2-r, x2,y2-r, x2,y2, x2-r,y2, x2-r,y2, x1+r,y2, x1+r,y2, x1,y2, x1,y2-r, x1,y2-r, x1,y1+r, x1,y1+r, x1,y1]
@@ -88,7 +99,7 @@ class TimeSelector(tk.Canvas):
         super().__init__(parent, width=320, height=90, bg=BLEU, highlightthickness=0, cursor="hand2")
         self.v, self.callback, self.enabled = init_v, callback, True
         
-        self.create_text(160, 15, text="TEMPS PAR ROUND", fill=GRIS_LIGHT, font=("Helvetica", 9, "bold"))
+        self.create_text(160, 15, text="TEMPS PAR ROUND", fill=get_txt_color(BLEU), font=("Helvetica", 9, "bold"))
         self.draw_round_rect(100, 35, 220, 75, 10, fill="#042f48")
         self.txt_time = self.create_text(160, 55, text="00:00", fill="white", font=("Courier", 18, "bold"))
         
@@ -129,14 +140,14 @@ class SingleSlider(tk.Canvas):
         self.callback, self.enabled = callback, True
         self.margin, self.bw = 40, width - 80
 
-        self.create_text(width/2, 12, text=label, fill=GRIS_LIGHT, font=("Helvetica", 9, "bold"))
+        self.create_text(width/2, 12, text=label, fill=get_txt_color(BLEU), font=("Helvetica", 9, "bold"))
         self.create_line(self.margin, 40, width-self.margin, 40, fill="#042f48", width=6, capstyle="round")
         for i in range(max_v - min_v + 1):
             x = self.margin + (i / (max_v - min_v)) * self.bw
             self.create_oval(x-1, 39, x+1, 41, fill="white")
 
         self.h = self.create_oval(0, 0, 24, 24, fill=BLEU_C, outline="white", width=2)
-        self.txt_val = self.create_text(width/2, 65, fill="white", font=("Arial", 11, "bold"))
+        self.txt_val = self.create_text(width/2, 65, fill=get_txt_color(BLEU), font=("Arial", 11, "bold"))
         
         self.update_pos()
         self.bind("<B1-Motion>", self._move)
@@ -168,7 +179,7 @@ class RangeSlider(tk.Canvas):
         self.margin, self.bw = 40, width - 80
         self.active_handle = None
 
-        self.create_text(width/2, 12, text="TAILLE DU MOT", fill=GRIS_LIGHT, font=("Helvetica", 9, "bold"))
+        self.create_text(width/2, 12, text="TAILLE DU MOT", fill=get_txt_color(BLEU), font=("Helvetica", 9, "bold"))
         self.create_line(self.margin, 42, width-self.margin, 42, fill="#042f48", width=6, capstyle="round")
         for i in range(max_v - min_v + 1):
             x = self.margin + (i / (max_v - min_v)) * self.bw
@@ -176,7 +187,7 @@ class RangeSlider(tk.Canvas):
 
         self.h1 = self.create_oval(0, 0, 24, 24, fill=JAUNE, outline="white", width=2)
         self.h2 = self.create_oval(0, 0, 24, 24, fill=ROUGE, outline="white", width=2)
-        self.txt = self.create_text(width/2, 68, fill="white", font=("Arial", 11, "bold"))
+        self.txt = self.create_text(width/2, 68, fill=get_txt_color(BLEU), font=("Arial", 11, "bold"))
         
         self.update_pos()
         self.bind("<Button-1>", self._start_move)
@@ -594,7 +605,7 @@ class PageJeu(tk.Frame):
                         if content:
                             l_idx = int(l_str)
                             if l_idx < len(grid):
-                                for c_idx, coul in enumerate(content.get("c", [])): grid[l_idx][c_idx].config(bg=coul)
+                                for c_idx, coul in enumerate(content.get("c", [])): grid[l_idx][c_idx].config(bg=coul, fg=get_txt_color(coul), highlightbackground=GRILLE)
                                 if self.fini_local: [grid[l_idx][c_idx].config(text=char) for c_idx, char in enumerate(content.get("l", []))]
                 else:
                     self.adv_labels[pid].config(text=f"{self.adv_labels[pid].cget('text').split(' ')[0]} (DÉCONNECTÉ)", fg=GRIS_LIGHT)
@@ -625,7 +636,7 @@ class PageJeu(tk.Frame):
             elif res[i] == JAUNE and cur != ROUGE: self.statut_lettres[char] = JAUNE
             elif res[i] == GRIS_LIGHT and cur not in [ROUGE, JAUNE]: self.statut_lettres[char] = GRIS_LIGHT
         self.maj_clavier()
-        for i, c in enumerate(res): self.labels_moi[self.ligne][i].config(bg=c)
+        for i, c in enumerate(res): self.labels_moi[self.ligne][i].config(bg=c, fg=get_txt_color(c))
         self.update_idletasks()
         self.controller.fb_put(f"lobbies/{self.controller.lobby_code}/match_data/{self.controller.player_id}/{self.ligne}", {"c": res, "l": self.tape})
         if t == self.mot: self.finir_round(True)
@@ -661,7 +672,9 @@ class PageJeu(tk.Frame):
     
     def maj_affichage(self):
         if self.fini_local: return
-        for i, c in enumerate(self.tape): self.labels_moi[self.ligne][i].config(text=c, bg=ROUGE if i == 0 else BLEU)
+        for i, c in enumerate(self.tape): 
+            coul = ROUGE if i == 0 else BLEU
+            self.labels_moi[self.ligne][i].config(text=c, bg=coul, fg=get_txt_color(coul))
         for i in range(len(self.tape), len(self.mot)): self.labels_moi[self.ligne][i].config(text="", bg=BLEU)
     
     def creer_grille(self, parent, name, main):
@@ -672,7 +685,7 @@ class PageJeu(tk.Frame):
         g = tk.Frame(parent, bg=BLEU); g.pack(); rows = []
         size = 28 if main else 10
         for l in range(self.controller.settings_config["essais"]):
-            ligne = [tk.Label(g, text="", font=("Courier", size, "bold"), width=2, height=1, fg="white", bg="#052132", borderwidth=1, relief="solid") for _ in range(len(self.mot))]
+            ligne = [tk.Label(g, text="", font=("Courier", size, "bold"), width=2, height=1, fg="white", bg="#052132", borderwidth=1, relief="solid", highlightbackground=GRILLE, highlightthickness=1) for _ in range(len(self.mot))]
             [lbl.grid(row=l, column=c, padx=1, pady=1) for c, lbl in enumerate(ligne)]; rows.append(ligne)
         return rows
     
@@ -681,11 +694,15 @@ class PageJeu(tk.Frame):
         for r in ["ABCDEFGHIJKLM", "NOPQRSTUVWXYZ"]:
             row = tk.Frame(f, bg=BLEU); row.pack()
             for c in r: 
-                btn = tk.Button(row, text=c, width=2, font=("Arial", 8, "bold"), bg="#052132", fg="white", command=lambda x=c: (self.tape.append(x), self.maj_affichage()) if len(self.tape) < len(self.mot) and not self.fini_local else None)
+                btn = tk.Button(row, text=c, width=2, font=("Arial", 8, "bold"), bg="#052132", fg="white", relief="raised", bd=2, command=lambda x=c: (self.tape.append(x), self.maj_affichage()) if len(self.tape) < len(self.mot) and not self.fini_local else None)
                 btn.pack(side="left", padx=1, pady=1); self.boutons_clavier[c] = btn
     def maj_clavier(self):
         for char, color in self.statut_lettres.items():
-            if char in self.boutons_clavier: self.boutons_clavier[char].config(bg=color)
+            if char in self.boutons_clavier:
+                if color == GRIS_LIGHT:
+                    self.boutons_clavier[char].config(bg=color, fg="#6b7280", relief="flat", font=("Arial", 8, "bold overstrike"))
+                else:
+                    self.boutons_clavier[char].config(bg=color, fg=get_txt_color(color), relief="raised", font=("Arial", 8, "bold"))
 
 class PageScoreFinal(tk.Frame):
     def __init__(self, parent, controller):
