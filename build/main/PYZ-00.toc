@@ -1,0 +1,760 @@
+('D:\\Users\\vicdo\\Documents\\SMOUT\\build\\main\\PYZ-00.pyz',
+ [('__future__',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\__future__.py',
+   'PYMODULE'),
+  ('_compat_pickle',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\_compat_pickle.py',
+   'PYMODULE'),
+  ('_compression',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\_compression.py',
+   'PYMODULE'),
+  ('_py_abc',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\_py_abc.py',
+   'PYMODULE'),
+  ('_pydatetime',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\_pydatetime.py',
+   'PYMODULE'),
+  ('_pydecimal',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\_pydecimal.py',
+   'PYMODULE'),
+  ('_strptime',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\_strptime.py',
+   'PYMODULE'),
+  ('_threading_local',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\_threading_local.py',
+   'PYMODULE'),
+  ('argparse',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\argparse.py',
+   'PYMODULE'),
+  ('ast',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\ast.py',
+   'PYMODULE'),
+  ('base64',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\base64.py',
+   'PYMODULE'),
+  ('bisect',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\bisect.py',
+   'PYMODULE'),
+  ('bz2',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\bz2.py',
+   'PYMODULE'),
+  ('calendar',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\calendar.py',
+   'PYMODULE'),
+  ('certifi',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\certifi\\__init__.py',
+   'PYMODULE'),
+  ('certifi.core',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\certifi\\core.py',
+   'PYMODULE'),
+  ('charset_normalizer',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\charset_normalizer\\__init__.py',
+   'PYMODULE'),
+  ('charset_normalizer.api',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\charset_normalizer\\api.py',
+   'PYMODULE'),
+  ('charset_normalizer.cd',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\charset_normalizer\\cd.py',
+   'PYMODULE'),
+  ('charset_normalizer.constant',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\charset_normalizer\\constant.py',
+   'PYMODULE'),
+  ('charset_normalizer.legacy',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\charset_normalizer\\legacy.py',
+   'PYMODULE'),
+  ('charset_normalizer.models',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\charset_normalizer\\models.py',
+   'PYMODULE'),
+  ('charset_normalizer.utils',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\charset_normalizer\\utils.py',
+   'PYMODULE'),
+  ('charset_normalizer.version',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\charset_normalizer\\version.py',
+   'PYMODULE'),
+  ('contextlib',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\contextlib.py',
+   'PYMODULE'),
+  ('contextvars',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\contextvars.py',
+   'PYMODULE'),
+  ('copy',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\copy.py',
+   'PYMODULE'),
+  ('csv',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\csv.py',
+   'PYMODULE'),
+  ('dataclasses',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\dataclasses.py',
+   'PYMODULE'),
+  ('datetime',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\datetime.py',
+   'PYMODULE'),
+  ('decimal',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\decimal.py',
+   'PYMODULE'),
+  ('dis',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\dis.py',
+   'PYMODULE'),
+  ('email',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\email\\__init__.py',
+   'PYMODULE'),
+  ('email._encoded_words',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\email\\_encoded_words.py',
+   'PYMODULE'),
+  ('email._header_value_parser',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\email\\_header_value_parser.py',
+   'PYMODULE'),
+  ('email._parseaddr',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\email\\_parseaddr.py',
+   'PYMODULE'),
+  ('email._policybase',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\email\\_policybase.py',
+   'PYMODULE'),
+  ('email.base64mime',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\email\\base64mime.py',
+   'PYMODULE'),
+  ('email.charset',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\email\\charset.py',
+   'PYMODULE'),
+  ('email.contentmanager',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\email\\contentmanager.py',
+   'PYMODULE'),
+  ('email.encoders',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\email\\encoders.py',
+   'PYMODULE'),
+  ('email.errors',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\email\\errors.py',
+   'PYMODULE'),
+  ('email.feedparser',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\email\\feedparser.py',
+   'PYMODULE'),
+  ('email.generator',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\email\\generator.py',
+   'PYMODULE'),
+  ('email.header',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\email\\header.py',
+   'PYMODULE'),
+  ('email.headerregistry',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\email\\headerregistry.py',
+   'PYMODULE'),
+  ('email.iterators',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\email\\iterators.py',
+   'PYMODULE'),
+  ('email.message',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\email\\message.py',
+   'PYMODULE'),
+  ('email.parser',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\email\\parser.py',
+   'PYMODULE'),
+  ('email.policy',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\email\\policy.py',
+   'PYMODULE'),
+  ('email.quoprimime',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\email\\quoprimime.py',
+   'PYMODULE'),
+  ('email.utils',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\email\\utils.py',
+   'PYMODULE'),
+  ('fnmatch',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\fnmatch.py',
+   'PYMODULE'),
+  ('fractions',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\fractions.py',
+   'PYMODULE'),
+  ('ftplib',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\ftplib.py',
+   'PYMODULE'),
+  ('getopt',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\getopt.py',
+   'PYMODULE'),
+  ('getpass',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\getpass.py',
+   'PYMODULE'),
+  ('gettext',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\gettext.py',
+   'PYMODULE'),
+  ('gzip',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\gzip.py',
+   'PYMODULE'),
+  ('hashlib',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\hashlib.py',
+   'PYMODULE'),
+  ('hmac',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\hmac.py',
+   'PYMODULE'),
+  ('http',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\http\\__init__.py',
+   'PYMODULE'),
+  ('http.client',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\http\\client.py',
+   'PYMODULE'),
+  ('http.cookiejar',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\http\\cookiejar.py',
+   'PYMODULE'),
+  ('http.cookies',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\http\\cookies.py',
+   'PYMODULE'),
+  ('idna',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\idna\\__init__.py',
+   'PYMODULE'),
+  ('idna.core',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\idna\\core.py',
+   'PYMODULE'),
+  ('idna.idnadata',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\idna\\idnadata.py',
+   'PYMODULE'),
+  ('idna.intranges',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\idna\\intranges.py',
+   'PYMODULE'),
+  ('idna.package_data',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\idna\\package_data.py',
+   'PYMODULE'),
+  ('idna.uts46data',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\idna\\uts46data.py',
+   'PYMODULE'),
+  ('importlib',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\importlib\\__init__.py',
+   'PYMODULE'),
+  ('importlib._abc',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\importlib\\_abc.py',
+   'PYMODULE'),
+  ('importlib._bootstrap',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\importlib\\_bootstrap.py',
+   'PYMODULE'),
+  ('importlib._bootstrap_external',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\importlib\\_bootstrap_external.py',
+   'PYMODULE'),
+  ('importlib.abc',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\importlib\\abc.py',
+   'PYMODULE'),
+  ('importlib.machinery',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\importlib\\machinery.py',
+   'PYMODULE'),
+  ('importlib.metadata',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\importlib\\metadata\\__init__.py',
+   'PYMODULE'),
+  ('importlib.metadata._adapters',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\importlib\\metadata\\_adapters.py',
+   'PYMODULE'),
+  ('importlib.metadata._collections',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\importlib\\metadata\\_collections.py',
+   'PYMODULE'),
+  ('importlib.metadata._functools',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\importlib\\metadata\\_functools.py',
+   'PYMODULE'),
+  ('importlib.metadata._itertools',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\importlib\\metadata\\_itertools.py',
+   'PYMODULE'),
+  ('importlib.metadata._meta',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\importlib\\metadata\\_meta.py',
+   'PYMODULE'),
+  ('importlib.metadata._text',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\importlib\\metadata\\_text.py',
+   'PYMODULE'),
+  ('importlib.readers',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\importlib\\readers.py',
+   'PYMODULE'),
+  ('importlib.resources',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\importlib\\resources\\__init__.py',
+   'PYMODULE'),
+  ('importlib.resources._adapters',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\importlib\\resources\\_adapters.py',
+   'PYMODULE'),
+  ('importlib.resources._common',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\importlib\\resources\\_common.py',
+   'PYMODULE'),
+  ('importlib.resources._itertools',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\importlib\\resources\\_itertools.py',
+   'PYMODULE'),
+  ('importlib.resources._legacy',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\importlib\\resources\\_legacy.py',
+   'PYMODULE'),
+  ('importlib.resources.abc',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\importlib\\resources\\abc.py',
+   'PYMODULE'),
+  ('importlib.resources.readers',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\importlib\\resources\\readers.py',
+   'PYMODULE'),
+  ('importlib.util',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\importlib\\util.py',
+   'PYMODULE'),
+  ('inspect',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\inspect.py',
+   'PYMODULE'),
+  ('ipaddress',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\ipaddress.py',
+   'PYMODULE'),
+  ('json',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\json\\__init__.py',
+   'PYMODULE'),
+  ('json.decoder',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\json\\decoder.py',
+   'PYMODULE'),
+  ('json.encoder',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\json\\encoder.py',
+   'PYMODULE'),
+  ('json.scanner',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\json\\scanner.py',
+   'PYMODULE'),
+  ('logging',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\logging\\__init__.py',
+   'PYMODULE'),
+  ('lzma',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\lzma.py',
+   'PYMODULE'),
+  ('mimetypes',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\mimetypes.py',
+   'PYMODULE'),
+  ('netrc',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\netrc.py',
+   'PYMODULE'),
+  ('nturl2path',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\nturl2path.py',
+   'PYMODULE'),
+  ('numbers',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\numbers.py',
+   'PYMODULE'),
+  ('opcode',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\opcode.py',
+   'PYMODULE'),
+  ('page_multi',
+   'D:\\Users\\vicdo\\Documents\\SMOUT\\page_multi.py',
+   'PYMODULE'),
+  ('page_solo', 'D:\\Users\\vicdo\\Documents\\SMOUT\\page_solo.py', 'PYMODULE'),
+  ('pathlib',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\pathlib.py',
+   'PYMODULE'),
+  ('pickle',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\pickle.py',
+   'PYMODULE'),
+  ('pprint',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\pprint.py',
+   'PYMODULE'),
+  ('py_compile',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\py_compile.py',
+   'PYMODULE'),
+  ('queue',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\queue.py',
+   'PYMODULE'),
+  ('quopri',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\quopri.py',
+   'PYMODULE'),
+  ('random',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\random.py',
+   'PYMODULE'),
+  ('requests',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\requests\\__init__.py',
+   'PYMODULE'),
+  ('requests.__version__',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\requests\\__version__.py',
+   'PYMODULE'),
+  ('requests._internal_utils',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\requests\\_internal_utils.py',
+   'PYMODULE'),
+  ('requests.adapters',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\requests\\adapters.py',
+   'PYMODULE'),
+  ('requests.api',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\requests\\api.py',
+   'PYMODULE'),
+  ('requests.auth',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\requests\\auth.py',
+   'PYMODULE'),
+  ('requests.certs',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\requests\\certs.py',
+   'PYMODULE'),
+  ('requests.compat',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\requests\\compat.py',
+   'PYMODULE'),
+  ('requests.cookies',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\requests\\cookies.py',
+   'PYMODULE'),
+  ('requests.exceptions',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\requests\\exceptions.py',
+   'PYMODULE'),
+  ('requests.hooks',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\requests\\hooks.py',
+   'PYMODULE'),
+  ('requests.models',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\requests\\models.py',
+   'PYMODULE'),
+  ('requests.packages',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\requests\\packages.py',
+   'PYMODULE'),
+  ('requests.sessions',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\requests\\sessions.py',
+   'PYMODULE'),
+  ('requests.status_codes',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\requests\\status_codes.py',
+   'PYMODULE'),
+  ('requests.structures',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\requests\\structures.py',
+   'PYMODULE'),
+  ('requests.utils',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\requests\\utils.py',
+   'PYMODULE'),
+  ('selectors',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\selectors.py',
+   'PYMODULE'),
+  ('shlex',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\shlex.py',
+   'PYMODULE'),
+  ('shutil',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\shutil.py',
+   'PYMODULE'),
+  ('signal',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\signal.py',
+   'PYMODULE'),
+  ('socket',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\socket.py',
+   'PYMODULE'),
+  ('ssl',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\ssl.py',
+   'PYMODULE'),
+  ('statistics',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\statistics.py',
+   'PYMODULE'),
+  ('string',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\string.py',
+   'PYMODULE'),
+  ('stringprep',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\stringprep.py',
+   'PYMODULE'),
+  ('subprocess',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\subprocess.py',
+   'PYMODULE'),
+  ('tarfile',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\tarfile.py',
+   'PYMODULE'),
+  ('tempfile',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\tempfile.py',
+   'PYMODULE'),
+  ('textwrap',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\textwrap.py',
+   'PYMODULE'),
+  ('threading',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\threading.py',
+   'PYMODULE'),
+  ('tkinter',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\tkinter\\__init__.py',
+   'PYMODULE'),
+  ('tkinter.commondialog',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\tkinter\\commondialog.py',
+   'PYMODULE'),
+  ('tkinter.constants',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\tkinter\\constants.py',
+   'PYMODULE'),
+  ('tkinter.messagebox',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\tkinter\\messagebox.py',
+   'PYMODULE'),
+  ('token',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\token.py',
+   'PYMODULE'),
+  ('tokenize',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\tokenize.py',
+   'PYMODULE'),
+  ('tracemalloc',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\tracemalloc.py',
+   'PYMODULE'),
+  ('typing',
+   'D:\\Logitiels portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\typing.py',
+   'PYMODULE'),
+  ('typing_extensions',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\typing_extensions.py',
+   'PYMODULE'),
+  ('urllib',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\urllib\\__init__.py',
+   'PYMODULE'),
+  ('urllib.error',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\urllib\\error.py',
+   'PYMODULE'),
+  ('urllib.parse',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\urllib\\parse.py',
+   'PYMODULE'),
+  ('urllib.request',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\urllib\\request.py',
+   'PYMODULE'),
+  ('urllib.response',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\urllib\\response.py',
+   'PYMODULE'),
+  ('urllib3',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\__init__.py',
+   'PYMODULE'),
+  ('urllib3._base_connection',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\_base_connection.py',
+   'PYMODULE'),
+  ('urllib3._collections',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\_collections.py',
+   'PYMODULE'),
+  ('urllib3._request_methods',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\_request_methods.py',
+   'PYMODULE'),
+  ('urllib3._version',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\_version.py',
+   'PYMODULE'),
+  ('urllib3.connection',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\connection.py',
+   'PYMODULE'),
+  ('urllib3.connectionpool',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\connectionpool.py',
+   'PYMODULE'),
+  ('urllib3.contrib',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\contrib\\__init__.py',
+   'PYMODULE'),
+  ('urllib3.contrib.emscripten',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\contrib\\emscripten\\__init__.py',
+   'PYMODULE'),
+  ('urllib3.contrib.emscripten.connection',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\contrib\\emscripten\\connection.py',
+   'PYMODULE'),
+  ('urllib3.contrib.emscripten.fetch',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\contrib\\emscripten\\fetch.py',
+   'PYMODULE'),
+  ('urllib3.contrib.emscripten.request',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\contrib\\emscripten\\request.py',
+   'PYMODULE'),
+  ('urllib3.contrib.emscripten.response',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\contrib\\emscripten\\response.py',
+   'PYMODULE'),
+  ('urllib3.contrib.pyopenssl',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\contrib\\pyopenssl.py',
+   'PYMODULE'),
+  ('urllib3.contrib.socks',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\contrib\\socks.py',
+   'PYMODULE'),
+  ('urllib3.exceptions',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\exceptions.py',
+   'PYMODULE'),
+  ('urllib3.fields',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\fields.py',
+   'PYMODULE'),
+  ('urllib3.filepost',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\filepost.py',
+   'PYMODULE'),
+  ('urllib3.http2',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\http2\\__init__.py',
+   'PYMODULE'),
+  ('urllib3.http2.connection',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\http2\\connection.py',
+   'PYMODULE'),
+  ('urllib3.http2.probe',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\http2\\probe.py',
+   'PYMODULE'),
+  ('urllib3.poolmanager',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\poolmanager.py',
+   'PYMODULE'),
+  ('urllib3.response',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\response.py',
+   'PYMODULE'),
+  ('urllib3.util',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\util\\__init__.py',
+   'PYMODULE'),
+  ('urllib3.util.connection',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\util\\connection.py',
+   'PYMODULE'),
+  ('urllib3.util.proxy',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\util\\proxy.py',
+   'PYMODULE'),
+  ('urllib3.util.request',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\util\\request.py',
+   'PYMODULE'),
+  ('urllib3.util.response',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\util\\response.py',
+   'PYMODULE'),
+  ('urllib3.util.retry',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\util\\retry.py',
+   'PYMODULE'),
+  ('urllib3.util.ssl_',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\util\\ssl_.py',
+   'PYMODULE'),
+  ('urllib3.util.ssl_match_hostname',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\util\\ssl_match_hostname.py',
+   'PYMODULE'),
+  ('urllib3.util.ssltransport',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\util\\ssltransport.py',
+   'PYMODULE'),
+  ('urllib3.util.timeout',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\util\\timeout.py',
+   'PYMODULE'),
+  ('urllib3.util.url',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\util\\url.py',
+   'PYMODULE'),
+  ('urllib3.util.util',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\util\\util.py',
+   'PYMODULE'),
+  ('urllib3.util.wait',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\site-packages\\urllib3\\util\\wait.py',
+   'PYMODULE'),
+  ('webbrowser',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\webbrowser.py',
+   'PYMODULE'),
+  ('zipfile',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\zipfile\\__init__.py',
+   'PYMODULE'),
+  ('zipfile._path',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\zipfile\\_path\\__init__.py',
+   'PYMODULE'),
+  ('zipfile._path.glob',
+   'D:\\Logitiels '
+   'portables\\WPy64-31241\\python-3.12.4.amd64\\Lib\\zipfile\\_path\\glob.py',
+   'PYMODULE')])
