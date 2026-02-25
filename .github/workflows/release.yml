@@ -35,7 +35,8 @@ jobs:
         shell: bash
         run: |
           SUMMARY=$(git log -1 --pretty=%s)
-          # Création du nom avec espace et nettoyage des caractères interdits par les systèmes de fichiers
+          # Création du nom avec un espace "SMOUT $SUMMARY"
+          # On nettoie les caractères interdits pour éviter les erreurs système
           SAFE_NAME=$(echo "SMOUT $SUMMARY" | sed 's/[<>:"/\\|?*]//g')
           echo "full_name=$SAFE_NAME" >> $GITHUB_OUTPUT
 
@@ -54,13 +55,14 @@ jobs:
       - name: Build with PyInstaller (Windows)
         if: matrix.os == 'windows-latest'
         run: |
+          # Utilisation de guillemets pour gérer l'espace dans le nom
           python -m PyInstaller --noconsole --onefile --add-data "fichiers;fichiers" --icon="${{ matrix.icon_file }}" --name "${{ steps.vars.outputs.full_name }}" main.py
 
       - name: Build with PyInstaller (macOS)
         if: matrix.os == 'macos-latest'
         run: |
           python -m PyInstaller --noconsole --onefile --add-data "fichiers:fichiers" --icon="${{ matrix.icon_file }}" --name "${{ steps.vars.outputs.full_name }}" main.py
-          # Force les permissions d'exécution sur le fichier généré
+          # On force les permissions d'exécution sur le fichier final
           chmod +x "dist/${{ steps.vars.outputs.full_name }}"
         shell: bash
 

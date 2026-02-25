@@ -615,6 +615,7 @@ class PageJeu(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg=BG); self.controller = controller; self.active_sync = False
         self.timer_actif, self.temps_restant = False, 180
+        self.last_sync_data = None
         self.main_c = tk.Frame(self, bg=BG); self.main_c.place(relx=0.5, rely=0.5, anchor="center")
         header = tk.Frame(self.main_c, bg=BG, pady=10); header.pack(fill="x")
         BoutonPro(header, "MENU", self.quitter_jeu, width=80, height=35, color=BTN3).pack(side="left", padx=10)
@@ -672,8 +673,82 @@ class PageJeu(tk.Frame):
                     self.adv_grids[pid] = self.creer_grille_sans_label(f)
                     
         self.btn_next = BoutonPro(self.main_c, "ROUND SUIVANT", self.clic_suivant, color=ACCENT2, width=250)
-        self.active_sync, self.timer_actif = True, True; self.update_timer(); self.ecouter_match(); self.controller.focus_set(); self.controller.bind("<Key>", self.clavier_physique); self.maj_affichage()
-    
+        self.active_sync, self.timer_actif = True, True
+        self.update_timer()
+        
+        # Lancer le thread de synchronisation
+        threading.Thread(target=self.background_sync_loop, daemon=True).start()
+        # Lancer la boucle de mise à jour UI (qui traitera les données reçues par le thread)
+        self.ui_update_loop()
+        
+        self.controller.focus_set()
+        self.controller.bind("<Key>", self.clavier_physique)
+        self.maj_affichage()
+
+    def background_sync_loop(self):
+        """Thread séparé pour ne pas bloquer l'UI lors des requêtes HTTP"""
+        while self.active_sync:
+            data = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}")
+            if data:
+                self.last_sync_data = data
+            time.sleep(0.8)
+
+    def ui_update_loop(self):
+        """Met à jour l'interface graphique à partir des données récupérées en tâche de fond"""
+        if not self.active_sync: return
+        if self.last_sync_data:
+            self.traiter_donnees_match(self.last_sync_data)
+        self.after(200, self.ui_update_loop)
+
+    def traiter_donnees_match(self, data):
+        """Logique de traitement des données (déplacée de ecouter_match)"""
+        if data.get("status") == "finished": 
+            self.active_sync = False
+            self.controller.show_frame("PageScoreFinal"); return
+        
+        s, players = data.get("settings", {}), data.get("players", {})
+        self.controller.is_host = (s.get("host_id") == self.controller.player_id)
+        
+        if int(s.get("current_round", 1)) > int(self.round_actuel): 
+            self.active_sync = False
+            self.controller.settings_config.update({
+                "target_word": s.get("target_word"), 
+                "round_num": int(s["current_round"]),
+                "start_time": s.get("start_time")
+            })
+            self.initialiser_partie(); return
+
+        self.lbl_scores.config(text=" | ".join([f"{p['name']}: {p['score']}" for p in players.values()]))
+        self.lbl_info.config(text=f"ROUND {s.get('current_round')} / {s.get('rounds')}")
+        
+        fini_raw = data.get("fini_states") or {}
+        fini_count = sum(1 for pid in players if fini_raw.get(pid))
+        
+        if fini_count >= len(players): self.timer_actif = False
+        m_data = data.get("match_data", {})
+        for pid, grid in self.adv_grids.items():
+            if pid in players:
+                p_prog = m_data.get(pid, {})
+                it = enumerate(p_prog) if isinstance(p_prog, list) else p_prog.items() if isinstance(p_prog, dict) else []
+                for l_str, content in it:
+                    if content:
+                        l_idx = int(l_str)
+                        if l_idx < len(grid):
+                            for c_idx, coul in enumerate(content.get("c", [])): 
+                                grid[l_idx][c_idx].config(bg=coul, fg=get_txt_color(coul), highlightbackground=GRILLE)
+                            if self.fini_local: 
+                                [grid[l_idx][c_idx].config(text=char) for c_idx, char in enumerate(content.get("l", []))]
+            else:
+                self.adv_labels[pid].config(text=f"{self.adv_labels[pid].cget('text').split(' ')[0]} (PARTI)", fg=TXT3)
+        
+        if self.fini_local:
+            if fini_count >= len(players):
+                self.lbl_msg.config(text=f"LE MOT ÉTAIT : {self.mot} ", fg=ACCENT2)
+                self.btn_def.pack(side="left")
+                if self.controller.is_host:
+                    txt = "VOIR LES RÉSULTATS" if int(s['current_round']) >= int(s['rounds']) else "ROUND SUIVANT"; self.btn_next.set_text(txt); self.btn_next.pack(pady=15)
+            else: self.lbl_msg.config(text=f"EN ATTENTE DES AUTRES... ({fini_count}/{len(players)})", fg=BTN1)
+
     def update_timer(self):
         if not self.timer_actif: return
         conf = self.controller.settings_config
@@ -687,67 +762,6 @@ class PageJeu(tk.Frame):
             if not self.fini_local: self.finir_round(False)
         else:
             self.after(500, self.update_timer)
-    
-    def ecouter_match(self):
-        if not self.active_sync: return
-        data = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}")
-        if data:
-            if data.get("status") == "finished": 
-                self.active_sync = False
-                self.controller.show_frame("PageScoreFinal"); return
-            
-            s, players = data.get("settings", {}), data.get("players", {})
-            now = time.time()
-            ghosts_found = False
-            for pid, p in list(players.items()):
-                if now - p.get("last_seen", 0) > 15:
-                    self.controller.fb_delete(f"lobbies/{self.controller.lobby_code}/players/{pid}")
-                    del players[pid]
-                    ghosts_found = True
-            
-            if ghosts_found and not players:
-                self.quitter_jeu()
-                return
-
-            self.controller.is_host = (s.get("host_id") == self.controller.player_id)
-            if int(s.get("current_round", 1)) > int(self.round_actuel): 
-                self.active_sync = False
-                self.controller.settings_config.update({
-                    "target_word": s.get("target_word"), 
-                    "round_num": int(s["current_round"]),
-                    "start_time": s.get("start_time")
-                })
-                self.initialiser_partie(); return
-
-            self.lbl_scores.config(text=" | ".join([f"{p['name']}: {p['score']}" for p in players.values()]))
-            self.lbl_info.config(text=f"ROUND {s.get('current_round')} / {s.get('rounds')}")
-            
-            fini_raw = data.get("fini_states") or {}
-            fini_count = sum(1 for pid in players if fini_raw.get(pid))
-            
-            if fini_count >= len(players): self.timer_actif = False
-            m_data = data.get("match_data", {})
-            for pid, grid in self.adv_grids.items():
-                if pid in players:
-                    p_prog = m_data.get(pid, {})
-                    it = enumerate(p_prog) if isinstance(p_prog, list) else p_prog.items() if isinstance(p_prog, dict) else []
-                    for l_str, content in it:
-                        if content:
-                            l_idx = int(l_str)
-                            if l_idx < len(grid):
-                                for c_idx, coul in enumerate(content.get("c", [])): grid[l_idx][c_idx].config(bg=coul, fg=get_txt_color(coul), highlightbackground=GRILLE)
-                                if self.fini_local: [grid[l_idx][c_idx].config(text=char) for c_idx, char in enumerate(content.get("l", []))]
-                else:
-                    self.adv_labels[pid].config(text=f"{self.adv_labels[pid].cget('text').split(' ')[0]} (PARTI)", fg=TXT3)
-            
-            if self.fini_local:
-                if fini_count >= len(players):
-                    self.lbl_msg.config(text=f"LE MOT ÉTAIT : {self.mot} ", fg=ACCENT2)
-                    self.btn_def.pack(side="left")
-                    if self.controller.is_host:
-                        txt = "VOIR LES RÉSULTATS" if int(s['current_round']) >= int(s['rounds']) else "ROUND SUIVANT"; self.btn_next.set_text(txt); self.btn_next.pack(pady=15)
-                else: self.lbl_msg.config(text=f"EN ATTENTE DES AUTRES... ({fini_count}/{len(players)})", fg=BTN1)
-        self.after(800, self.ecouter_match)
     
     def valider(self):
         if len(self.tape) != len(self.mot) or self.fini_local: return
