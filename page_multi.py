@@ -217,12 +217,14 @@ class RangeSlider(tk.Canvas):
         raw_v = (e.x - self.margin) / self.bw
         nv = max(self.min_v, min(self.max_v, round(self.min_v + raw_v * (self.max_v - self.min_v))))
         
-        if self.v1 == self.v2:
-            if nv > self.v1: self.active_handle = "h2"
-            else: self.active_handle = "h1"
+        # Logique de sélection améliorée pour éviter le blocage
+        if abs(nv - self.v1) < abs(nv - self.v2):
+            self.active_handle = "h1"
+        elif abs(nv - self.v1) > abs(nv - self.v2):
+            self.active_handle = "h2"
         else:
-            if abs(nv - self.v1) < abs(nv - self.v2): self.active_handle = "h1"
-            else: self.active_handle = "h2"
+            # Si équidistant (superposé), on choisit selon la direction du mouvement
+            self.active_handle = "h2" if nv >= self.v2 else "h1"
         self._move(e)
 
     def _move(self, e):
@@ -676,9 +678,7 @@ class PageJeu(tk.Frame):
         self.active_sync, self.timer_actif = True, True
         self.update_timer()
         
-        # Lancer le thread de synchronisation
         threading.Thread(target=self.background_sync_loop, daemon=True).start()
-        # Lancer la boucle de mise à jour UI (qui traitera les données reçues par le thread)
         self.ui_update_loop()
         
         self.controller.focus_set()
@@ -686,22 +686,18 @@ class PageJeu(tk.Frame):
         self.maj_affichage()
 
     def background_sync_loop(self):
-        """Thread séparé pour ne pas bloquer l'UI lors des requêtes HTTP"""
         while self.active_sync:
             data = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}")
-            if data:
-                self.last_sync_data = data
+            if data: self.last_sync_data = data
             time.sleep(0.8)
 
     def ui_update_loop(self):
-        """Met à jour l'interface graphique à partir des données récupérées en tâche de fond"""
         if not self.active_sync: return
         if self.last_sync_data:
             self.traiter_donnees_match(self.last_sync_data)
         self.after(200, self.ui_update_loop)
 
     def traiter_donnees_match(self, data):
-        """Logique de traitement des données (déplacée de ecouter_match)"""
         if data.get("status") == "finished": 
             self.active_sync = False
             self.controller.show_frame("PageScoreFinal"); return
@@ -738,16 +734,18 @@ class PageJeu(tk.Frame):
                                 grid[l_idx][c_idx].config(bg=coul, fg=get_txt_color(coul), highlightbackground=GRILLE)
                             if self.fini_local: 
                                 [grid[l_idx][c_idx].config(text=char) for c_idx, char in enumerate(content.get("l", []))]
-            else:
-                self.adv_labels[pid].config(text=f"{self.adv_labels[pid].cget('text').split(' ')[0]} (PARTI)", fg=TXT3)
         
         if self.fini_local:
             if fini_count >= len(players):
                 self.lbl_msg.config(text=f"LE MOT ÉTAIT : {self.mot} ", fg=ACCENT2)
                 self.btn_def.pack(side="left")
-                if self.controller.is_host:
-                    txt = "VOIR LES RÉSULTATS" if int(s['current_round']) >= int(s['rounds']) else "ROUND SUIVANT"; self.btn_next.set_text(txt); self.btn_next.pack(pady=15)
-            else: self.lbl_msg.config(text=f"EN ATTENTE DES AUTRES... ({fini_count}/{len(players)})", fg=BTN1)
+                # CORRECTION : On vérifie si le bouton est déjà affiché avant de pack()
+                if self.controller.is_host and not self.btn_next.winfo_ismapped():
+                    txt = "VOIR LES RÉSULTATS" if int(s['current_round']) >= int(s['rounds']) else "ROUND SUIVANT"
+                    self.btn_next.set_text(txt)
+                    self.btn_next.pack(pady=15)
+            else: 
+                self.lbl_msg.config(text=f"EN ATTENTE DES AUTRES... ({fini_count}/{len(players)})", fg=BTN1)
 
     def update_timer(self):
         if not self.timer_actif: return
@@ -873,7 +871,6 @@ class PageScoreFinal(tk.Frame):
         self.lbl_wait = tk.Label(self.c, text="ATTENTE DE L'HÔTE...", font=FONT_UI, fg=MUTED, bg=BG)
 
     def quitter_depuis_score(self):
-        """Désactive la synchro et retire le joueur du lobby avant de quitter"""
         self.active_sync = False
         self.controller.quitter_lobby_logic()
         self.controller.controller.creer_menu_accueil()
