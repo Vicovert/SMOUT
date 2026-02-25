@@ -35,8 +35,8 @@ jobs:
         shell: bash
         run: |
           SUMMARY=$(git log -1 --pretty=%s)
-          # Nettoyage pour éviter les caractères interdits dans les noms de fichiers
-          SAFE_NAME=$(echo "SMOUT${SUMMARY}" | sed 's/[<>:"/\\|?*]//g')
+          # Création du nom avec espace et nettoyage des caractères interdits par les systèmes de fichiers
+          SAFE_NAME=$(echo "SMOUT $SUMMARY" | sed 's/[<>:"/\\|?*]//g')
           echo "full_name=$SAFE_NAME" >> $GITHUB_OUTPUT
 
       - name: Set up Python
@@ -60,28 +60,15 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: |
           python -m PyInstaller --noconsole --onefile --add-data "fichiers:fichiers" --icon="${{ matrix.icon_file }}" --name "${{ steps.vars.outputs.full_name }}" main.py
-          # On donne les droits d'exécution avant de zipper
+          # Force les permissions d'exécution sur le fichier généré
           chmod +x "dist/${{ steps.vars.outputs.full_name }}"
         shell: bash
-
-      - name: Archive Executable (macOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          cd dist
-          zip "${{ steps.vars.outputs.full_name }}_mac.zip" "${{ steps.vars.outputs.full_name }}"
-        shell: bash
-
-      - name: Archive Executable (Windows)
-        if: matrix.os == 'windows-latest'
-        run: |
-          cd dist
-          powershell Compress-Archive -Path "${{ steps.vars.outputs.full_name }}.exe" -DestinationPath "${{ steps.vars.outputs.full_name }}_win.zip"
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset_name }}
-          path: dist/*.zip
+          path: dist/${{ steps.vars.outputs.full_name }}${{ matrix.suffix }}
           if-no-files-found: error
 
   release:
@@ -117,7 +104,7 @@ jobs:
           tag_name: ${{ steps.vars.outputs.tag }}
           name: ${{ steps.vars.outputs.summary }}
           body: ${{ steps.vars.outputs.description }}
-          files: release-files/*.zip
+          files: release-files/*
           draft: false
           prerelease: false
         env:
