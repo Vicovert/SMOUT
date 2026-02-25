@@ -261,6 +261,7 @@ class PageMulti(tk.Frame):
         self.player_id = str(random.randint(100000, 999999))
         self.pseudo = self.charger_pseudo_local()
         self.lobby_code, self.is_host = "", False
+        self.current_score = 0
         self.settings_config = {"essais": 6, "min": 6, "max": 10, "round_num": 1, "timer": 180, "password": "", "visible": True}
         self.charger_mots()
         self.container = tk.Frame(self, bg=BG); self.container.pack(fill="both", expand=True)
@@ -271,26 +272,55 @@ class PageMulti(tk.Frame):
             f = F(parent=self.container, controller=self); self.frames[F.__name__] = f; f.grid(row=0, column=0, sticky="nsew")
         self.show_frame("PageAccueil")
         self.controller.winfo_toplevel().protocol("WM_DELETE_WINDOW", self.on_closing)
+        
+        # Lancement du Heartbeat global
+        self.heartbeat_active = True
+        self.start_heartbeat()
+
+    def start_heartbeat(self):
+        if self.heartbeat_active and self.lobby_code:
+            self.fb_patch(f"lobbies/{self.lobby_code}/players/{self.player_id}", {
+                "last_seen": time.time(),
+                "name": self.pseudo,
+                "score": self.current_score
+            })
+        if self.heartbeat_active:
+            self.after(5000, self.start_heartbeat)
 
     def on_closing(self):
+        self.heartbeat_active = False
         self.quitter_lobby_logic(exit_mode=True)
         self.controller.winfo_toplevel().destroy()
 
     def quitter_lobby_logic(self, exit_mode=False):
         if not self.lobby_code: return
-        try:
-            url = f"{FIREBASE_URL}lobbies/{self.lobby_code}.json"
-            resp = requests.get(url, timeout=2); data = resp.json() if resp.status_code == 200 else None
-            if data:
-                players = data.get("players", {})
-                if self.player_id in players: del players[self.player_id]
-                if not players: requests.delete(url, timeout=2)
-                else:
-                    requests.delete(f"{FIREBASE_URL}lobbies/{self.lobby_code}/players/{self.player_id}.json", timeout=2)
-                    if self.is_host:
+        code_to_clean = self.lobby_code
+        self.lobby_code = "" # On reset pour arrêter le heartbeat
+        
+        def do_clean():
+            try:
+                url = f"{FIREBASE_URL}lobbies/{code_to_clean}.json"
+                resp = requests.get(url, timeout=2)
+                data = resp.json() if resp.status_code == 200 else None
+                if data:
+                    players = data.get("players", {})
+                    if self.player_id in players:
+                        requests.delete(f"{FIREBASE_URL}lobbies/{code_to_clean}/players/{self.player_id}.json", timeout=2)
+                        del players[self.player_id]
+                    
+                    if not players:
+                        requests.delete(url, timeout=2)
+                    elif self.is_host:
                         new_host_id = list(players.keys())[0]
-                        requests.patch(f"{FIREBASE_URL}lobbies/{self.lobby_code}/settings.json", json={"host_id": new_host_id}, timeout=2)
-        except: pass
+                        requests.patch(f"{FIREBASE_URL}lobbies/{code_to_clean}/settings.json", json={"host_id": new_host_id}, timeout=2)
+            except: pass
+        
+        if exit_mode:
+            t = threading.Thread(target=do_clean)
+            t.start()
+            t.join(timeout=1.0)
+        else:
+            threading.Thread(target=do_clean, daemon=True).start()
 
     def charger_pseudo_local(self):
         d = os.path.join(os.getenv('APPDATA'), "SMOUT"); p = os.path.join(d, "config.json")
@@ -300,7 +330,7 @@ class PageMulti(tk.Frame):
             except: pass
         return "ANONYME"
 
-    def sauvegarder_pseudo_local(self, p):
+    def sauver_pseudo_local(self, p):
         if not p: return
         self.pseudo = p.upper(); d = os.path.join(os.getenv('APPDATA'), "SMOUT"); os.makedirs(d, exist_ok=True)
         try:
@@ -369,6 +399,7 @@ class PageAccueil(tk.Frame):
         val = self.sv_pseudo.get(); formate = "".join([c.upper() for c in val if c.isalnum()])
         if val != formate: self.sv_pseudo.set(formate)
         self.controller.sauver_pseudo_local(formate)
+        
     def creer(self):
         if self.sv_pseudo.get().strip(): self.controller.show_frame("PageHostSetup")
     def rejoindre(self):
@@ -448,7 +479,8 @@ class PageCode(tk.Frame):
         self.controller.is_host = False; data = self.controller.fb_get(f"lobbies/{code}")
         if data and len(data.get("players", {})) < 4:
             self.controller.lobby_code = code
-            self.controller.fb_patch(f"lobbies/{code}/players/{self.controller.player_id}", {"name": self.controller.pseudo, "score": 0})
+            self.controller.current_score = 0
+            self.controller.fb_patch(f"lobbies/{code}/players/{self.controller.player_id}", {"name": self.controller.pseudo, "score": 0, "last_seen": time.time()})
             self.controller.show_frame("PageLobby")
 
 class PageLobby(tk.Frame):
@@ -462,7 +494,7 @@ class PageLobby(tk.Frame):
         for i in range(4):
             f = tk.Frame(self.grid_players, bg="#052132", width=120, height=50, highlightbackground=BTN1, highlightthickness=1)
             f.grid_propagate(False); f.grid(row=i//2, column=i%2, padx=5, pady=5)
-            lbl = tk.Label(f, text="VIDE", font=("Helvetica", 10, "bold"), fg=MUTED, bg="#052132")
+            lbl = tk.Label(f, text="VIDE", font=("Helvetica", 10, "bold"), fg=TXT3, bg="#052132")
             lbl.place(relx=0.5, rely=0.5, anchor="center"); self.player_slots.append(lbl)
         self.f_p = tk.Frame(c, bg=BG); self.f_p.pack()
         self.s_rounds = SingleSlider(self.f_p, 1, 10, 3, label="ROUNDS", callback=lambda v: self.sync_params())
@@ -488,7 +520,7 @@ class PageLobby(tk.Frame):
             if not self.controller.lobby_code: 
                 self.controller.lobby_code = str(random.randint(1000, 9999))
                 sc = self.controller.settings_config
-                init = {"status": "waiting", "settings": {"rounds":3, "essais":6, "min":6, "max":10, "timer": 180, "host_id": self.controller.player_id, "password": sc["password"], "visible": sc["visible"]}, "players": {self.controller.player_id: {"name": self.controller.pseudo, "score": 0}}}
+                init = {"status": "waiting", "settings": {"rounds":3, "essais":6, "min":6, "max":10, "timer": 180, "host_id": self.controller.player_id, "password": sc["password"], "visible": sc["visible"]}, "players": {self.controller.player_id: {"name": self.controller.pseudo, "score": 0, "last_seen": time.time()}}}
                 self.controller.fb_put(f"lobbies/{self.controller.lobby_code}", init)
             self.lbl_code.config(text=self.controller.lobby_code)
         else: self.lbl_code.config(text=self.controller.lobby_code)
@@ -499,7 +531,24 @@ class PageLobby(tk.Frame):
         data = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}")
         if data:
             s, players = data.get("settings", {}), data.get("players", {})
+            now = time.time()
+            ghosts_found = False
+            for pid, p in list(players.items()):
+                if now - p.get("last_seen", 0) > 15:
+                    self.controller.fb_delete(f"lobbies/{self.controller.lobby_code}/players/{pid}")
+                    del players[pid]
+                    ghosts_found = True
+            
+            if ghosts_found and not players:
+                self.controller.fb_delete(f"lobbies/{self.controller.lobby_code}")
+                self.quitter()
+                return
+
             host_id = s.get("host_id")
+            if host_id not in players and players:
+                host_id = list(players.keys())[0]
+                self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/settings", {"host_id": host_id})
+
             self.controller.is_host = (host_id == self.controller.player_id)
             
             if not self.controller.is_host:
@@ -526,8 +575,9 @@ class PageLobby(tk.Frame):
                     p_id = p_ids[i]
                     p_name = players[p_id]["name"]
                     if p_id == host_id: p_name += " 👑"
-                    slot.config(text=p_name, fg="white")
-                else: slot.config(text="VIDE", fg=MUTED)
+                    slot.config(text=p_name, fg=TXT1)
+                else: 
+                    slot.config(text="VIDE", fg=TXT3)
             
             if len(players) > 1:
                 self.lbl_status.config(text=f"🟢 {len(players)} JOUEURS PRÊTS", fg="#22c55e")
@@ -537,7 +587,10 @@ class PageLobby(tk.Frame):
             [s_ui.activer(self.controller.is_host) for s_ui in [self.s_rounds, self.s_essais, self.s_len, self.s_time]]
         self.after(800, self.ecouter_lobby)
 
-    def quitter(self): self.active_sync = False; self.controller.quitter_lobby_logic(); self.controller.show_frame("PageAccueil")
+    def quitter(self): 
+        self.active_sync = False
+        self.controller.quitter_lobby_logic()
+        self.controller.show_frame("PageAccueil")
 
     def lancer(self):
         mi, ma = self.s_len.get_values()
@@ -573,7 +626,11 @@ class PageJeu(tk.Frame):
         tk.Frame(game_area, width=3, bg=BTN1).pack(side="left", fill="y", padx=20, pady=20)
         self.adv_container = tk.Frame(game_area, bg=BG); self.adv_container.pack(side="left", padx=40, fill="y")
     
-    def quitter_jeu(self): self.active_sync = False; self.timer_actif = False; self.controller.quitter_lobby_logic(); self.controller.controller.creer_menu_accueil()
+    def quitter_jeu(self): 
+        self.active_sync = False
+        self.timer_actif = False
+        self.controller.quitter_lobby_logic()
+        self.controller.controller.creer_menu_accueil()
     
     def initialiser_partie(self):
         self.active_sync = False; self.timer_actif = False; [w.destroy() for w in self.moi_side.winfo_children() + self.adv_container.winfo_children()]
@@ -590,7 +647,6 @@ class PageJeu(tk.Frame):
         if self.controller.player_id == host_id: mon_nom += " 👑"
         
         self.labels_moi = self.creer_grille(self.moi_side, mon_nom, True)
-        
         self.msg_container = tk.Frame(self.moi_side, bg=BG, height=40); self.msg_container.pack()
         self.lbl_msg = tk.Label(self.msg_container, text="", font=("Helvetica", 11, "bold"), bg=BG, fg=TXT1)
         self.lbl_msg.pack(side="left")
@@ -639,7 +695,20 @@ class PageJeu(tk.Frame):
             if data.get("status") == "finished": 
                 self.active_sync = False
                 self.controller.show_frame("PageScoreFinal"); return
+            
             s, players = data.get("settings", {}), data.get("players", {})
+            now = time.time()
+            ghosts_found = False
+            for pid, p in list(players.items()):
+                if now - p.get("last_seen", 0) > 15:
+                    self.controller.fb_delete(f"lobbies/{self.controller.lobby_code}/players/{pid}")
+                    del players[pid]
+                    ghosts_found = True
+            
+            if ghosts_found and not players:
+                self.quitter_jeu()
+                return
+
             self.controller.is_host = (s.get("host_id") == self.controller.player_id)
             if int(s.get("current_round", 1)) > int(self.round_actuel): 
                 self.active_sync = False
@@ -649,11 +718,14 @@ class PageJeu(tk.Frame):
                     "start_time": s.get("start_time")
                 })
                 self.initialiser_partie(); return
+
             self.lbl_scores.config(text=" | ".join([f"{p['name']}: {p['score']}" for p in players.values()]))
             self.lbl_info.config(text=f"ROUND {s.get('current_round')} / {s.get('rounds')}")
+            
             fini_raw = data.get("fini_states") or {}
-            fini_ids = [k for k,v in fini_raw.items() if v] if isinstance(fini_raw, dict) else []
-            if len(fini_ids) >= len(players): self.timer_actif = False
+            fini_count = sum(1 for pid in players if fini_raw.get(pid))
+            
+            if fini_count >= len(players): self.timer_actif = False
             m_data = data.get("match_data", {})
             for pid, grid in self.adv_grids.items():
                 if pid in players:
@@ -666,14 +738,15 @@ class PageJeu(tk.Frame):
                                 for c_idx, coul in enumerate(content.get("c", [])): grid[l_idx][c_idx].config(bg=coul, fg=get_txt_color(coul), highlightbackground=GRILLE)
                                 if self.fini_local: [grid[l_idx][c_idx].config(text=char) for c_idx, char in enumerate(content.get("l", []))]
                 else:
-                    self.adv_labels[pid].config(text=f"{self.adv_labels[pid].cget('text').split(' ')[0]} (PARTI)", fg=MUTED)
+                    self.adv_labels[pid].config(text=f"{self.adv_labels[pid].cget('text').split(' ')[0]} (PARTI)", fg=TXT3)
+            
             if self.fini_local:
-                if len(fini_ids) >= len(players):
+                if fini_count >= len(players):
                     self.lbl_msg.config(text=f"LE MOT ÉTAIT : {self.mot} ", fg=ACCENT2)
                     self.btn_def.pack(side="left")
                     if self.controller.is_host:
                         txt = "VOIR LES RÉSULTATS" if int(s['current_round']) >= int(s['rounds']) else "ROUND SUIVANT"; self.btn_next.set_text(txt); self.btn_next.pack(pady=15)
-                else: self.lbl_msg.config(text=f"EN ATTENTE DES AUTRES... ({len(fini_ids)}/{len(players)})", fg=BTN1)
+                else: self.lbl_msg.config(text=f"EN ATTENTE DES AUTRES... ({fini_count}/{len(players)})", fg=BTN1)
         self.after(800, self.ecouter_match)
     
     def valider(self):
@@ -706,8 +779,8 @@ class PageJeu(tk.Frame):
         self.btn_valider.pack_forget()
         self.btn_effacer.pack_forget()
         if vic:
-            p = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}")
-            self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}", {"score": (p.get("score") or 0) + 1})
+            self.controller.current_score += 1
+            self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}", {"score": self.controller.current_score})
         self.controller.fb_put(f"lobbies/{self.controller.lobby_code}/fini_states/{self.controller.player_id}", True)
     
     def clic_suivant(self):
@@ -782,8 +855,14 @@ class PageScoreFinal(tk.Frame):
         self.lbl_res = tk.Label(self.c, text="", font=("Helvetica", 22, "bold"), fg=TXT1, bg=BG, justify="center"); self.lbl_res.pack(pady=30)
         self.btn_f = tk.Frame(self.c, bg=BG); self.btn_f.pack()
         self.btn_lobby = BoutonPro(self.btn_f, "RETOUR AU SALON", self.retour_lobby_host, color="#22c55e", width=300)
-        BoutonPro(self.c, "RETOUR AU MENU", lambda: self.controller.controller.creer_menu_accueil(), color=BTN3, width=300).pack(pady=10)
+        BoutonPro(self.c, "RETOUR AU MENU", self.quitter_depuis_score, color=BTN3, width=300).pack(pady=10)
         self.lbl_wait = tk.Label(self.c, text="ATTENTE DE L'HÔTE...", font=FONT_UI, fg=MUTED, bg=BG)
+
+    def quitter_depuis_score(self):
+        """Désactive la synchro et retire le joueur du lobby avant de quitter"""
+        self.active_sync = False
+        self.controller.quitter_lobby_logic()
+        self.controller.controller.creer_menu_accueil()
 
     def afficher_vainqueur(self):
         self.active_sync = True; self.btn_lobby.pack_forget(); self.lbl_wait.pack_forget()
@@ -810,14 +889,18 @@ class PageScoreFinal(tk.Frame):
     def retour_lobby_host(self):
         data = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}")
         if data:
-            players = data.get("players", {})
-            # RÉPARATION SÉCURITÉ : On récupère les settings actuels pour préserver le mot de passe
+            current_players = data.get("players", {})
             settings = data.get("settings", {})
-            for pid in players: players[pid]["score"] = 0
-            self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", {
+            reinit_players = {}
+            for pid, pdata in current_players.items():
+                pdata["score"] = 0
+                reinit_players[pid] = pdata
+            
+            self.controller.current_score = 0
+            self.controller.fb_put(f"lobbies/{self.controller.lobby_code}", {
                 "status": "waiting", 
-                "players": players,
-                "settings": settings, # On renvoie les settings tels quels (inclut mdp et visibilité)
+                "players": reinit_players,
+                "settings": settings,
                 "match_data": None,
                 "fini_states": None
             })

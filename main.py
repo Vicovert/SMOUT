@@ -33,7 +33,7 @@ THEMES = {
     "DESERT": {
         "bg": "#78350f", "accent1": "#b45309", "accent2": "#fde68a", "muted": "#451a03",
         "btn1": "#f59e0b", "btn2": "#b45309", "btn3": "#a16207",
-        "txt1": "#fff7ed", "txt2": "#451a03", "txt3": "#fbbf24", "type": "NATURE"
+        "txt1": "#db973d", "txt2": "#451a03", "txt3": "#fbbf24", "type": "NATURE"
     },
     "OCEAN": {
         "bg": "#0c4a6e", "accent1": "#0ea5e9", "accent2": "#7dd3fc", "muted": "#083344",
@@ -41,29 +41,29 @@ THEMES = {
         "txt1": "#f0f9ff", "txt2": "#ffffff", "txt3": "#7dd3fc", "type": "NATURE"
     },
     "SAKURA": {
-        "bg": "#fff1f2", "accent1": "#be123c", "accent2": "#fda4af", "muted": "#ffdce0",
-        "btn1": "#fb7185", "btn2": "#be123c", "btn3": "#94a3b8",
+        "bg": "#ffe8f9", "accent1": "#be123c", "accent2": "#fda4af", "muted": "#ffdce0",
+        "btn1": "#fb7185", "btn2": "#be123c", "btn3": "#f0a8a8",
         "txt1": "#4c0519", "txt2": "#ffffff", "txt3": "#be123c", "type": "NATURE"
     },
     "CYBERPUNK": {
         "bg": "#1a1a1a", "accent1": "#db2777", "accent2": "#f472b6", "muted": "#000000",
-        "btn1": "#00f2ff", "btn2": "#f472b6", "btn3": "#334155",
+        "btn1": "#00f2ff", "btn2": "#bd00ff", "btn3": "#00b8ff",
         "txt1": "#00f2ff", "txt2": "#000000", "txt3": "#f472b6", "type": "TECH"
     },
     "MATRIX": {
         "bg": "#052e16", "accent1": "#16a34a", "accent2": "#86efac", "muted": "#021a0c",
         "btn1": "#16a34a", "btn2": "#14532d", "btn3": "#334155",
-        "txt1": "#22c55e", "txt2": "#000000", "txt3": "#86efac", "type": "TECH"
+        "txt1": "#00ff00", "txt2": "#000000", "txt3": "#86efac", "type": "TECH"
     },
     "RETRO": {
         "bg": "#1e1b4b", "accent1": "#4338ca", "accent2": "#c7d2fe", "muted": "#0f0e2b",
         "btn1": "#6366f1", "btn2": "#818cf8", "btn3": "#f472b6",
-        "txt1": "#ffffff", "txt2": "#1e1b4b", "txt3": "#1e1b4b", "type": "TECH"
+        "txt1": "#ffffff", "txt2": "#1e1b4b", "txt3": "#ffffff", "type": "TECH"
     },
     "VOLTAGE": {
         "bg": "#0f172a", "accent1": "#a16207", "accent2": "#fde047", "muted": "#020617",
         "btn1": "#eab308", "btn2": "#ca8a04", "btn3": "#334155",
-        "txt1": "#facc15", "txt2": "#ffffff", "txt3": "#ca8a04", "type": "TECH"
+        "txt1": "#cd9c0a", "txt2": "#ffffff", "txt3": "#ca8a04", "type": "TECH"
     },
     "PASTEL": {
         "bg": "#ffffff", "accent1": "#db2777", "accent2": "#f472b6", "muted": "#f5f5f4",
@@ -81,13 +81,13 @@ THEMES = {
         "txt1": "#fff7ed", "txt2": "#ffffff", "txt3": "#d3a392", "type": "DOUCEUR"
     },
     "MINT": {
-        "bg": "#f0fdf4", "accent1": "#15803d", "accent2": "#86efac", "muted": "#dcfce7",
+        "bg": "#f0fdf4", "accent1": "#0d9e00", "accent2": "#86efac", "muted": "#dcfce7",
         "btn1": "#4ade80", "btn2": "#166534", "btn3": "#22c55e",
         "txt1": "#064e3b", "txt2": "#ffffff", "txt3": "#16a34a", "type": "DOUCEUR"
     },
     "GAMEBOY": {
         "bg": "#cadc9f", "accent1": "#306230", "accent2": "#8bac0f", "muted": "#b8cc8a",
-        "btn1": "#8bac0f", "btn2": "#306230", "btn3": "#9bbc0f",
+        "btn1": "#8bac0f", "btn2": "#306230", "btn3": "#538058",
         "txt1": "#0f380f", "txt2": "#cadc9f", "txt3": "#306230", "type": "RÉTRO"
     },
     "ARCADE": {
@@ -106,8 +106,8 @@ THEMES = {
         "txt1": "#dbeafe", "txt2": "#ffffff", "txt3": "#60a5fa", "type": "RÉTRO"
     },
     "GOLD": {
-        "bg": "#0a0a0a", "accent1": "#854d0e", "accent2": "#fde047", "muted": "#000000",
-        "btn1": "#d4af37", "btn2": "#a16207", "btn3": "#404040",
+        "bg": "#5d5d5d", "accent1": "#854d0e", "accent2": "#fde047", "muted": "#000000",
+        "btn1": "#d4af37", "btn2": "#a16207", "btn3": "#281b1b",
         "txt1": "#d4af37", "txt2": "#ffffff", "txt3": "#f1e5ac", "type": "LUXE"
     },
     "AMETHYST": {
@@ -121,9 +121,9 @@ THEMES = {
         "txt1": "#ecfdf5", "txt2": "#ffffff", "txt3": "#064e3b", "type": "LUXE"
     },
     "OBSIDIAN": {
-        "bg": "#070509", "accent1": "#3b0764", "accent2": "#a855f7", "muted": "#030204",
+        "bg": "#070509", "accent1": "#3b0764", "accent2": "#a130c9", "muted": "#030204",
         "btn1": "#1a1221", "btn2": "#3b0764", "btn3": "#4d3a61",
-        "txt1": "#b38ef3", "txt2": "#ffffff", "txt3": "#1a1221", "type": "LUXE"
+        "txt1": "#b38ef3", "txt2": "#ffffff", "txt3": "#c862ff", "type": "LUXE"
     }
 }
 
