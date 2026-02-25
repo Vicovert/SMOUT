@@ -327,7 +327,7 @@ class PageMulti(tk.Frame):
 
     def _exec_request(self, method, path, data=None):
         try:
-            url = f"{FIREBASE_URL}{path}.json"
+            url = f"{FIREBASE_URL}lobbies/{path}.json" if not path.startswith("lobbies") else f"{FIREBASE_URL}{path}.json"
             if method == "patch": requests.patch(url, json=data, timeout=2)
             elif method == "put": requests.put(url, json=data, timeout=2)
             elif method == "delete": requests.delete(url, timeout=2)
@@ -482,13 +482,23 @@ class PageLobby(tk.Frame):
             s, players = data.get("settings", {}), data.get("players", {})
             host_id = s.get("host_id")
             self.controller.is_host = (host_id == self.controller.player_id)
+            
             if not self.controller.is_host:
                 self.s_rounds.set_val(s.get("rounds", 3))
                 self.s_essais.set_val(s.get("essais", 6))
                 self.s_len.set_vals(s.get("min", 6), s.get("max", 10))
                 self.s_time.set_val(s.get("timer", 180))
+            
             if data.get("status") == "playing":
-                self.controller.settings_config.update({"target_word": s.get("target_word"), "essais": s.get("essais"), "round_num": 1, "rounds": s.get("rounds"), "timer": s.get("timer")})
+                self.active_sync = False
+                self.controller.settings_config.update({
+                    "target_word": s.get("target_word"), 
+                    "essais": s.get("essais"), 
+                    "round_num": s.get("current_round", 1), 
+                    "rounds": s.get("rounds"), 
+                    "timer": s.get("timer"),
+                    "start_time": s.get("start_time")
+                })
                 self.controller.show_frame("PageJeu"); return
             
             p_ids = list(players.keys())
@@ -511,15 +521,23 @@ class PageLobby(tk.Frame):
     def quitter(self): self.active_sync = False; self.controller.quitter_lobby_logic(); self.controller.show_frame("PageAccueil")
 
     def lancer(self):
-        mi, ma = self.s_len.get_values(); f = [m for m in self.controller.liste_mots if mi <= len(m) <= ma]
-        mot = random.choice(f if f else self.controller.liste_mots); sc = self.controller.settings_config
+        mi, ma = self.s_len.get_values()
+        f = [m for m in self.controller.liste_mots if mi <= len(m) <= ma]
+        mot = random.choice(f if f else self.controller.liste_mots)
+        sc = self.controller.settings_config
+        
         s = {"target_word": mot, "rounds": self.s_rounds.get_value(), "current_round": 1, 
              "essais": self.s_essais.get_value(), "min": mi, "max": ma, 
              "timer": self.s_time.v, "host_id": self.controller.player_id, 
-             "password": sc["password"], "visible": sc["visible"]}
-        self.controller.settings_config.update(s)
-        self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", {"status": "playing", "settings": s})
-        self.controller.show_frame("PageJeu")
+             "password": sc["password"], "visible": sc["visible"],
+             "start_time": time.time()}
+        
+        self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", {
+            "status": "playing", 
+            "settings": s,
+            "match_data": None,
+            "fini_states": None
+        })
 
 class PageJeu(tk.Frame):
     def __init__(self, parent, controller):
@@ -543,6 +561,7 @@ class PageJeu(tk.Frame):
         conf = self.controller.settings_config
         self.mot = conf.get("target_word", "SMOUT")
         self.round_actuel = conf.get("round_num", 1)
+        self.start_time_round = conf.get("start_time", time.time())
         self.ligne, self.tape, self.fini_local, self.temps_restant = 0, [self.mot[0]], False, conf.get("timer", 180)
         self.statut_lettres = {l: "#052132" for l in ALPHABET}; self.boutons_clavier = {}
         
@@ -559,9 +578,13 @@ class PageJeu(tk.Frame):
         self.btn_def = tk.Label(self.msg_container, text="?", font=("Helvetica", 10, "bold", "underline"), bg=BLEU, fg=BLEU_C, cursor="hand2")
         self.btn_def.bind("<Button-1>", lambda e: webbrowser.open(f"https://www.google.com/search?q=D%C3%A9finition+du+mot+{self.mot}"))
         
-        self.creer_clavier(self.moi_side); btns = tk.Frame(self.moi_side, bg=BLEU); btns.pack(pady=10)
-        BoutonPro(btns, "VALIDER", self.valider, width=100, color="#22c55e").pack(side="left", padx=5)
-        BoutonPro(btns, "EFFACER", self.effacer, width=100, color="#94a3b8").pack(side="left", padx=5)
+        self.creer_clavier(self.moi_side)
+        self.btns_frame = tk.Frame(self.moi_side, bg=BLEU); self.btns_frame.pack(pady=10)
+        # On sauvegarde les références des boutons pour pouvoir les masquer plus tard
+        self.btn_valider = BoutonPro(self.btns_frame, "VALIDER", self.valider, width=100, color="#22c55e")
+        self.btn_valider.pack(side="left", padx=5)
+        self.btn_effacer = BoutonPro(self.btns_frame, "EFFACER", self.effacer, width=100, color="#94a3b8")
+        self.btn_effacer.pack(side="left", padx=5)
         
         self.adv_labels, self.adv_grids = {}, {}
         if data_match:
@@ -578,23 +601,40 @@ class PageJeu(tk.Frame):
         self.active_sync, self.timer_actif = True, True; self.update_timer(); self.ecouter_match(); self.controller.focus_set(); self.controller.bind("<Key>", self.clavier_physique); self.maj_affichage()
     
     def update_timer(self):
-        if self.temps_restant > 0 and self.timer_actif:
-            self.temps_restant -= 1; m, s = divmod(self.temps_restant, 60); self.lbl_timer.config(text=f"{m:02d}:{s:02d}", fg="white" if self.temps_restant > 30 else ROUGE); self.after(1000, self.update_timer)
-        elif self.temps_restant <= 0 and not self.fini_local: self.finir_round(False)
+        if not self.timer_actif: return
+        conf = self.controller.settings_config
+        duree_totale = int(conf.get("timer", 180))
+        maintenant = time.time()
+        ecoule = maintenant - self.start_time_round
+        self.temps_restant = max(0, int(duree_totale - ecoule))
+        m, s = divmod(self.temps_restant, 60)
+        self.lbl_timer.config(text=f"{m:02d}:{s:02d}", fg="white" if self.temps_restant > 30 else ROUGE)
+        if self.temps_restant <= 0:
+            if not self.fini_local: self.finir_round(False)
+        else:
+            self.after(500, self.update_timer)
     
     def ecouter_match(self):
         if not self.active_sync: return
         data = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}")
         if data:
-            if data.get("status") == "finished": self.controller.show_frame("PageScoreFinal"); return
+            if data.get("status") == "finished": 
+                self.active_sync = False
+                self.controller.show_frame("PageScoreFinal"); return
             s, players = data.get("settings", {}), data.get("players", {})
             self.controller.is_host = (s.get("host_id") == self.controller.player_id)
-            if int(s.get("current_round", 1)) > self.round_actuel: 
-                self.controller.settings_config.update({"target_word": s.get("target_word"), "round_num": int(s["current_round"])})
+            if int(s.get("current_round", 1)) > int(self.round_actuel): 
+                self.active_sync = False
+                self.controller.settings_config.update({
+                    "target_word": s.get("target_word"), 
+                    "round_num": int(s["current_round"]),
+                    "start_time": s.get("start_time")
+                })
                 self.initialiser_partie(); return
             self.lbl_scores.config(text=" | ".join([f"{p['name']}: {p['score']}" for p in players.values()]))
             self.lbl_info.config(text=f"ROUND {s.get('current_round')} / {s.get('rounds')}")
-            fini_raw = data.get("fini_states") or {}; fini_ids = [k for k,v in fini_raw.items() if v] if isinstance(fini_raw, dict) else []
+            fini_raw = data.get("fini_states") or {}
+            fini_ids = [k for k,v in fini_raw.items() if v] if isinstance(fini_raw, dict) else []
             if len(fini_ids) >= len(players): self.timer_actif = False
             m_data = data.get("match_data", {})
             for pid, grid in self.adv_grids.items():
@@ -608,15 +648,13 @@ class PageJeu(tk.Frame):
                                 for c_idx, coul in enumerate(content.get("c", [])): grid[l_idx][c_idx].config(bg=coul, fg=get_txt_color(coul), highlightbackground=GRILLE)
                                 if self.fini_local: [grid[l_idx][c_idx].config(text=char) for c_idx, char in enumerate(content.get("l", []))]
                 else:
-                    self.adv_labels[pid].config(text=f"{self.adv_labels[pid].cget('text').split(' ')[0]} (DÉCONNECTÉ)", fg=GRIS_LIGHT)
-                    for row in grid:
-                        for lbl in row: lbl.config(bg=GRIS_LIGHT)
+                    self.adv_labels[pid].config(text=f"{self.adv_labels[pid].cget('text').split(' ')[0]} (PARTI)", fg=GRIS_LIGHT)
             if self.fini_local:
                 if len(fini_ids) >= len(players):
                     self.lbl_msg.config(text=f"LE MOT ÉTAIT : {self.mot} ", fg=JAUNE)
                     self.btn_def.pack(side="left")
                     if self.controller.is_host:
-                        txt = "VOIR LES RÉSULTATS" if int(s['current_round']) == int(s['rounds']) else "ROUND SUIVANT"; self.btn_next.set_text(txt); self.btn_next.pack(pady=15)
+                        txt = "VOIR LES RÉSULTATS" if int(s['current_round']) >= int(s['rounds']) else "ROUND SUIVANT"; self.btn_next.set_text(txt); self.btn_next.pack(pady=15)
                 else: self.lbl_msg.config(text=f"EN ATTENTE DES AUTRES... ({len(fini_ids)}/{len(players)})", fg=BLEU_C)
         self.after(800, self.ecouter_match)
     
@@ -637,7 +675,6 @@ class PageJeu(tk.Frame):
             elif res[i] == GRIS_LIGHT and cur not in [ROUGE, JAUNE]: self.statut_lettres[char] = GRIS_LIGHT
         self.maj_clavier()
         for i, c in enumerate(res): self.labels_moi[self.ligne][i].config(bg=c, fg=get_txt_color(c))
-        self.update_idletasks()
         self.controller.fb_put(f"lobbies/{self.controller.lobby_code}/match_data/{self.controller.player_id}/{self.ligne}", {"c": res, "l": self.tape})
         if t == self.mot: self.finir_round(True)
         elif self.ligne >= self.controller.settings_config["essais"]-1: self.finir_round(False)
@@ -648,19 +685,35 @@ class PageJeu(tk.Frame):
     
     def finir_round(self, vic):
         self.fini_local = True
+        # On fait disparaître les boutons d'action
+        self.btn_valider.pack_forget()
+        self.btn_effacer.pack_forget()
         if vic:
             p = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}")
             self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}", {"score": (p.get("score") or 0) + 1})
         self.controller.fb_put(f"lobbies/{self.controller.lobby_code}/fini_states/{self.controller.player_id}", True)
     
     def clic_suivant(self):
-        self.btn_next.pack_forget(); data = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}"); s = data["settings"]
+        self.btn_next.pack_forget()
+        data = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}")
+        if not data: return
+        s = data["settings"]
         if int(s["current_round"]) < int(s["rounds"]):
-            self.controller.fb_delete(f"lobbies/{self.controller.lobby_code}/match_data"); self.controller.fb_delete(f"lobbies/{self.controller.lobby_code}/fini_states")
-            f = [m for m in self.controller.liste_mots if s["min"] <= len(m) <= s["max"]]
-            s.update({"target_word": random.choice(f if f else self.controller.liste_mots), "current_round": int(s["current_round"])+1})
-            self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", {"settings": s, "status": "playing"})
-        else: self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", {"status": "finished"})
+            f = [m for m in self.controller.liste_mots if int(s["min"]) <= len(m) <= int(s["max"])]
+            n_mot = random.choice(f if f else self.controller.liste_mots)
+            s.update({
+                "target_word": n_mot, 
+                "current_round": int(s["current_round"])+1,
+                "start_time": time.time()
+            })
+            self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", {
+                "settings": s, 
+                "status": "playing",
+                "match_data": None,
+                "fini_states": None
+            })
+        else:
+            self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", {"status": "finished"})
     
     def clavier_physique(self, e):
         if self.fini_local: return
@@ -738,12 +791,13 @@ class PageScoreFinal(tk.Frame):
         self.after(1000, self.ecouter_fin)
 
     def retour_lobby_host(self):
-        self.active_sync = False; data = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}")
+        data = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}")
         if data:
             players = data.get("players", {})
             for pid in players: players[pid]["score"] = 0
-            self.controller.fb_delete(f"lobbies/{self.controller.lobby_code}/match_data")
-            self.controller.fb_delete(f"lobbies/{self.controller.lobby_code}/fini_states")
-            try: requests.patch(f"{FIREBASE_URL}lobbies/{self.controller.lobby_code}.json", json={"status": "waiting", "players": players}, timeout=2)
-            except: pass
-            self.controller.show_frame("PageLobby")
+            self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", {
+                "status": "waiting", 
+                "players": players,
+                "match_data": None,
+                "fini_states": None
+            })

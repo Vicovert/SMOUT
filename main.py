@@ -6,7 +6,7 @@ from page_multi import PageMulti, LogoSmout, apply_theme_multi
 # --- CONFIGURATION DES THÈMES (accent1 contrasté, accent2 clair, muted = nuance du bg) ---
 THEMES = {
     # CLASSIQUE
-    "SMOUT CLASSIC": {"bg": "#0a4160", "accent1": "#dc2626", "accent2": "#fde047", "highlight": "#0ea5e9", "muted": "#1a5170", "type": "CLASSIQUE"},
+    "SMOUT CLASSIC": {"bg": "#084b60", "accent1": "#db3a34", "accent2": "#f7b735", "highlight": "#0ea5e9", "muted": "#1a5170", "type": "CLASSIQUE"},
     "MIDNIGHT": {"bg": "#09090b", "accent1": "#ef4444", "accent2": "#fca5a5", "highlight": "#3f3f46", "muted": "#1a1a1c", "type": "CLASSIQUE"},
     "ARCTIC": {"bg": "#f0f9ff", "accent1": "#0369a1", "accent2": "#7dd3fc", "highlight": "#bae6fd", "muted": "#e0f2fe", "type": "CLASSIQUE"},
     "SLATE": {"bg": "#0f172a", "accent1": "#3b82f6", "accent2": "#93c5fd", "highlight": "#334155", "muted": "#1e293b", "type": "CLASSIQUE"},
