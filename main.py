@@ -127,10 +127,14 @@ THEMES = {
     }
 }
 
+def hex_to_rgb(hex_color):
+    """Utilitaire central de conversion"""
+    hex_color = hex_color.lstrip('#')
+    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+
 def get_contrast_color(hex_color):
     try:
-        hex_color = hex_color.lstrip('#')
-        r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
+        r, g, b = hex_to_rgb(hex_color)
         luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
         return "#f8fafc" if luminance < 0.6 else "#0f172a"
     except: return "white"
@@ -196,9 +200,9 @@ class BoutonSquare(tk.Canvas):
     def draw_button(self, color, text_color=None, bg_color=None):
         self.delete("all")
         if bg_color: self.configure(bg=bg_color)
-        r, g, b = self._hex_to_rgb(color)
-        lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-        self.hover_color = self._adjust_color(color, 0.85 if lum > 0.7 else 1.2)
+        rgb = hex_to_rgb(color)
+        lum = (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255
+        self.hover_color = self._adjust_color(rgb, 0.85 if lum > 0.7 else 1.2)
         self.rect = self.draw_round_rect(4, 4, self.width-4, self.height-4, 15, fill=color)
         f_size = 9 if (self.height < 100) else 12
         t_col = text_color if text_color else get_contrast_color(color)
@@ -206,15 +210,10 @@ class BoutonSquare(tk.Canvas):
         self.bind("<Enter>", lambda e: self.itemconfig(self.rect, fill=self.hover_color))
         self.bind("<Leave>", lambda e: self.itemconfig(self.rect, fill=color))
 
-    def _hex_to_rgb(self, hex_color):
-        hex_color = hex_color.lstrip('#')
-        return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-
-    def _adjust_color(self, hex_color, factor):
+    def _adjust_color(self, rgb, factor):
         try:
-            rgb = self._hex_to_rgb(hex_color)
             return '#{:02x}{:02x}{:02x}'.format(*[min(255, max(0, int(c * factor))) for c in rgb])
-        except: return hex_color
+        except: return '#000000'
 
     def draw_round_rect(self, x1, y1, x2, y2, r, **kwargs):
         p = [x1+r,y1, x1+r,y1, x2-r,y1, x2-r,y1, x2,y1, x2,y1+r, x2,y1+r, x2,y2-r, x2,y2-r, x2,y2, x2-r,y2, x2-r,y2, x1+r,y2, x1+r,y2, x1,y2, x1,y2-r, x1,y2-r, x1,y1+r, x1,y1+r, x1,y1]
@@ -293,17 +292,13 @@ class PageCustomTheme(tk.Frame):
 
     def select_prop(self, key):
         self.selected_key = key
-        # On met à jour le code hex dans le champ pour la nouvelle propriété
         self.hex_var.set(self.current_custom[key])
         for k, b in self.boxes.items(): b.config(highlightbackground="white" if k == key else self.controller.current_txt1)
 
     def on_hex_edit(self, *args):
-        """Appelé quand le texte hex est modifié manuellement"""
         val = self.hex_var.get().strip()
-        # Validation simple format hex
         if len(val) == 7 and val.startswith('#'):
             try:
-                # Test si c'est une couleur valide
                 self.preview_frame.winfo_rgb(val)
                 self.update_color(val, from_entry=True)
             except: pass
@@ -311,9 +306,7 @@ class PageCustomTheme(tk.Frame):
     def update_color(self, hex_col, from_entry=False):
         self.current_custom[self.selected_key] = hex_col
         self.boxes[self.selected_key].config(bg=hex_col)
-        # Si ça vient du nuancier, on met à jour le champ hex
-        if not from_entry:
-            self.hex_var.set(hex_col)
+        if not from_entry: self.hex_var.set(hex_col)
         self._refresh_preview()
 
     def _refresh_preview(self):
@@ -346,8 +339,7 @@ class PageSkins(tk.Frame):
         for name, data in THEMES.items():
             cat = data.get("type", "CLASSIQUE")
             if cat == "PERSO": perso_count += 1
-            if cat not in cat_data: cat_data[cat] = []
-            cat_data[cat].append((name, data))
+            cat_data.setdefault(cat, []).append((name, data))
         for cat_name, themes in cat_data.items():
             r, c = layout_map.get(cat_name, (0, 0))
             cat_frame = tk.Frame(main_grid, bg=B_IMPORT, padx=20, pady=10)
