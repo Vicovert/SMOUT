@@ -26,7 +26,6 @@ def resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 def get_txt_color(hex_color):
-    """Calcule si le texte doit être blanc ou noir selon la luminosité du fond"""
     try:
         hex_color = hex_color.lstrip('#')
         r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
@@ -34,7 +33,6 @@ def get_txt_color(hex_color):
     except: return "white"
 
 def adjust_color(hex_color, factor):
-    """Utilitaire de couleur partagé"""
     try:
         hex_color = hex_color.lstrip('#')
         rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
@@ -186,6 +184,7 @@ class PageMulti(tk.Frame):
         self.player_id = str(random.randint(100000, 999999))
         self.pseudo = self.charger_pseudo_local()
         self.lobby_code, self.is_host, self.current_score = "", False, 0
+        self.server_time_offset = 0 # Pour ajuster l'horloge
         self.settings_config = {"essais": 6, "min": 6, "max": 10, "round_num": 1, "timer": 180, "password": "", "visible": True}
         self.charger_mots()
         self.container = tk.Frame(self, bg=BG); self.container.pack(fill="both", expand=True)
@@ -197,7 +196,8 @@ class PageMulti(tk.Frame):
 
     def start_heartbeat(self):
         if self.heartbeat_active and self.lobby_code:
-            self.fb_patch(f"lobbies/{self.lobby_code}/players/{self.player_id}", {"last_seen": time.time(), "name": self.pseudo, "score": self.current_score})
+            # Correction : Utilisation du timestamp serveur Firebase
+            self.fb_patch(f"lobbies/{self.lobby_code}/players/{self.player_id}", {"last_seen": {".sv": "timestamp"}, "name": self.pseudo, "score": self.current_score})
         if self.heartbeat_active: self.after(5000, self.start_heartbeat)
 
     def on_closing(self):
@@ -326,7 +326,7 @@ class PageCode(tk.Frame):
         self.pass_view = tk.Frame(self, bg=BG, highlightthickness=2, highlightbackground=ACCENT2)
         tk.Label(self.pass_view, text="MOT DE PASSE REQUIS", fg=TXT1, bg=BG, font=FONT_UI).pack(pady=10)
         self.e_pw = tk.Entry(self.pass_view, show="*", font=FONT_UI, justify="center"); self.e_pw.pack(pady=5, padx=20)
-        self.e_pw.bind("<Return>", lambda e: self.check_pw()) # Validation par touche Entrée ajoutée
+        self.e_pw.bind("<Return>", lambda e: self.check_pw()) 
         pb = tk.Frame(self.pass_view, bg=BG); pb.pack(pady=10)
         BoutonPro(pb, "VALIDER", self.check_pw, width=100, height=30, color="#22c55e").pack(side="left", padx=5)
         BoutonPro(pb, "ANNULER", lambda: self.pass_view.place_forget(), width=100, height=30, color=ACCENT1).pack(side="left", padx=5)
@@ -355,7 +355,7 @@ class PageCode(tk.Frame):
         self.pass_view.place_forget(); self.controller.is_host = False; d = self.controller.fb_get(f"lobbies/{code}")
         if d and len(d.get("players", {})) < 4:
             self.controller.lobby_code, self.controller.current_score = code, 0
-            self.controller.fb_patch(f"lobbies/{code}/players/{self.controller.player_id}", {"name": self.controller.pseudo, "score": 0, "last_seen": time.time()})
+            self.controller.fb_patch(f"lobbies/{code}/players/{self.controller.player_id}", {"name": self.controller.pseudo, "score": 0, "last_seen": {".sv": "timestamp"}})
             self.controller.show_frame("PageLobby")
 
 class PageLobby(tk.Frame):
@@ -385,35 +385,49 @@ class PageLobby(tk.Frame):
         self.active_sync = True; self.btn_lancer.pack_forget()
         if self.controller.is_host and not self.controller.lobby_code:
             self.controller.lobby_code = str(random.randint(1000, 9999)); sc = self.controller.settings_config
-            self.controller.fb_put(f"lobbies/{self.controller.lobby_code}", {"status": "waiting", "settings": {"rounds":3, "essais":6, "min":6, "max":10, "timer": 180, "host_id": self.controller.player_id, "password": sc["password"], "visible": sc["visible"]}, "players": {self.controller.player_id: {"name": self.controller.pseudo, "score": 0, "last_seen": time.time()}}})
+            self.controller.fb_put(f"lobbies/{self.controller.lobby_code}", {"status": "waiting", "settings": {"rounds":3, "essais":6, "min":6, "max":10, "timer": 180, "host_id": self.controller.player_id, "password": sc["password"], "visible": sc["visible"]}, "players": {self.controller.player_id: {"name": self.controller.pseudo, "score": 0, "last_seen": {".sv": "timestamp"}}}})
         self.lbl_code.config(text=self.controller.lobby_code); self.ecouter_lobby()
     
     def ecouter_lobby(self):
         if not self.active_sync: return
         d = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}")
         if d:
-            s, p, now = d.get("settings", {}), d.get("players", {}), time.time()
+            s, p = d.get("settings", {}), d.get("players", {})
+            # Correction : Obtenir l'heure du serveur Firebase (approximative via le heartbeat le plus récent)
+            server_now = max([pdat.get("last_seen", 0) for pdat in p.values()] + [0])
+            
             for pid, pdat in list(p.items()):
-                # On marque "DÉCONNECTÉ" après 8s sans signal, on supprime après 15s
-                if now - pdat.get("last_seen", 0) > 15: self.controller.fb_delete(f"lobbies/{self.controller.lobby_code}/players/{pid}"); del p[pid]
+                # Correction : Firebase envoie des ms, server_now est en ms
+                last_seen = pdat.get("last_seen", 0)
+                diff_sec = (server_now - last_seen) / 1000
+                
+                # On marque "DÉCONNECTÉ" après 12s, suppression après 25s pour être large
+                if server_now > 0 and diff_sec > 25: 
+                    self.controller.fb_delete(f"lobbies/{self.controller.lobby_code}/players/{pid}"); del p[pid]
+                    
             if not p: self.controller.fb_delete(f"lobbies/{self.controller.lobby_code}"); self.quitter(); return
+            
             hid = s.get("host_id")
             if hid not in p: hid = list(p.keys())[0]; self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/settings", {"host_id": hid})
             self.controller.is_host = (hid == self.controller.player_id)
+            
             if not self.controller.is_host:
                 self.s_rounds.set_val(s.get("rounds", 3)); self.s_essais.set_val(s.get("essais", 6)); self.s_len.set_vals(s.get("min", 6), s.get("max", 10)); self.s_time.set_val(s.get("timer", 180))
+            
             if d.get("status") == "playing":
                 self.active_sync = False; self.controller.settings_config.update({"target_word": s.get("target_word"), "essais": s.get("essais"), "round_num": s.get("current_round", 1), "rounds": s.get("rounds"), "timer": s.get("timer"), "start_time": s.get("start_time")})
                 self.controller.show_frame("PageJeu"); return
+                
             pids = list(p.keys())
             for i, slot in enumerate(self.player_slots):
                 if i < len(pids):
                     pid = pids[i]; n = p[pid]["name"]
                     if pid == hid: n += " 👑"
-                    # Ajout de la mention déconnecté si le heartbeat est vieux
-                    if now - p[pid].get("last_seen", 0) > 8: n += " (DÉCONNECTÉ)"
+                    last_seen = p[pid].get("last_seen", 0)
+                    if server_now > 0 and (server_now - last_seen)/1000 > 12: n += " (DÉCONNECTÉ)"
                     slot.config(text=n, fg=(TXT1 if "(DÉCONNECTÉ)" not in n else ACCENT1))
                 else: slot.config(text="VIDE", fg=TXT3)
+                
             if len(p) > 1:
                 self.lbl_status.config(text=f"🟢 {len(p)} JOUEURS", fg="#22c55e"); (self.btn_lancer.pack(pady=5) if self.controller.is_host else None)
             else: self.lbl_status.config(text="🔴 EN ATTENTE...", fg=ACCENT1); self.btn_lancer.pack_forget()
@@ -465,7 +479,7 @@ class PageJeu(tk.Frame):
         self.btn_valider = BoutonPro(bf, "VALIDER", self.valider, width=100, color="#22c55e"); self.btn_valider.pack(side="left", padx=5)
         self.btn_effacer = BoutonPro(bf, "EFFACER", self.effacer, width=100, color=BTN3); self.btn_effacer.pack(side="left", padx=5)
         
-        self.adv_labels = {} # Stockage des labels de noms pour mise à jour déconnexion
+        self.adv_labels = {} 
         self.adv_grids = {}
         if dm:
             for pid, p in dm.get("players", {}).items():
@@ -493,7 +507,11 @@ class PageJeu(tk.Frame):
     def traiter_match(self, d):
         if d.get("status") == "waiting": return
         if d.get("status") == "finished": self.active_sync = False; self.controller.show_frame("PageScoreFinal"); return
-        s, p, now = d.get("settings", {}), d.get("players", {}), time.time()
+        s, p = d.get("settings", {}), d.get("players", {})
+        
+        # Correction : Synchronisation du temps serveur ici aussi
+        server_now = max([pdat.get("last_seen", 0) for pdat in p.values()] + [0])
+        
         if int(s.get("current_round", 1)) > int(self.round_actuel): 
             self.active_sync = False; self.controller.settings_config.update({"target_word": s.get("target_word"), "round_num": int(s["current_round"]), "start_time": s.get("start_time")}); self.initialiser_partie(); return
         
@@ -501,11 +519,11 @@ class PageJeu(tk.Frame):
         self.lbl_scores.config(text=" | ".join([f"{v['name']}: {v.get('score', 0)}" for v in p.values()]))
         self.lbl_info.config(text=f"ROUND {s.get('current_round')} / {s.get('rounds')}")
         
-        # Mise à jour des noms adverses pour afficher la déconnexion
         for pid, label in self.adv_labels.items():
             if pid in p:
                 n = p[pid]["name"] + (" 👑" if pid == hid else "")
-                if now - p[pid].get("last_seen", 0) > 8: n += " (DÉCONNECTÉ)"
+                last_seen = p[pid].get("last_seen", 0)
+                if server_now > 0 and (server_now - last_seen)/1000 > 12: n += " (DÉCONNECTÉ)"
                 label.config(text=n, fg=(TXT1 if "(DÉCONNECTÉ)" not in n else ACCENT1))
 
         fs = d.get("fini_states") or {}; fc = sum(1 for pid in p if fs.get(pid))
@@ -513,10 +531,13 @@ class PageJeu(tk.Frame):
         md = d.get("match_data", {})
         for pid, grid in self.adv_grids.items():
             if pid in md:
-                for l_idx, content in (md[pid].items() if isinstance(md[pid], dict) else enumerate(md[pid])):
-                    if content and int(l_idx) < len(grid):
-                        for c_idx, coul in enumerate(content.get("c", [])): grid[int(l_idx)][c_idx].config(bg=coul, fg=get_txt_color(coul))
-                        if self.fini_local: [grid[int(l_idx)][c_idx].config(text=char) for c_idx, char in enumerate(content.get("l", []))]
+                data_p = md[pid]
+                for l_idx in data_p:
+                    content = data_p[l_idx]
+                    idx = int(l_idx)
+                    if idx < len(grid):
+                        for c_idx, coul in enumerate(content.get("c", [])): grid[idx][c_idx].config(bg=coul, fg=get_txt_color(coul))
+                        if self.fini_local: [grid[idx][c_idx].config(text=char) for c_idx, char in enumerate(content.get("l", []))]
         if self.fini_local:
             if fc >= len(p):
                 self.lbl_msg.config(text=f"LE MOT ÉTAIT : {self.mot} ", fg=ACCENT2); self.btn_def.pack(side="left")
