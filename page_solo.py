@@ -20,16 +20,24 @@ def get_txt_color(hex_color):
         return "#1a1a1a" if luminance > 0.5 else "white"
     except: return "white"
 
+def adjust_color(hex_color, factor):
+    try:
+        hex_color = hex_color.lstrip('#')
+        rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+        return '#{:02x}{:02x}{:02x}'.format(*[min(255, max(0, int(c * factor))) for c in rgb])
+    except: return hex_color
+
 # --- CONFIGURATION DYNAMIQUE ---
 BG, ACCENT1, ACCENT2, MUTED = '#0a4160', '#ef4444', '#eab308', '#64748b'
 BTN1, BTN2, BTN3 = '#0ea5e9', '#ef4444', '#eab308'
 TXT1, TXT2, TXT3 = 'white', 'black', 'white'
 GRILLE = "#1a1a1a"
+KEY_BG = "#052132"
 FONT_MONO, FONT_UI = ("Courier", 24, "bold"), ("Helvetica", 12, "bold")
 ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 def apply_theme_solo(theme_data):
-    global BG, ACCENT1, ACCENT2, MUTED, BTN1, BTN2, BTN3, TXT1, TXT2, TXT3, GRILLE
+    global BG, ACCENT1, ACCENT2, MUTED, BTN1, BTN2, BTN3, TXT1, TXT2, TXT3, GRILLE, KEY_BG
     BG = theme_data["bg"]
     ACCENT1 = theme_data["accent1"]
     ACCENT2 = theme_data["accent2"]
@@ -41,17 +49,23 @@ def apply_theme_solo(theme_data):
     TXT2 = theme_data["txt2"]
     TXT3 = theme_data["txt3"]
     GRILLE = TXT3
+    if get_txt_color(BG) == "white":
+        KEY_BG = adjust_color(BG, 1.4)
+    else:
+        KEY_BG = adjust_color(BG, 0.85)
 
 class BoutonPro(tk.Canvas):
     def __init__(self, parent, text, command, width=200, height=45, color="#f5deb3", hover_color=None):
-        super().__init__(parent, width=width, height=height, bg=parent["bg"], highlightthickness=0, cursor="hand2")
+        super().__init__(parent, width=width, height=height+4, bg=parent["bg"], highlightthickness=0, cursor="hand2")
         self.command, self.color = command, color
         self.hover_color = hover_color if hover_color else self._adjust_color(color, 1.2)
+        self.shadow = self.draw_round_rect(2, 6, width-2, height+2, 12, fill="#030f1e")
         self.rect = self.draw_round_rect(2, 2, width-2, height-2, 12, fill=color)
+        self.glow = self.create_line(15, 4, width-15, 4, fill=self._adjust_color(color, 1.35), width=2, capstyle="round")
         self.txt = self.create_text(width/2, height/2, text=text, fill=get_txt_color(color), font=FONT_UI)
         self.bind("<ButtonRelease-1>", self._on_release)
-        self.bind("<Enter>", lambda e: self.itemconfig(self.rect, fill=self.hover_color))
-        self.bind("<Leave>", lambda e: self.itemconfig(self.rect, fill=self.color))
+        self.bind("<Enter>", lambda e: [self.itemconfig(self.rect, fill=self.hover_color), self.itemconfig(self.glow, fill=self._adjust_color(self.hover_color, 1.2))])
+        self.bind("<Leave>", lambda e: [self.itemconfig(self.rect, fill=self.color), self.itemconfig(self.glow, fill=self._adjust_color(self.color, 1.35))])
     def _adjust_color(self, hex_color, factor):
         try:
             hex_color = hex_color.lstrip('#')
@@ -74,14 +88,19 @@ class LogoSmout(tk.Canvas):
         for i, char in enumerate(word):
             x = i * (tile_size + gap)
             p, s = 10, tile_size - 10
-            bg = ACCENT1 if char == "U" else ACCENT2
-            dark = self._adjust_color(bg, 0.7)
-            light = self._adjust_color(bg, 1.3)
-            self.draw_round_rect(x+p+6, p+10, x+s+6, s+10, 20, fill="#042f48")
+            if char in ["S", "M"]:
+                bg = "#e5a93b" # Gold
+                dark = "#8a6d1c"
+                light = "#ffd700"
+            else:
+                bg = "#e0e0e0" # Silver
+                dark = "#707070"
+                light = "#ffffff"
+            self.draw_round_rect(x+p+6, p+10, x+s+6, s+10, 20, fill="#030f1e")
             self.draw_round_rect(x+p, p+5, x+s, s+5, 20, fill=dark)
             self.draw_round_rect(x+p, p, x+s, s, 20, fill=bg)
             self.draw_round_rect(x+p+5, p+5, x+s-5, p+(s/2.5), 15, fill=light)
-            self.create_text(x+tile_size/2, tile_size/2, text=char, fill=get_txt_color(bg), font=("Verdana", int(tile_size*0.5), "bold"))
+            self.create_text(x+tile_size/2, tile_size/2, text=char, fill="#1a1a1a" if char not in ["S", "M"] else "white", font=("Verdana", int(tile_size*0.5), "bold"))
     
     def _adjust_color(self, hex_color, factor):
         try:
@@ -98,12 +117,12 @@ class LogoSmout(tk.Canvas):
 class EcranFin(tk.Frame):
     def __init__(self, parent, controller, rejouer_cmd, menu_cmd):
         super().__init__(parent, bg=BG); self.rejouer_cmd, self.menu_cmd = rejouer_cmd, menu_cmd
-        self.container = tk.Frame(self, bg="#052132", padx=40, pady=30, highlightbackground=BTN1, highlightthickness=2)
+        self.container = tk.Frame(self, bg=KEY_BG, padx=40, pady=30, highlightbackground=BTN1, highlightthickness=2)
         self.container.place(relx=0.5, rely=0.5, anchor="center")
-        self.lbl_titre = tk.Label(self.container, text="", font=("Arial Black", 28), bg="#052132")
-        self.lbl_stats = tk.Label(self.container, text="", font=FONT_UI, fg="white", bg="#052132")
-        self.resume_frame = tk.Frame(self.container, bg="#052132"); self.lbl_mot = tk.Label(self.container, text="", font=("Courier", 18, "bold"), bg="#052132")
-        self.btns_frame = tk.Frame(self.container, bg="#052132")
+        self.lbl_titre = tk.Label(self.container, text="", font=("Arial Black", 28), bg=KEY_BG)
+        self.lbl_stats = tk.Label(self.container, text="", font=FONT_UI, fg="white", bg=KEY_BG)
+        self.resume_frame = tk.Frame(self.container, bg=KEY_BG); self.lbl_mot = tk.Label(self.container, text="", font=("Courier", 18, "bold"), bg=KEY_BG)
+        self.btns_frame = tk.Frame(self.container, bg=KEY_BG)
         self.btn_rejouer = BoutonPro(self.btns_frame, "REJOUER", self._on_rejouer, width=140, color="#22c55e")
         self.btn_rejouer.pack(side="left", padx=10)
         BoutonPro(self.btns_frame, "ACCUEIL", self._on_menu, width=140, color=BTN3).pack(side="left", padx=10)
@@ -119,7 +138,7 @@ class EcranFin(tk.Frame):
         if historique_donnees:
             self.resume_frame.pack(pady=15)
             for ligne in historique_donnees:
-                row_f = tk.Frame(self.resume_frame, bg="#052132"); row_f.pack(pady=1)
+                row_f = tk.Frame(self.resume_frame, bg=KEY_BG); row_f.pack(pady=1)
                 for char, coul in ligne: tk.Label(row_f, text=char, bg=coul, fg=get_txt_color(coul), font=("Courier", 11, "bold"), width=2, height=1).pack(side="left", padx=1)
         self.lbl_mot.pack(pady=10); self.btns_frame.pack(pady=(10, 0))
         if mdj: self.btn_rejouer.pack_forget() 
@@ -197,6 +216,8 @@ class PageJeu(tk.Frame):
         self.label_score = tk.Label(header, text="SCORE: 0", fg=ACCENT2, bg=BG, font=FONT_UI); self.label_score.pack(side="right", padx=10)
         self.label_timer = tk.Label(header, text="00:00", fg=TXT1, bg=BG, font=FONT_UI); self.label_timer.pack(side="right", padx=10)
         self.grid_frame = tk.Frame(self.game_zone, bg=BG); self.grid_frame.pack(pady=10)
+        self.label_message = tk.Label(self.game_zone, text="", font=("Helvetica", 11, "bold"), fg=ACCENT1, bg=BG)
+        self.label_message.pack(pady=5)
         self.ligne_actuelle, self.mot_tape, self.grille_labels = 0, [self.mot[0]], []
         for l in range(self.nb_essais_partie):
             ligne = []
@@ -217,7 +238,11 @@ class PageJeu(tk.Frame):
     def valider(self):
         if len(self.mot_tape) != len(self.mot) or self.fini_local: return
         tentative = "".join(self.mot_tape)
-        if tentative not in self.controller.banque_verif and tentative != self.mot: self.penalite_dict += 100; return
+        if tentative not in self.controller.banque_verif and tentative != self.mot:
+            self.penalite_dict += 100
+            self.label_message.config(text="MOT INCONNU", fg=ACCENT1)
+            self.after(1000, lambda: self.label_message.config(text="") if not self.fini_local else None)
+            return
         res, secret = [MUTED]*len(self.mot), list(self.mot)
         for i in range(len(self.mot)):
             if self.mot_tape[i] == self.mot[i]: res[i], secret[i] = ACCENT1, None

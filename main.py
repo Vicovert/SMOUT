@@ -6,9 +6,9 @@ from page_multi import PageMulti, LogoSmout, apply_theme_multi
 # --- CONFIGURATION DES THÈMES ---
 THEMES = {
     "SMOUT CLASSIC": {
-        "bg": "#084b60", "accent1": "#db3a34", "accent2": "#f7b735", "muted": "#053d4f",
-        "btn1": "#f7b735", "btn2": "#db3a34", "btn3": "#0ea5e9", 
-        "txt1": "#ffffff", "txt2": "#084b60", "txt3": "#e0f2fe", "type": "CLASSIQUE"
+        "bg": "#0b1329", "accent1": "#b81d24", "accent2": "#d4af37", "muted": "#1e293b",
+        "btn1": "#d4af37", "btn2": "#b81d24", "btn3": "#475569", 
+        "txt1": "#ffffff", "txt2": "#ffffff", "txt3": "#94a3b8", "type": "CLASSIQUE"
     },
     "MIDNIGHT": {
         "bg": "#18181b", "accent1": "#ef4444", "accent2": "#fca5a5", "muted": "#09090b",
@@ -169,12 +169,12 @@ class ColorPickerWidget(tk.Frame):
 
     def _draw_sv_map(self):
         self.can_sv.delete("all")
-        for x in range(0, 200, 5):
-            for y in range(0, 200, 5):
+        for x in range(0, 200, 10):
+            for y in range(0, 200, 10):
                 s, v = x / 200, 1.0 - (y / 200)
                 rgb = colorsys.hsv_to_rgb(self.hue, s, v)
                 color = '#{:02x}{:02x}{:02x}'.format(int(rgb[0]*255), int(rgb[1]*255), int(rgb[2]*255))
-                self.can_sv.create_rectangle(x, y, x+5, y+5, fill=color, outline="")
+                self.can_sv.create_rectangle(x, y, x+10, y+10, fill=color, outline="")
 
     def _on_hue_click(self, event):
         self.hue = max(0, min(199, event.y)) / 200
@@ -190,12 +190,16 @@ class BoutonSquare(tk.Canvas):
     def __init__(self, parent, text, command, size=180, color="#f5deb3", is_wide=False, h_override=None, text_color=None):
         width = size * 2 + 60 if is_wide else size
         height = h_override if h_override else (60 if is_wide else size)
-        super().__init__(parent, width=width, height=height, bg=parent["bg"], highlightthickness=0, cursor="hand2")
+        super().__init__(parent, width=width, height=height+6, bg=parent["bg"], highlightthickness=0, cursor="hand2")
         self.command, self.color = command, color
         self.width, self.height = width, height
         self.text_val = text
         self.draw_button(color, text_color)
-        self.bind("<ButtonRelease-1>", lambda e: self.command())
+        self.bind("<ButtonRelease-1>", self._on_release)
+
+    def _on_release(self, e):
+        if 0 <= e.x <= self.winfo_width() and 0 <= e.y <= self.winfo_height():
+            self.command()
 
     def draw_button(self, color, text_color=None, bg_color=None):
         self.delete("all")
@@ -203,12 +207,14 @@ class BoutonSquare(tk.Canvas):
         rgb = hex_to_rgb(color)
         lum = (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255
         self.hover_color = self._adjust_color(rgb, 0.85 if lum > 0.7 else 1.2)
+        self.shadow = self.draw_round_rect(4, 8, self.width-4, self.height+4, 15, fill="#030f1e")
         self.rect = self.draw_round_rect(4, 4, self.width-4, self.height-4, 15, fill=color)
+        self.glow = self.create_line(15, 6, self.width-15, 6, fill=self._adjust_color(rgb, 1.35), width=2, capstyle="round")
         f_size = 9 if (self.height < 100) else 12
         t_col = text_color if text_color else get_contrast_color(color)
         self.create_text(self.width/2, self.height/2, text=self.text_val, fill=t_col, font=("Helvetica", f_size, "bold"), width=self.width-20, justify="center")
-        self.bind("<Enter>", lambda e: self.itemconfig(self.rect, fill=self.hover_color))
-        self.bind("<Leave>", lambda e: self.itemconfig(self.rect, fill=color))
+        self.bind("<Enter>", lambda e: [self.itemconfig(self.rect, fill=self.hover_color), self.itemconfig(self.glow, fill=self._adjust_color(hex_to_rgb(self.hover_color), 1.2))])
+        self.bind("<Leave>", lambda e: [self.itemconfig(self.rect, fill=color), self.itemconfig(self.glow, fill=self._adjust_color(rgb, 1.35))])
 
     def _adjust_color(self, rgb, factor):
         try:
@@ -307,17 +313,40 @@ class PageCustomTheme(tk.Frame):
         self.current_custom[self.selected_key] = hex_col
         self.boxes[self.selected_key].config(bg=hex_col)
         if not from_entry: self.hex_var.set(hex_col)
-        self._refresh_preview()
+        self._refresh_preview(self.selected_key)
 
-    def _refresh_preview(self):
-        self.preview_frame.config(bg=self.current_custom["bg"])
-        self.grid_frame.config(bg=self.current_custom["bg"])
-        self.prev_title.config(bg=self.current_custom["bg"], fg=self.current_custom["txt1"])
-        self.prev_info.config(bg=self.current_custom["bg"], fg=self.current_custom["txt3"])
-        for cell, key in self.grid_cells: cell.config(bg=self.current_custom[key], fg=self.current_custom["txt1"])
-        self.prev_btn1.draw_button(self.current_custom["btn1"], self.current_custom["txt2"], bg_color=self.current_custom["bg"])
-        self.prev_btn2.draw_button(self.current_custom["btn2"], self.current_custom["txt2"], bg_color=self.current_custom["bg"])
-        self.prev_btn3.draw_button(self.current_custom["btn3"], self.current_custom["txt2"], bg_color=self.current_custom["bg"])
+    def _refresh_preview(self, target_key=None):
+        if target_key is None or target_key == "bg":
+            self.preview_frame.config(bg=self.current_custom["bg"])
+            self.grid_frame.config(bg=self.current_custom["bg"])
+            self.prev_title.config(bg=self.current_custom["bg"])
+            self.prev_info.config(bg=self.current_custom["bg"])
+            self.prev_btn1.draw_button(self.current_custom["btn1"], self.current_custom["txt2"], bg_color=self.current_custom["bg"])
+            self.prev_btn2.draw_button(self.current_custom["btn2"], self.current_custom["txt2"], bg_color=self.current_custom["bg"])
+            self.prev_btn3.draw_button(self.current_custom["btn3"], self.current_custom["txt2"], bg_color=self.current_custom["bg"])
+        
+        if target_key is None or target_key == "txt1":
+            self.prev_title.config(fg=self.current_custom["txt1"])
+            for cell, key in self.grid_cells:
+                if key in ["accent1", "accent2", "muted"]:
+                    cell.config(fg=self.current_custom["txt1"])
+
+        if target_key is None or target_key == "txt3":
+            self.prev_info.config(fg=self.current_custom["txt3"])
+
+        if target_key is None or target_key in ["accent1", "accent2", "muted"]:
+            for cell, key in self.grid_cells:
+                if key == target_key or target_key is None:
+                    cell.config(bg=self.current_custom[key])
+
+        if target_key is None or target_key == "btn1" or target_key == "txt2":
+            self.prev_btn1.draw_button(self.current_custom["btn1"], self.current_custom["txt2"], bg_color=self.current_custom["bg"])
+
+        if target_key is None or target_key == "btn2" or target_key == "txt2":
+            self.prev_btn2.draw_button(self.current_custom["btn2"], self.current_custom["txt2"], bg_color=self.current_custom["bg"])
+
+        if target_key is None or target_key == "btn3" or target_key == "txt2":
+            self.prev_btn3.draw_button(self.current_custom["btn3"], self.current_custom["txt2"], bg_color=self.current_custom["bg"])
 
     def save(self):
         name = self.name_entry.get().strip().upper()
@@ -438,6 +467,7 @@ class MenuPrincipal(tk.Tk):
             with open(self.config_path, 'w') as f: json.dump(data, f)
 
     def creer_menu_accueil(self):
+        self.protocol("WM_DELETE_WINDOW", self.quitter_jeu)
         for widget in self.container.winfo_children(): widget.destroy()
         from page_multi import BG, BTN1, BTN2, BTN3, TXT2
         main_frame = tk.Frame(self.container, bg=BG); main_frame.place(relx=0.5, rely=0.5, anchor="center")
