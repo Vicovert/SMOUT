@@ -16,11 +16,13 @@ jobs:
           - os: windows-latest
             asset_name: windows-artifact
             icon_file: "fichiers/logo.ico"
-            suffix: ".exe"
+            build_suffix: "_WINDOWS"
+            file_to_upload: "_WINDOWS.exe"
           - os: ubuntu-latest
             asset_name: linux-artifact
             icon_file: "fichiers/logo.ico"
-            suffix: ""
+            build_suffix: "_LINUX"
+            file_to_upload: "_LINUX.tar.gz"
     permissions:
       contents: write
 
@@ -62,21 +64,23 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: |
           # Utilisation de guillemets pour gérer l'espace dans le nom
-          python -m PyInstaller --noconsole --onefile --add-data "fichiers;fichiers" --icon="${{ matrix.icon_file }}" --name "${{ steps.vars.outputs.full_name }}" main.py
+          python -m PyInstaller --noconsole --onefile --add-data "fichiers;fichiers" --icon="${{ matrix.icon_file }}" --name "${{ steps.vars.outputs.full_name }}${{ matrix.build_suffix }}" main.py
 
       - name: Build with PyInstaller (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: |
           # Séparateur ":" pour Linux et ajout des droits d'exécution
-          python -m PyInstaller --noconsole --onefile --add-data "fichiers:fichiers" --icon="${{ matrix.icon_file }}" --name "${{ steps.vars.outputs.full_name }}" main.py
-          chmod +x "dist/${{ steps.vars.outputs.full_name }}"
+          python -m PyInstaller --noconsole --onefile --add-data "fichiers:fichiers" --icon="${{ matrix.icon_file }}" --name "${{ steps.vars.outputs.full_name }}${{ matrix.build_suffix }}" main.py
+          chmod +x "dist/${{ steps.vars.outputs.full_name }}${{ matrix.build_suffix }}"
+          # Compresse en tar.gz pour conserver les permissions d'exécution sous Linux
+          tar -czf "dist/${{ steps.vars.outputs.full_name }}${{ matrix.file_to_upload }}" -C dist "${{ steps.vars.outputs.full_name }}${{ matrix.build_suffix }}"
         shell: bash
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset_name }}
-          path: dist/${{ steps.vars.outputs.full_name }}${{ matrix.suffix }}
+          path: dist/${{ steps.vars.outputs.full_name }}${{ matrix.file_to_upload }}
           if-no-files-found: error
 
   release:
