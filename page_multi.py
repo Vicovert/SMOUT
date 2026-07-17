@@ -250,21 +250,39 @@ class PageMulti(tk.Frame):
         if exit_mode: t.join(1.0)
 
     def charger_pseudo_local(self):
-        p = os.path.join(os.getenv('APPDATA'), "SMOUT", "config.json")
+        # --- MODIFICATION CROSS-PLATFORM ---
+        if sys.platform == "win32":
+            dossier = os.path.join(os.getenv('APPDATA'), "SMOUT")
+        else:
+            dossier = os.path.join(os.path.expanduser("~"), ".config", "SMOUT")
+
+        p = os.path.join(dossier, "config.json")
         try:
-            with open(p, 'r') as f: return json.load(f).get("pseudo", "ANONYME")
-        except: return "ANONYME"
+            with open(p, 'r') as f:
+                return json.load(f).get("pseudo", "ANONYME")
+        except:
+            return "ANONYME"
 
     def sauver_pseudo_local(self, p):
         if not p: return
-        self.pseudo = p.upper(); d = os.path.join(os.getenv('APPDATA'), "SMOUT"); os.makedirs(d, exist_ok=True)
+        self.pseudo = p.upper()
+
+        # --- MODIFICATION CROSS-PLATFORM ---
+        if sys.platform == "win32":
+            d = os.path.join(os.getenv('APPDATA'), "SMOUT")
+        else:
+            d = os.path.join(os.path.expanduser("~"), ".config", "SMOUT")
+
+        os.makedirs(d, exist_ok=True)
         try:
             cfg = {}
             if os.path.exists(os.path.join(d, "config.json")):
                 with open(os.path.join(d, "config.json"), 'r') as f: cfg = json.load(f)
             cfg["pseudo"] = self.pseudo
-            with open(os.path.join(d, "config.json"), 'w') as f: json.dump(cfg, f)
-        except: pass
+            with open(os.path.join(d, "config.json"), 'w') as f:
+                json.dump(cfg, f)
+        except:
+            pass
 
     def charger_mots(self):
         def lire(nom):

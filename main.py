@@ -409,8 +409,16 @@ class PageSkins(tk.Frame):
 class MenuPrincipal(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("SMOUT"); self.geometry("1100x900")
-        self.config_dir = os.path.join(os.getenv('APPDATA'), "SMOUT")
+        self.title("SMOUT");
+        self.geometry("1100x900")
+
+        # --- MODIFICATION CROSS-PLATFORM ---
+        if sys.platform == "win32":
+            self.config_dir = os.path.join(os.getenv('APPDATA'), "SMOUT")
+        else:
+            # Pour Linux et Mac, on sauvegarde dans un dossier caché du répertoire utilisateur
+            self.config_dir = os.path.join(os.path.expanduser("~"), ".config", "SMOUT")
+
         self.config_path = os.path.join(self.config_dir, "config.json")
         self.current_theme_name = "SMOUT CLASSIC"
         self.charger_themes_personnalises()

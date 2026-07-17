@@ -2,9 +2,16 @@ import tkinter as tk
 from tkinter import messagebox as tkm
 import json, random, os, sys, time, datetime
 
+
 def get_data_path(filename):
-    app_dir = os.path.join(os.getenv('APPDATA'), 'SMOUT_Game')
-    if not os.path.exists(app_dir): os.makedirs(app_dir)
+    # --- MODIFICATION CROSS-PLATFORM ---
+    if sys.platform == "win32":
+        app_dir = os.path.join(os.getenv('APPDATA'), "SMOUT")
+    else:
+        app_dir = os.path.join(os.path.expanduser("~"), ".config", "SMOUT")
+
+    if not os.path.exists(app_dir):
+        os.makedirs(app_dir)
     return os.path.join(app_dir, filename)
 
 def resource_path(relative_path):
