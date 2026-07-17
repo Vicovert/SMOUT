@@ -17,9 +17,9 @@ jobs:
             asset_name: windows-artifact
             icon_file: "fichiers/logo.ico"
             suffix: ".exe"
-          - os: macos-latest
-            asset_name: macos-artifact
-            icon_file: "fichiers/logo.icns"
+          - os: ubuntu-latest
+            asset_name: linux-artifact
+            icon_file: "fichiers/logo.ico"
             suffix: ""
     permissions:
       contents: write
@@ -45,11 +45,17 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Install System Dependencies (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk
+        shell: bash
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install pyinstaller requests
-          if [ "${{ matrix.os }}" = "macos-latest" ]; then pip install pyobjc; fi
         shell: bash
 
       - name: Build with PyInstaller (Windows)
@@ -58,11 +64,11 @@ jobs:
           # Utilisation de guillemets pour gérer l'espace dans le nom
           python -m PyInstaller --noconsole --onefile --add-data "fichiers;fichiers" --icon="${{ matrix.icon_file }}" --name "${{ steps.vars.outputs.full_name }}" main.py
 
-      - name: Build with PyInstaller (macOS)
-        if: matrix.os == 'macos-latest'
+      - name: Build with PyInstaller (Linux)
+        if: matrix.os == 'ubuntu-latest'
         run: |
+          # Séparateur ":" pour Linux et ajout des droits d'exécution
           python -m PyInstaller --noconsole --onefile --add-data "fichiers:fichiers" --icon="${{ matrix.icon_file }}" --name "${{ steps.vars.outputs.full_name }}" main.py
-          # On force les permissions d'exécution sur le fichier final
           chmod +x "dist/${{ steps.vars.outputs.full_name }}"
         shell: bash
 
