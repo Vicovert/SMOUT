@@ -1,7 +1,7 @@
 import tkinter as tk
 import os, sys, json, colorsys
 from page_solo import PageSolo, apply_theme_solo
-from page_multi import PageMulti, LogoSmout, apply_theme_multi
+from page_multi import PageMulti, LogoSmout, apply_theme_multi 
 
 # --- CONFIGURATION DES THÈMES ---
 THEMES = {
