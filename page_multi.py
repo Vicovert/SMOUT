@@ -107,13 +107,13 @@ class TimeSelector(tk.Canvas):
         self.create_text(75, 55, text="-", fill=get_txt_color(ACCENT1), font=("Arial", 16, "bold"), tags="btn_m")
         self.btn_p = self.create_oval(230, 40, 260, 70, fill="#22c55e", outline="white", width=2, tags="btn_p")
         self.create_text(245, 55, text="+", fill="white", font=("Arial", 16, "bold"), tags="btn_p")
-        self.tag_bind("btn_m", "<Button-1>", lambda e: self._change(-30))
-        self.tag_bind("btn_p", "<Button-1>", lambda e: self._change(30))
+        self.tag_bind("btn_m", "<Button-1>", lambda e: self._change(-15))
+        self.tag_bind("btn_p", "<Button-1>", lambda e: self._change(15))
         self.update_display()
 
     def _change(self, delta):
         if not self.enabled: return
-        self.v = max(30, min(600, self.v + delta))
+        self.v = max(15, min(600, self.v + delta))
         self.update_display()
         if self.callback: self.callback(self.v)
         tag, old_col = ("btn_m", ACCENT1) if delta < 0 else ("btn_p", "#22c55e")
@@ -447,7 +447,7 @@ class PageLobby(tk.Frame):
             self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/settings", {"rounds": self.s_rounds.get_value(), "essais": self.s_essais.get_value(), "min": mi, "max": ma, "timer": self.s_time.v, "host_id": self.controller.player_id, "password": sc["password"], "visible": sc["visible"]})
     
     def entrer_lobby(self):
-        self.active_sync = True; self.btn_lancer.pack_forget()
+        self.active_sync = True; self.btn_lancer.pack_forget(); self.controller.current_score = 0
         if self.controller.is_host and not self.controller.lobby_code:
             self.controller.lobby_code = str(random.randint(1000, 9999)); sc = self.controller.settings_config
             self.controller.fb_put(f"lobbies/{self.controller.lobby_code}", {"status": "waiting", "settings": {"rounds":3, "essais":6, "min":6, "max":10, "timer": 180, "host_id": self.controller.player_id, "password": sc["password"], "visible": sc["visible"]}, "players": {self.controller.player_id: {"name": self.controller.pseudo, "score": 0, "last_seen": {".sv": "timestamp"}}}})
@@ -529,6 +529,9 @@ class PageJeu(tk.Frame):
         [w.destroy() for w in self.moi_side.winfo_children() + self.adv_container.winfo_children()]
         conf = self.controller.settings_config
         self.mot, self.round_actuel, self.start_time_round = conf.get("target_word", "SMOUT"), conf.get("round_num", 1), conf.get("start_time", time.time())
+        if int(self.round_actuel) == 1:
+            self.controller.current_score = 0
+            self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}", {"score": 0})
         self.ligne, self.tape, self.fini_local, self.temps_restant = 0, [self.mot[0]], False, conf.get("timer", 180)
         self.statut_lettres, self.boutons_clavier = {l: KEY_BG for l in ALPHABET}, {}
         
@@ -635,11 +638,12 @@ class PageJeu(tk.Frame):
                         except (ValueError, TypeError):
                             pass
         if self.fini_local:
+            if not self.btn_def.winfo_ismapped(): self.btn_def.pack(side="left")
             if fc >= len(p):
-                self.lbl_msg.config(text=f"LE MOT ÉTAIT : {self.mot} ", fg=ACCENT2); self.btn_def.pack(side="left")
+                self.lbl_msg.config(text=f"LE MOT ÉTAIT : {self.mot} ", fg=ACCENT2)
                 if self.controller.is_host and not self.btn_next.winfo_ismapped():
                     self.btn_next.set_text("VOIR LES RÉSULTATS" if int(s['current_round']) >= int(s['rounds']) else "ROUND SUIVANT"); self.btn_next.pack(pady=15)
-            else: self.lbl_msg.config(text=f"ATTENTE... ({fc}/{len(p)})", fg=BTN1)
+            else: self.lbl_msg.config(text=f"ATTENTE... ({fc}/{len(p)}) ", fg=BTN1)
 
     def update_timer(self):
         if not self.timer_actif: return
@@ -677,6 +681,7 @@ class PageJeu(tk.Frame):
         self.winfo_toplevel().unbind("<Key>")
         if vic: self.controller.current_score += 1; self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}", {"score": self.controller.current_score})
         self.controller.fb_put(f"lobbies/{self.controller.lobby_code}/fini_states/{self.controller.player_id}", True)
+        if not self.btn_def.winfo_ismapped(): self.btn_def.pack(side="left")
     
     def clic_suivant(self):
         self.btn_next.pack_forget(); d = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}")
@@ -751,7 +756,7 @@ class PageScoreFinal(tk.Frame):
     def ecouter_fin(self):
         if self.active_sync:
             d = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}")
-            if d and d.get("status") == "waiting": self.active_sync = False; self.controller.show_frame("PageLobby")
+            if d and d.get("status") == "waiting": self.active_sync = False; self.controller.current_score = 0; self.controller.show_frame("PageLobby")
             else: self.after(1000, self.ecouter_fin)
 
     def retour_lobby_host(self):
