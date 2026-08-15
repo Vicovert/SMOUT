@@ -75,38 +75,42 @@ class LogoSmout(tk.Canvas):
 class BoutonPro(tk.Canvas):
     def __init__(self, parent, text, command, width=200, height=45, color="#f5deb3", hover_color=None):
         super().__init__(parent, width=width, height=height+4, bg=parent["bg"], highlightthickness=0, cursor="hand2")
-        self.command, self.color = command, color
+        self.command, self.color, self.enabled = command, color, True
         self.hover_color = hover_color or adjust_color(color, 1.2)
         draw_round_rect_static(self, 2, 6, width-2, height+2, 12, fill="#030f1e", tags="shadow")
         self.rect = draw_round_rect_static(self, 2, 2, width-2, height-2, 12, fill=color, tags="face")
         self.glow = self.create_line(15, 5, width-15, 5, fill=adjust_color(color, 1.35), width=2, capstyle="round", tags="face")
         self.txt = self.create_text(width/2, height/2, text=text, fill=get_txt_color(color), font=FONT_UI, tags="face")
-        self.bind("<Button-1>", lambda e: self.move("face", 0, 2))
+        self.bind("<Button-1>", lambda e: self.move("face", 0, 2) if self.enabled else None)
         self.bind("<ButtonRelease-1>", self._on_release)
-        self.bind("<Enter>", lambda e: [self.itemconfig(self.rect, fill=self.hover_color), self.itemconfig(self.glow, fill=adjust_color(self.hover_color, 1.25))])
+        self.bind("<Enter>", lambda e: [self.itemconfig(self.rect, fill=self.hover_color), self.itemconfig(self.glow, fill=adjust_color(self.hover_color, 1.25))] if self.enabled else None)
         self.bind("<Leave>", lambda e: [self.itemconfig(self.rect, fill=self.color), self.itemconfig(self.glow, fill=adjust_color(self.color, 1.35))])
 
     def _on_release(self, e):
-        self.move("face", 0, -2)
-        if 0 <= e.x <= self.winfo_width() and 0 <= e.y <= self.winfo_height():
-            self.command()
+        if self.enabled:
+            self.move("face", 0, -2)
+            if 0 <= e.x <= self.winfo_width() and 0 <= e.y <= self.winfo_height():
+                self.command()
     def set_text(self, new_text): self.itemconfig(self.txt, text=new_text)
     def set_color(self, c, hc): 
         self.color, self.hover_color = c, (hc or adjust_color(c, 1.2))
         self.itemconfig(self.rect, fill=c); self.itemconfig(self.txt, fill=get_txt_color(c))
         self.itemconfig(self.glow, fill=adjust_color(c, 1.35))
+    def activer(self, s):
+        self.enabled = s
+        self.config(cursor="hand2" if s else "")
 
 class TimeSelector(tk.Canvas):
-    def __init__(self, parent, init_v, callback=None):
-        super().__init__(parent, width=320, height=90, bg=parent["bg"], highlightthickness=0, cursor="hand2")
+    def __init__(self, parent, init_v, callback=None, width=300):
+        super().__init__(parent, width=width, height=75, bg=parent["bg"], highlightthickness=0, cursor="hand2")
         self.v, self.callback, self.enabled = init_v, callback, True
-        self.create_text(160, 15, text="TEMPS PAR ROUND", fill=TXT1, font=("Helvetica", 9, "bold"))
-        draw_round_rect_static(self, 100, 35, 220, 75, 10, fill=KEY_BG)
-        self.txt_time = self.create_text(160, 55, text="00:00", fill=get_txt_color(KEY_BG), font=("Courier", 18, "bold"))
-        self.btn_m = self.create_oval(60, 40, 90, 70, fill=ACCENT1, outline="white", width=2, tags="btn_m")
-        self.create_text(75, 55, text="-", fill=get_txt_color(ACCENT1), font=("Arial", 16, "bold"), tags="btn_m")
-        self.btn_p = self.create_oval(230, 40, 260, 70, fill="#22c55e", outline="white", width=2, tags="btn_p")
-        self.create_text(245, 55, text="+", fill="white", font=("Arial", 16, "bold"), tags="btn_p")
+        self.create_text(width/2, 12, text="TEMPS PAR ROUND", fill=TXT1, font=("Helvetica", 9, "bold"))
+        draw_round_rect_static(self, width/2 - 50, 28, width/2 + 50, 62, 10, fill=KEY_BG)
+        self.txt_time = self.create_text(width/2, 45, text="00:00", fill=get_txt_color(KEY_BG), font=("Courier", 16, "bold"))
+        self.btn_m = self.create_oval(45, 30, 75, 60, fill=ACCENT1, outline="white", width=2, tags="btn_m")
+        self.create_text(60, 45, text="-", fill=get_txt_color(ACCENT1), font=("Arial", 16, "bold"), tags="btn_m")
+        self.btn_p = self.create_oval(width-75, 30, width-45, 60, fill="#22c55e", outline="white", width=2, tags="btn_p")
+        self.create_text(width-60, 45, text="+", fill="white", font=("Arial", 16, "bold"), tags="btn_p")
         self.tag_bind("btn_m", "<Button-1>", lambda e: self._change(-15))
         self.tag_bind("btn_p", "<Button-1>", lambda e: self._change(15))
         self.update_display()
@@ -121,7 +125,11 @@ class TimeSelector(tk.Canvas):
 
     def update_display(self):
         m, s = divmod(self.v, 60); self.itemconfig(self.txt_time, text=f"{m:02d}:{s:02d}")
-    def activer(self, s): self.enabled = s; self.itemconfig("btn_m", fill=ACCENT1 if s else MUTED); self.itemconfig("btn_p", fill="#22c55e" if s else MUTED)
+    def activer(self, s):
+        self.enabled = s
+        self.itemconfig("btn_m", fill=ACCENT1 if s else MUTED)
+        self.itemconfig("btn_p", fill="#22c55e" if s else MUTED)
+        self.config(cursor="hand2" if s else "")
     def set_val(self, v): self.v = v; self.update_display()
 
 class SingleSlider(tk.Canvas):
@@ -147,22 +155,25 @@ class SingleSlider(tk.Canvas):
     def update_pos(self):
         x = self.margin + ((self.v - self.min_v) / (self.max_v - self.min_v)) * self.bw
         self.coords(self.h, x-12, 28, x+12, 52); self.itemconfig(self.txt_val, text=str(self.v))
-    def activer(self, s): self.enabled = s; self.itemconfig(self.h, fill=BTN1 if s else MUTED)
+    def activer(self, s):
+        self.enabled = s
+        self.itemconfig(self.h, fill=BTN1 if s else MUTED)
+        self.config(cursor="hand2" if s else "")
     def set_val(self, v): self.v = v; self.update_pos()
     def get_value(self): return int(self.v)
 
 class RangeSlider(tk.Canvas):
     def __init__(self, parent, min_v, max_v, v1, v2, width=300, callback=None):
-        super().__init__(parent, width=width, height=80, bg=parent["bg"], highlightthickness=0, cursor="hand2")
+        super().__init__(parent, width=width, height=75, bg=parent["bg"], highlightthickness=0, cursor="hand2")
         self.min_v, self.max_v, self.v1, self.v2, self.callback, self.enabled = min_v, max_v, v1, v2, callback, True
         self.margin, self.bw, self.active_handle = 40, width - 80, None
         self.create_text(width/2, 12, text="TAILLE DU MOT", fill=TXT1, font=("Helvetica", 9, "bold"))
-        self.create_line(self.margin, 42, width-self.margin, 42, fill=KEY_BG, width=6, capstyle="round")
+        self.create_line(self.margin, 40, width-self.margin, 40, fill=KEY_BG, width=6, capstyle="round")
         for i in range(max_v - min_v + 1):
             x = self.margin + (i / (max_v - min_v)) * self.bw
-            self.create_oval(x-1, 41, x+1, 43, fill=TXT1)
+            self.create_oval(x-1, 39, x+1, 41, fill=TXT1)
         self.h1, self.h2 = self.create_oval(0,0,0,0, fill=ACCENT2, outline="white", width=2), self.create_oval(0,0,0,0, fill=ACCENT1, outline="white", width=2)
-        self.txt = self.create_text(width/2, 68, fill=TXT1, font=("Arial", 11, "bold"))
+        self.txt = self.create_text(width/2, 65, fill=TXT1, font=("Arial", 11, "bold"))
         self.update_pos(); self.bind("<Button-1>", self._start_move); self.bind("<B1-Motion>", self._move)
 
     def _start_move(self, e):
@@ -186,9 +197,13 @@ class RangeSlider(tk.Canvas):
 
     def update_pos(self):
         x1, x2 = [self.margin + ((v - self.min_v) / (self.max_v - self.min_v)) * self.bw for v in (self.v1, self.v2)]
-        self.coords(self.h1, x1-12, 30, x1+12, 54); self.coords(self.h2, x2-12, 30, x2+12, 54)
+        self.coords(self.h1, x1-12, 28, x1+12, 52); self.coords(self.h2, x2-12, 28, x2+12, 52)
         self.itemconfig(self.txt, text=f"{int(self.v1)} à {int(self.v2)} lettres")
-    def activer(self, s): self.enabled = s; self.itemconfig(self.h1, fill=ACCENT2 if s else MUTED); self.itemconfig(self.h2, fill=ACCENT1 if s else MUTED)
+    def activer(self, s):
+        self.enabled = s
+        self.itemconfig(self.h1, fill=ACCENT2 if s else MUTED)
+        self.itemconfig(self.h2, fill=ACCENT1 if s else MUTED)
+        self.config(cursor="hand2" if s else "")
     def set_vals(self, v1, v2): self.v1, self.v2 = v1, v2; self.update_pos()
     def get_values(self): return int(self.v1), int(self.v2)
 
@@ -426,6 +441,10 @@ class PageCode(tk.Frame):
 class PageLobby(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg=BG); self.controller, self.active_sync = controller, False
+        self.settings_classique = {"rounds": 3, "essais": 6, "min": 6, "max": 10, "timer": 180}
+        self.settings_blast = {"rounds": 3, "essais": 10, "min": 6, "max": 7, "timer": 60}
+        self.active_mode = "CLASSIQUE"
+        
         c = tk.Frame(self, bg=BG); c.place(relx=0.5, rely=0.5, anchor="center")
         tk.Label(c, text="SALLE D'ATTENTE", font=("Arial Black", 20), fg=TXT1, bg=BG).pack()
         self.lbl_code = tk.Label(c, text="----", font=("Courier", 55, "bold"), fg=ACCENT2, bg=KEY_BG, padx=25); self.lbl_code.pack(pady=15)
@@ -433,24 +452,98 @@ class PageLobby(tk.Frame):
         for i in range(4):
             f = tk.Frame(self.grid_p, bg=KEY_BG, width=120, height=50, highlightbackground=BTN1, highlightthickness=1); f.grid_propagate(False); f.grid(row=i//2, column=i%2, padx=5, pady=5)
             l = tk.Label(f, text="VIDE", font=("Helvetica", 10, "bold"), fg=TXT3, bg=KEY_BG); l.place(relx=0.5, rely=0.5, anchor="center"); self.player_slots.append(l)
-        fp = tk.Frame(c, bg=BG); fp.pack()
-        self.s_rounds, self.s_essais = SingleSlider(fp, 1, 10, 3, label="ROUNDS", callback=lambda v: self.sync_params()), SingleSlider(fp, 4, 10, 6, label="ESSAIS", callback=lambda v: self.sync_params())
-        self.s_len, self.s_time = RangeSlider(fp, 6, 10, 6, 10, callback=lambda v1, v2: self.sync_params()), TimeSelector(fp, 180, callback=lambda v: self.sync_params())
-        [s.pack() for s in [self.s_rounds, self.s_essais, self.s_len, self.s_time]]
+        self.fp = tk.Frame(c, bg=KEY_BG, highlightbackground=BTN1, highlightthickness=1, padx=15, pady=10)
+        self.fp.pack(pady=5)
+        self.lbl_param_badge = tk.Label(self.fp, text="⚙️ PARAMÈTRES DU MATCH", font=("Helvetica", 9, "bold"), fg=ACCENT2, bg=KEY_BG)
+        self.lbl_param_badge.pack(pady=(0, 6))
+
+        cols_f = tk.Frame(self.fp, bg=KEY_BG)
+        cols_f.pack()
+
+        col_l = tk.Frame(cols_f, bg=KEY_BG)
+        col_l.pack(side="left", padx=8, anchor="n")
+
+        box_mode = tk.Frame(col_l, bg=KEY_BG, highlightbackground=BTN1, highlightthickness=1, padx=6, pady=4)
+        box_mode.pack(pady=3, fill="x")
+        tk.Label(box_mode, text="MODE DE JEU", font=("Helvetica", 9, "bold"), fg=TXT1, bg=KEY_BG).pack(pady=(0, 2))
+        bm_f = tk.Frame(box_mode, bg=KEY_BG); bm_f.pack()
+        self.btn_mode_classique = BoutonPro(bm_f, "CLASSIQUE", lambda: self.set_mode("CLASSIQUE"), width=135, height=32, color=BTN1)
+        self.btn_mode_blast = BoutonPro(bm_f, "BLAST ⚡", lambda: self.set_mode("BLAST"), width=135, height=32, color="#475569")
+        self.btn_mode_classique.pack(side="left", padx=3)
+        self.btn_mode_blast.pack(side="left", padx=3)
+        self.lbl_mode_desc = tk.Label(box_mode, text="1pt par mot trouvé", font=("Helvetica", 8, "italic"), fg=TXT3, bg=KEY_BG)
+        self.lbl_mode_desc.pack(pady=(2, 0))
+
+        box_time = tk.Frame(col_l, bg=KEY_BG, highlightbackground=BTN1, highlightthickness=1, padx=4, pady=3)
+        box_time.pack(pady=3, fill="x")
+        self.s_time = TimeSelector(box_time, 180, callback=lambda v: self.sync_params())
+        self.s_time.pack()
+
+        box_rounds = tk.Frame(col_l, bg=KEY_BG, highlightbackground=BTN1, highlightthickness=1, padx=4, pady=3)
+        box_rounds.pack(pady=3, fill="x")
+        self.s_rounds = SingleSlider(box_rounds, 1, 10, 3, label="ROUNDS", callback=lambda v: self.sync_params())
+        self.s_rounds.pack()
+
+        col_r = tk.Frame(cols_f, bg=KEY_BG)
+        col_r.pack(side="left", padx=8, anchor="n")
+
+        box_essais = tk.Frame(col_r, bg=KEY_BG, highlightbackground=BTN1, highlightthickness=1, padx=4, pady=3)
+        box_essais.pack(pady=3, fill="x")
+        self.s_essais = SingleSlider(box_essais, 4, 10, 6, label="ESSAIS", callback=lambda v: self.sync_params())
+        self.s_essais.pack()
+
+        box_len = tk.Frame(col_r, bg=KEY_BG, highlightbackground=BTN1, highlightthickness=1, padx=4, pady=3)
+        box_len.pack(pady=3, fill="x")
+        self.s_len = RangeSlider(box_len, 6, 10, 6, 10, callback=lambda v1, v2: self.sync_params())
+        self.s_len.pack()
+
         self.lbl_status = tk.Label(c, text="EN ATTENTE...", font=FONT_UI, fg=ACCENT1, bg=BG); self.lbl_status.pack(pady=10)
         self.btn_lancer = BoutonPro(c, "LANCER LE MATCH", self.lancer, color="#22c55e", width=250)
         BoutonPro(c, "QUITTER LE LOBBY", self.quitter, color=BTN3, width=250).pack(pady=5)
     
+    def set_mode(self, mode):
+        if not self.controller.is_host: return
+        if self.active_mode == mode: return
+        
+        mi, ma = self.s_len.get_values()
+        curr = {"rounds": self.s_rounds.get_value(), "essais": self.s_essais.get_value(), "min": mi, "max": ma, "timer": self.s_time.v}
+        if self.active_mode == "CLASSIQUE": self.settings_classique.update(curr)
+        else: self.settings_blast.update(curr)
+        
+        self.active_mode = mode
+        self.controller.settings_config["game_mode"] = mode
+        
+        tgt = self.settings_classique if mode == "CLASSIQUE" else self.settings_blast
+        self.s_rounds.set_val(tgt.get("rounds", 3))
+        self.s_essais.set_val(tgt.get("essais", 6))
+        self.s_len.set_vals(tgt.get("min", 6), tgt.get("max", 10))
+        self.s_time.set_val(tgt.get("timer", 60 if mode == "BLAST" else 180))
+        
+        self.update_mode_ui(mode)
+        self.sync_params()
+
+    def update_mode_ui(self, mode):
+        if mode == "BLAST":
+            self.btn_mode_classique.set_color("#475569", None)
+            self.btn_mode_blast.set_color(ACCENT1, None)
+            self.lbl_mode_desc.config(text="Points par vitesse : 4pt, 3pt, 2pt, 1pt ⚡")
+        else:
+            self.btn_mode_classique.set_color(BTN1, None)
+            self.btn_mode_blast.set_color("#475569", None)
+            self.lbl_mode_desc.config(text="1pt par mot trouvé")
+
     def sync_params(self):
         if self.controller.is_host and self.active_sync:
             mi, ma = self.s_len.get_values(); sc = self.controller.settings_config
-            self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/settings", {"rounds": self.s_rounds.get_value(), "essais": self.s_essais.get_value(), "min": mi, "max": ma, "timer": self.s_time.v, "host_id": self.controller.player_id, "password": sc["password"], "visible": sc["visible"]})
+            mode = sc.get("game_mode", "CLASSIQUE")
+            self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/settings", {"game_mode": mode, "rounds": self.s_rounds.get_value(), "essais": self.s_essais.get_value(), "min": mi, "max": ma, "timer": self.s_time.v, "host_id": self.controller.player_id, "password": sc["password"], "visible": sc["visible"]})
     
     def entrer_lobby(self):
         self.active_sync = True; self.btn_lancer.pack_forget(); self.controller.current_score = 0
         if self.controller.is_host and not self.controller.lobby_code:
             self.controller.lobby_code = str(random.randint(1000, 9999)); sc = self.controller.settings_config
-            self.controller.fb_put(f"lobbies/{self.controller.lobby_code}", {"status": "waiting", "settings": {"rounds":3, "essais":6, "min":6, "max":10, "timer": 180, "host_id": self.controller.player_id, "password": sc["password"], "visible": sc["visible"]}, "players": {self.controller.player_id: {"name": self.controller.pseudo, "score": 0, "last_seen": {".sv": "timestamp"}}}})
+            mode = sc.get("game_mode", "CLASSIQUE")
+            self.controller.fb_put(f"lobbies/{self.controller.lobby_code}", {"status": "waiting", "settings": {"game_mode": mode, "rounds":3, "essais":6, "min":6, "max":10, "timer": 180, "host_id": self.controller.player_id, "password": sc["password"], "visible": sc["visible"]}, "players": {self.controller.player_id: {"name": self.controller.pseudo, "score": 0, "last_seen": {".sv": "timestamp"}}}})
         self.lbl_code.config(text=self.controller.lobby_code); self.ecouter_lobby()
     
     def ecouter_lobby(self):
@@ -458,15 +551,11 @@ class PageLobby(tk.Frame):
         d = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}")
         if d:
             s, p = d.get("settings", {}), d.get("players", {})
-            # Correction : Obtenir l'heure du serveur Firebase (approximative via le heartbeat le plus récent)
             server_now = max([pdat.get("last_seen", 0) for pdat in p.values()] + [0])
             
             for pid, pdat in list(p.items()):
-                # Correction : Firebase envoie des ms, server_now est en ms
                 last_seen = pdat.get("last_seen", 0)
                 diff_sec = (server_now - last_seen) / 1000
-                
-                # On marque "DÉCONNECTÉ" après 12s, suppression après 25s pour être large
                 if server_now > 0 and diff_sec > 25: 
                     self.controller.fb_delete(f"lobbies/{self.controller.lobby_code}/players/{pid}"); del p[pid]
                     
@@ -476,11 +565,21 @@ class PageLobby(tk.Frame):
             if hid not in p: hid = list(p.keys())[0]; self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/settings", {"host_id": hid})
             self.controller.is_host = (hid == self.controller.player_id)
             
+            if self.controller.is_host:
+                self.lbl_param_badge.config(text="⚙️ CONFIGURATION DU MATCH (HÔTE)", fg=ACCENT2)
+            else:
+                self.lbl_param_badge.config(text="🔒 CONFIGURATION DÉFINIE PAR L'HÔTE", fg=TXT1)
+
+            mode = s.get("game_mode", "CLASSIQUE")
+            self.active_mode = mode
+            self.controller.settings_config["game_mode"] = mode
+            self.update_mode_ui(mode)
+
             if not self.controller.is_host:
                 self.s_rounds.set_val(s.get("rounds", 3)); self.s_essais.set_val(s.get("essais", 6)); self.s_len.set_vals(s.get("min", 6), s.get("max", 10)); self.s_time.set_val(s.get("timer", 180))
             
             if d.get("status") == "playing":
-                self.active_sync = False; self.controller.settings_config.update({"target_word": s.get("target_word"), "essais": s.get("essais"), "round_num": s.get("current_round", 1), "rounds": s.get("rounds"), "timer": s.get("timer"), "start_time": s.get("start_time")})
+                self.active_sync = False; self.controller.settings_config.update({"game_mode": mode, "target_word": s.get("target_word"), "essais": s.get("essais"), "round_num": s.get("current_round", 1), "rounds": s.get("rounds"), "timer": s.get("timer"), "start_time": s.get("start_time")})
                 self.controller.show_frame("PageJeu"); return
                 
             pids = list(p.keys())
@@ -496,7 +595,7 @@ class PageLobby(tk.Frame):
             if len(p) > 1:
                 self.lbl_status.config(text=f"🟢 {len(p)} JOUEURS", fg="#22c55e"); (self.btn_lancer.pack(pady=5) if self.controller.is_host else None)
             else: self.lbl_status.config(text="🔴 EN ATTENTE...", fg=ACCENT1); self.btn_lancer.pack_forget()
-            [sw.activer(self.controller.is_host) for sw in [self.s_rounds, self.s_essais, self.s_len, self.s_time]]
+            [sw.activer(self.controller.is_host) for sw in [self.s_rounds, self.s_essais, self.s_len, self.s_time, self.btn_mode_classique, self.btn_mode_blast]]
         self.after(800, self.ecouter_lobby)
 
     def quitter(self): self.active_sync = False; self.controller.quitter_lobby_logic(); self.controller.show_frame("PageAccueil")
@@ -504,7 +603,9 @@ class PageLobby(tk.Frame):
     def lancer(self):
         mi, ma = self.s_len.get_values(); f = [m for m in self.controller.liste_mots if mi <= len(m) <= ma]
         sc = self.controller.settings_config
-        self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", {"status": "playing", "settings": {"target_word": random.choice(f or self.controller.liste_mots), "rounds": self.s_rounds.get_value(), "current_round": 1, "essais": self.s_essais.get_value(), "min": mi, "max": ma, "timer": self.s_time.v, "host_id": self.controller.player_id, "password": sc["password"], "visible": sc["visible"], "start_time": time.time() + self.controller.server_time_offset}, "match_data": None, "fini_states": None})
+        mode = sc.get("game_mode", "CLASSIQUE")
+        timer_val = self.s_time.v
+        self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", {"status": "playing", "settings": {"game_mode": mode, "target_word": random.choice(f or self.controller.liste_mots), "rounds": self.s_rounds.get_value(), "current_round": 1, "essais": self.s_essais.get_value(), "min": mi, "max": ma, "timer": timer_val, "host_id": self.controller.player_id, "password": sc["password"], "visible": sc["visible"], "start_time": time.time() + self.controller.server_time_offset}, "match_data": None, "fini_states": None, "round_wins": None})
 
 class PageJeu(tk.Frame):
     def __init__(self, parent, controller):
@@ -531,7 +632,10 @@ class PageJeu(tk.Frame):
         self.mot, self.round_actuel, self.start_time_round = conf.get("target_word", "SMOUT"), conf.get("round_num", 1), conf.get("start_time", time.time())
         if int(self.round_actuel) == 1:
             self.controller.current_score = 0
+            self.blast_scored_rounds = set()
             self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}", {"score": 0})
+        elif not hasattr(self, 'blast_scored_rounds'):
+            self.blast_scored_rounds = set()
         self.ligne, self.tape, self.fini_local, self.temps_restant = 0, [self.mot[0]], False, conf.get("timer", 180)
         self.statut_lettres, self.boutons_clavier = {l: KEY_BG for l in ALPHABET}, {}
         
@@ -584,15 +688,17 @@ class PageJeu(tk.Frame):
         if d.get("status") == "finished": self.active_sync = False; self.winfo_toplevel().unbind("<Key>"); self.controller.show_frame("PageScoreFinal"); return
         s, p = d.get("settings", {}), d.get("players", {})
         
-        # Correction : Synchronisation du temps serveur ici aussi
         server_now = max([pdat.get("last_seen", 0) for pdat in p.values()] + [0])
         
         if int(s.get("current_round", 1)) > int(self.round_actuel): 
             self.active_sync = False; self.controller.settings_config.update({"target_word": s.get("target_word"), "round_num": int(s["current_round"]), "start_time": s.get("start_time")}); self.initialiser_partie(); return
         
         hid = s.get("host_id")
+        mode = s.get("game_mode", "CLASSIQUE")
+        self.controller.settings_config["game_mode"] = mode
+        mode_label = " • BLAST ⚡" if mode == "BLAST" else ""
         self.lbl_scores.config(text=" | ".join([f"{v['name']}: {v.get('score', 0)}" for v in p.values()]))
-        self.lbl_info.config(text=f"ROUND {s.get('current_round')} / {s.get('rounds')}")
+        self.lbl_info.config(text=f"ROUND {s.get('current_round')} / {s.get('rounds')}{mode_label}")
         
         for pid in list(self.adv_grids.keys()):
             is_disconnected = True
@@ -637,10 +743,48 @@ class PageJeu(tk.Frame):
                                 if self.fini_local: [grid[idx][c_idx].config(text=char) for c_idx, char in enumerate(content.get("l", []))]
                         except (ValueError, TypeError):
                             pass
+
+        if mode == "BLAST":
+            if not hasattr(self, 'blast_scored_rounds'): self.blast_scored_rounds = set()
+            if self.round_actuel not in self.blast_scored_rounds:
+                rw_all = d.get("round_wins") or {}
+                rw_round = {}
+                if isinstance(rw_all, dict):
+                    rw_round = rw_all.get(f"r{self.round_actuel}") or rw_all.get(str(self.round_actuel)) or {}
+                elif isinstance(rw_all, list) and int(self.round_actuel) < len(rw_all):
+                    rw_round = rw_all[int(self.round_actuel)] or {}
+
+                if isinstance(rw_round, dict) and rw_round:
+                    sorted_wins = sorted(rw_round.items(), key=lambda x: x[1] if isinstance(x[1], (int, float)) else 0)
+                    pts_map = {0: 4, 1: 3, 2: 2, 3: 1}
+                    my_rank = None
+                    for idx, (pid, ts) in enumerate(sorted_wins):
+                        if pid == self.controller.player_id:
+                            my_rank = idx
+                            break
+                    if my_rank is not None and my_rank in pts_map:
+                        pts = pts_map[my_rank]
+                        self.controller.current_score += pts
+                        self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}", {"score": self.controller.current_score})
+                        self.blast_scored_rounds.add(self.round_actuel)
+                elif fc >= len(p) or self.temps_restant <= 0:
+                    self.blast_scored_rounds.add(self.round_actuel)
+
         if self.fini_local:
             if not self.btn_def.winfo_ismapped(): self.btn_def.pack(side="left")
             if fc >= len(p):
-                self.lbl_msg.config(text=f"LE MOT ÉTAIT : {self.mot} ", fg=ACCENT2)
+                msg_text = f"LE MOT ÉTAIT : {self.mot} "
+                if mode == "BLAST":
+                    rw_all = d.get("round_wins") or {}
+                    rw_round = {}
+                    if isinstance(rw_all, dict): rw_round = rw_all.get(f"r{self.round_actuel}") or rw_all.get(str(self.round_actuel)) or {}
+                    elif isinstance(rw_all, list) and int(self.round_actuel) < len(rw_all): rw_round = rw_all[int(self.round_actuel)] or {}
+                    if isinstance(rw_round, dict) and rw_round:
+                        sorted_wins = sorted(rw_round.items(), key=lambda x: x[1] if isinstance(x[1], (int, float)) else 0)
+                        pts_map = {0: 4, 1: 3, 2: 2, 3: 1}
+                        parts = [f"{p.get(w_pid, {}).get('name', 'Joueur')} ({pts_map.get(rank, 0)}pt)" for rank, (w_pid, _) in enumerate(sorted_wins) if rank in pts_map]
+                        if parts: msg_text += f"\n⚡ " + " | ".join(parts)
+                self.lbl_msg.config(text=msg_text, fg=ACCENT2)
                 if self.controller.is_host and not self.btn_next.winfo_ismapped():
                     self.btn_next.set_text("VOIR LES RÉSULTATS" if int(s['current_round']) >= int(s['rounds']) else "ROUND SUIVANT"); self.btn_next.pack(pady=15)
             else: self.lbl_msg.config(text=f"ATTENTE... ({fc}/{len(p)}) ", fg=BTN1)
@@ -679,7 +823,13 @@ class PageJeu(tk.Frame):
     def finir_round(self, vic):
         self.fini_local = True; self.btn_valider.pack_forget(); self.btn_effacer.pack_forget()
         self.winfo_toplevel().unbind("<Key>")
-        if vic: self.controller.current_score += 1; self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}", {"score": self.controller.current_score})
+        mode = self.controller.settings_config.get("game_mode", "CLASSIQUE")
+        if vic:
+            if mode == "CLASSIQUE":
+                self.controller.current_score += 1
+                self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}", {"score": self.controller.current_score})
+            elif mode == "BLAST":
+                self.controller.fb_put(f"lobbies/{self.controller.lobby_code}/round_wins/r{self.round_actuel}/{self.controller.player_id}", {".sv": "timestamp"})
         self.controller.fb_put(f"lobbies/{self.controller.lobby_code}/fini_states/{self.controller.player_id}", True)
         if not self.btn_def.winfo_ismapped(): self.btn_def.pack(side="left")
     
