@@ -466,11 +466,20 @@ class PageLobby(tk.Frame):
         box_mode = tk.Frame(col_l, bg=KEY_BG, highlightbackground=BTN1, highlightthickness=1, padx=6, pady=4)
         box_mode.pack(pady=3, fill="x")
         tk.Label(box_mode, text="MODE DE JEU", font=("Helvetica", 9, "bold"), fg=TXT1, bg=KEY_BG).pack(pady=(0, 2))
-        bm_f = tk.Frame(box_mode, bg=KEY_BG); bm_f.pack()
-        self.btn_mode_classique = BoutonPro(bm_f, "CLASSIQUE", lambda: self.set_mode("CLASSIQUE"), width=135, height=32, color=BTN1)
-        self.btn_mode_blast = BoutonPro(bm_f, "BLAST ⚡", lambda: self.set_mode("BLAST"), width=135, height=32, color="#475569")
-        self.btn_mode_classique.pack(side="left", padx=3)
-        self.btn_mode_blast.pack(side="left", padx=3)
+        bm_f1 = tk.Frame(box_mode, bg=KEY_BG); bm_f1.pack(pady=1)
+        self.btn_mode_classique = BoutonPro(bm_f1, "CLASSIQUE", lambda: self.set_mode("CLASSIQUE"), width=95, height=28, color=BTN1)
+        self.btn_mode_blast = BoutonPro(bm_f1, "BLAST ⚡", lambda: self.set_mode("BLAST"), width=95, height=28, color="#475569")
+        self.btn_mode_precision = BoutonPro(bm_f1, "PRÉCISION 🎯", lambda: self.set_mode("PRECISION"), width=95, height=28, color="#475569")
+        self.btn_mode_classique.pack(side="left", padx=2)
+        self.btn_mode_blast.pack(side="left", padx=2)
+        self.btn_mode_precision.pack(side="left", padx=2)
+
+        bm_f2 = tk.Frame(box_mode, bg=KEY_BG); bm_f2.pack(pady=1)
+        self.btn_mode_survie = BoutonPro(bm_f2, "SURVIE 💀", lambda: self.set_mode("SURVIE"), width=145, height=28, color="#475569")
+        self.btn_mode_rush = BoutonPro(bm_f2, "RUSH 🌊", lambda: self.set_mode("RUSH"), width=145, height=28, color="#475569")
+        self.btn_mode_survie.pack(side="left", padx=2)
+        self.btn_mode_rush.pack(side="left", padx=2)
+
         self.lbl_mode_desc = tk.Label(box_mode, text="1pt par mot trouvé", font=("Helvetica", 8, "italic"), fg=TXT3, bg=KEY_BG)
         self.lbl_mode_desc.pack(pady=(2, 0))
 
@@ -505,32 +514,45 @@ class PageLobby(tk.Frame):
         if not self.controller.is_host: return
         if self.active_mode == mode: return
         
-        mi, ma = self.s_len.get_values()
-        curr = {"rounds": self.s_rounds.get_value(), "essais": self.s_essais.get_value(), "min": mi, "max": ma, "timer": self.s_time.v}
-        if self.active_mode == "CLASSIQUE": self.settings_classique.update(curr)
-        else: self.settings_blast.update(curr)
-        
         self.active_mode = mode
         self.controller.settings_config["game_mode"] = mode
         
-        tgt = self.settings_classique if mode == "CLASSIQUE" else self.settings_blast
-        self.s_rounds.set_val(tgt.get("rounds", 3))
-        self.s_essais.set_val(tgt.get("essais", 6))
-        self.s_len.set_vals(tgt.get("min", 6), tgt.get("max", 10))
-        self.s_time.set_val(tgt.get("timer", 60 if mode == "BLAST" else 180))
-        
+        if mode == "SURVIE":
+            self.s_essais.set_val(4)
+            self.s_time.set_val(45)
+            self.s_rounds.set_val(3)
+        elif mode == "RUSH":
+            self.s_time.set_val(120)
+            self.s_rounds.set_val(1)
+        elif mode == "BLAST":
+            self.s_time.set_val(60)
+            self.s_rounds.set_val(3)
+        elif mode == "PRECISION":
+            self.s_essais.set_val(6)
+            self.s_time.set_val(180)
+            self.s_rounds.set_val(3)
+        elif mode == "CLASSIQUE":
+            self.s_time.set_val(180)
+            self.s_essais.set_val(6)
+            self.s_rounds.set_val(3)
+            
         self.update_mode_ui(mode)
         self.sync_params()
 
     def update_mode_ui(self, mode):
-        if mode == "BLAST":
-            self.btn_mode_classique.set_color("#475569", None)
-            self.btn_mode_blast.set_color(ACCENT1, None)
-            self.lbl_mode_desc.config(text="Points par vitesse : 4pt, 3pt, 2pt, 1pt ⚡")
-        else:
-            self.btn_mode_classique.set_color(BTN1, None)
-            self.btn_mode_blast.set_color("#475569", None)
-            self.lbl_mode_desc.config(text="1pt par mot trouvé")
+        btn_map = {
+            "CLASSIQUE": (self.btn_mode_classique, BTN1, "1pt par mot trouvé"),
+            "BLAST": (self.btn_mode_blast, ACCENT1, "Points par vitesse : 4pt, 3pt, 2pt, 1pt ⚡"),
+            "PRECISION": (self.btn_mode_precision, "#22c55e", "Moins d'essais = plus de points (5pt, 4pt, 3pt...) 🎯"),
+            "SURVIE": (self.btn_mode_survie, "#ef4444", "4 essais max, chrono rapide (45s) 💀"),
+            "RUSH": (self.btn_mode_rush, "#0ea5e9", "Enchaînez un max de mots avant la fin du chrono 🌊")
+        }
+        for m, (btn, active_col, desc) in btn_map.items():
+            if m == mode:
+                btn.set_color(active_col, None)
+                self.lbl_mode_desc.config(text=desc)
+            else:
+                btn.set_color("#475569", None)
 
     def sync_params(self):
         if self.controller.is_host and self.active_sync:
@@ -595,7 +617,7 @@ class PageLobby(tk.Frame):
             if len(p) > 1:
                 self.lbl_status.config(text=f"🟢 {len(p)} JOUEURS", fg="#22c55e"); (self.btn_lancer.pack(pady=5) if self.controller.is_host else None)
             else: self.lbl_status.config(text="🔴 EN ATTENTE...", fg=ACCENT1); self.btn_lancer.pack_forget()
-            [sw.activer(self.controller.is_host) for sw in [self.s_rounds, self.s_essais, self.s_len, self.s_time, self.btn_mode_classique, self.btn_mode_blast]]
+            [sw.activer(self.controller.is_host) for sw in [self.s_rounds, self.s_essais, self.s_len, self.s_time, self.btn_mode_classique, self.btn_mode_blast, self.btn_mode_precision, self.btn_mode_survie, self.btn_mode_rush]]
         self.after(800, self.ecouter_lobby)
 
     def quitter(self): self.active_sync = False; self.controller.quitter_lobby_logic(); self.controller.show_frame("PageAccueil")
@@ -757,7 +779,11 @@ class PageJeu(tk.Frame):
         hid = s.get("host_id")
         mode = s.get("game_mode", "CLASSIQUE")
         self.controller.settings_config["game_mode"] = mode
-        mode_label = " • BLAST ⚡" if mode == "BLAST" else ""
+        mode_label = ""
+        if mode == "BLAST": mode_label = " • BLAST ⚡"
+        elif mode == "PRECISION": mode_label = " • PRÉCISION 🎯"
+        elif mode == "SURVIE": mode_label = " • SURVIE 💀"
+        elif mode == "RUSH": mode_label = " • RUSH 🌊"
         self.lbl_scores.config(text=" | ".join([f"{v['name']}: {v.get('score', 0)}" for v in p.values()]))
         self.lbl_info.config(text=f"ROUND {s.get('current_round')} / {s.get('rounds')}{mode_label}")
         
@@ -881,10 +907,40 @@ class PageJeu(tk.Frame):
         self.maj_clavier()
         for i, c in enumerate(res): self.labels_moi[self.ligne][i].config(bg=c, fg=get_txt_color(c))
         self.controller.fb_put(f"lobbies/{self.controller.lobby_code}/match_data/{self.controller.player_id}/{self.ligne}", {"c": res, "l": self.tape})
-        if t == self.mot: self.finir_round(True)
-        elif self.ligne >= self.controller.settings_config["essais"]-1: self.finir_round(False)
+        
+        mode = self.controller.settings_config.get("game_mode", "CLASSIQUE")
+        if t == self.mot:
+            if mode == "RUSH":
+                self.controller.current_score += 1
+                self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}", {"score": self.controller.current_score})
+                self.lbl_msg.config(text="+1 PT ! MOT SUIVANT...", fg="#22c55e")
+                self.after(1000, lambda: self.lbl_msg.config(text="") if not self.fini_local else None)
+                self.reinitialiser_grille_rush()
+            else:
+                self.finir_round(True)
+        elif self.ligne >= self.controller.settings_config["essais"]-1:
+            if mode == "RUSH":
+                self.lbl_msg.config(text=f"ÉCHEC ! MOT ÉTAIT: {self.mot}", fg=ACCENT1)
+                self.after(1200, lambda: self.lbl_msg.config(text="") if not self.fini_local else None)
+                self.reinitialiser_grille_rush()
+            else:
+                self.finir_round(False)
         else: self.ligne += 1; self.tape = [self.mot[0]]; self.maj_affichage()
     
+    def reinitialiser_grille_rush(self):
+        mi, ma = self.controller.settings_config.get("min", 6), self.controller.settings_config.get("max", 10)
+        f = [m for m in self.controller.liste_mots if mi <= len(m) <= ma]
+        self.mot = random.choice(f or self.controller.liste_mots)
+        self.ligne = 0
+        self.tape = [self.mot[0]]
+        self.statut_lettres = {l: KEY_BG for l in ALPHABET}
+        for l in range(len(self.labels_moi)):
+            for c_idx in range(len(self.labels_moi[l])):
+                self.labels_moi[l][c_idx].config(text="", bg=KEY_BG, fg=TXT1)
+        for char, btn in self.boutons_clavier.items():
+            btn.config(bg=KEY_BG, fg=get_txt_color(KEY_BG), relief="raised", font=("Arial", 8, "bold"))
+        self.maj_affichage()
+
     def effacer(self): (self.tape.pop() if not self.fini_local and len(self.tape) > 1 else None); self.maj_affichage()
     
     def finir_round(self, vic):
@@ -894,6 +950,17 @@ class PageJeu(tk.Frame):
         if vic:
             if mode == "CLASSIQUE":
                 self.controller.current_score += 1
+                self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}", {"score": self.controller.current_score})
+            elif mode == "PRECISION":
+                pts_map = {1: 5, 2: 4, 3: 3, 4: 2}
+                pts = pts_map.get(self.ligne + 1, 1)
+                self.controller.current_score += pts
+                self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}", {"score": self.controller.current_score})
+            elif mode == "SURVIE":
+                rw_all = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}/round_wins/r{self.round_actuel}")
+                speed_bonus = 1 if not rw_all else 0
+                self.controller.fb_put(f"lobbies/{self.controller.lobby_code}/round_wins/r{self.round_actuel}/{self.controller.player_id}", {".sv": "timestamp"})
+                self.controller.current_score += (2 + speed_bonus)
                 self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}", {"score": self.controller.current_score})
             elif mode == "BLAST":
                 self.controller.fb_put(f"lobbies/{self.controller.lobby_code}/round_wins/r{self.round_actuel}/{self.controller.player_id}", {".sv": "timestamp"})
