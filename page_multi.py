@@ -626,6 +626,14 @@ class PageJeu(tk.Frame):
         tk.Frame(ga, width=2, bg=BTN1).pack(side="left", fill="y", padx=10, pady=5)
         self.adv_container = tk.Frame(ga, bg=BG); self.adv_container.pack(side="left", padx=15, fill="y")
         self.btn_next = BoutonPro(self.main_c, "ROUND SUIVANT", self.clic_suivant, color=ACCENT2, width=250)
+        self.bind("<Configure>", self.on_resize)
+    
+    def on_resize(self, e):
+        if e.widget == self:
+            h = e.height
+            if abs(h - getattr(self, "_last_h", 0)) > 30:
+                self._last_h = h
+                self.actualiser_tailles_grilles()
     
     def quitter_jeu(self): self.active_sync, self.timer_actif = False, False; self.winfo_toplevel().unbind("<Key>"); self.controller.quitter_lobby_logic(); self.controller.controller.creer_menu_accueil()
     
@@ -875,15 +883,35 @@ class PageJeu(tk.Frame):
             coul = ACCENT1 if i == 0 else BG; self.labels_moi[self.ligne][i].config(text=c, bg=coul, fg=get_txt_color(coul))
         for i in range(len(self.tape), len(self.mot)): self.labels_moi[self.ligne][i].config(text="", bg=BG)
     
+    def get_grid_sizes(self):
+        try: win_h = self.winfo_toplevel().winfo_height()
+        except: win_h = 900
+        if win_h <= 1: win_h = 900
+        scale = max(0.65, win_h / 900.0)
+        essais = self.controller.settings_config.get("essais", 6)
+        main_base = 18 if essais >= 9 else (22 if essais >= 7 else 28)
+        adv_base = 7 if essais >= 9 else (8 if essais >= 7 else 10)
+        main_size = max(14, int(main_base * scale))
+        adv_size = max(6, int(adv_base * scale))
+        return main_size, adv_size
+
+    def actualiser_tailles_grilles(self):
+        main_size, adv_size = self.get_grid_sizes()
+        if hasattr(self, "labels_moi") and self.labels_moi:
+            for row in self.labels_moi:
+                for lbl in row: lbl.config(font=("Courier", main_size, "bold"))
+        if hasattr(self, "adv_grids") and self.adv_grids:
+            for grid in self.adv_grids.values():
+                for row in grid:
+                    for lbl in row: lbl.config(font=("Courier", adv_size, "bold"))
+
     def creer_grille(self, parent, name, main):
         tk.Label(parent, text=name, font=("Helvetica", 11, "bold"), fg=TXT1, bg=BG).pack(); return self.creer_grille_sans_label(parent, main)
     
     def creer_grille_sans_label(self, parent, main=False):
+        main_size, adv_size = self.get_grid_sizes()
+        size = main_size if main else adv_size
         essais = self.controller.settings_config.get("essais", 6)
-        if main:
-            size = 18 if essais >= 9 else (22 if essais >= 7 else 28)
-        else:
-            size = 7 if essais >= 9 else (8 if essais >= 7 else 10)
         g, rows = tk.Frame(parent, bg=BG), []
         g.pack()
         for l in range(essais):
