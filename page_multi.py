@@ -723,8 +723,12 @@ class PageJeu(tk.Frame):
                     crown = " 👑" if pid == hid else ""
                     self.adv_labels[pid].config(text=f"{name}{crown}", fg=TXT1)
 
-        fs = d.get("fini_states") or {}; fc = sum(1 for pid in p if fs.get(pid))
-        if fc >= len(p): self.timer_actif = False
+        active_pids = [pid for pid, pdat in p.items() if server_now == 0 or (server_now - pdat.get("last_seen", 0))/1000 <= 15]
+        if not active_pids: active_pids = list(p.keys())
+        fs = d.get("fini_states") or {}
+        fc = sum(1 for pid in active_pids if fs.get(pid))
+        round_over = (fc >= len(active_pids)) or (self.temps_restant <= 0)
+        if round_over: self.timer_actif = False
         md = d.get("match_data", {})
         for pid, grid in self.adv_grids.items():
             if pid in md:
@@ -767,12 +771,12 @@ class PageJeu(tk.Frame):
                         self.controller.current_score += pts
                         self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}", {"score": self.controller.current_score})
                         self.blast_scored_rounds.add(self.round_actuel)
-                elif fc >= len(p) or self.temps_restant <= 0:
+                elif round_over:
                     self.blast_scored_rounds.add(self.round_actuel)
 
         if self.fini_local:
             if not self.btn_def.winfo_ismapped(): self.btn_def.pack(side="left")
-            if fc >= len(p):
+            if round_over:
                 msg_text = f"LE MOT ÉTAIT : {self.mot} "
                 if mode == "BLAST":
                     rw_all = d.get("round_wins") or {}
@@ -787,13 +791,15 @@ class PageJeu(tk.Frame):
                 self.lbl_msg.config(text=msg_text, fg=ACCENT2)
                 if self.controller.is_host and not self.btn_next.winfo_ismapped():
                     self.btn_next.set_text("VOIR LES RÉSULTATS" if int(s['current_round']) >= int(s['rounds']) else "ROUND SUIVANT"); self.btn_next.pack(pady=15)
-            else: self.lbl_msg.config(text=f"ATTENTE... ({fc}/{len(p)}) ", fg=BTN1)
+            else: self.lbl_msg.config(text=f"ATTENTE... ({fc}/{len(active_pids)}) ", fg=BTN1)
 
     def update_timer(self):
         if not self.timer_actif: return
         self.temps_restant = max(0, int(int(self.controller.settings_config.get("timer", 180)) - ((time.time() + self.controller.server_time_offset) - self.start_time_round)))
         m, s = divmod(self.temps_restant, 60); self.lbl_timer.config(text=f"{m:02d}:{s:02d}", fg=TXT1 if self.temps_restant > 30 else ACCENT1)
-        if self.temps_restant <= 0 and not self.fini_local: self.finir_round(False)
+        if self.temps_restant <= 0:
+            if not self.fini_local: self.finir_round(False)
+            self.timer_actif = False
         else: self.after(500, self.update_timer)
     
     def valider(self):
