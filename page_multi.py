@@ -611,16 +611,20 @@ class PageJeu(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg=BG); self.controller, self.active_sync = controller, False
         self.timer_actif, self.last_sync_data = False, None
-        self.main_c = tk.Frame(self, bg=BG); self.main_c.place(relx=0.5, rely=0.5, anchor="center")
-        h = tk.Frame(self.main_c, bg=BG, pady=10); h.pack(fill="x")
+        
+        # En-tête fixe en haut de la fenêtre (toujours visible)
+        h = tk.Frame(self, bg=BG, pady=5); h.pack(side="top", fill="x", padx=10)
         BoutonPro(h, "MENU", self.quitter_jeu, width=80, height=35, color=BTN3).pack(side="left", padx=10)
-        self.lbl_info = tk.Label(h, text="ROUND", fg=ACCENT2, bg=BG, font=("Helvetica", 16, "bold")); self.lbl_info.pack(side="left", padx=10)
-        self.lbl_scores = tk.Label(h, text="", fg=TXT1, bg=BG, font=("Helvetica", 10, "bold")); self.lbl_scores.pack(side="left", padx=20)
+        self.lbl_info = tk.Label(h, text="ROUND", fg=ACCENT2, bg=BG, font=("Helvetica", 15, "bold")); self.lbl_info.pack(side="left", padx=10)
+        self.lbl_scores = tk.Label(h, text="", fg=TXT1, bg=BG, font=("Helvetica", 10, "bold")); self.lbl_scores.pack(side="left", padx=15)
         self.lbl_timer = tk.Label(h, text="03:00", fg=TXT1, bg=BG, font=("Courier", 22, "bold")); self.lbl_timer.pack(side="right", padx=10)
+        
+        # Zone principale de jeu
+        self.main_c = tk.Frame(self, bg=BG); self.main_c.pack(side="top", expand=True, pady=5)
         ga = tk.Frame(self.main_c, bg=BG); ga.pack()
-        self.moi_side = tk.Frame(ga, bg=BG); self.moi_side.pack(side="left", padx=40)
-        tk.Frame(ga, width=3, bg=BTN1).pack(side="left", fill="y", padx=20, pady=20)
-        self.adv_container = tk.Frame(ga, bg=BG); self.adv_container.pack(side="left", padx=40, fill="y")
+        self.moi_side = tk.Frame(ga, bg=BG); self.moi_side.pack(side="left", padx=15)
+        tk.Frame(ga, width=2, bg=BTN1).pack(side="left", fill="y", padx=10, pady=5)
+        self.adv_container = tk.Frame(ga, bg=BG); self.adv_container.pack(side="left", padx=15, fill="y")
         self.btn_next = BoutonPro(self.main_c, "ROUND SUIVANT", self.clic_suivant, color=ACCENT2, width=250)
     
     def quitter_jeu(self): self.active_sync, self.timer_actif = False, False; self.winfo_toplevel().unbind("<Key>"); self.controller.quitter_lobby_logic(); self.controller.controller.creer_menu_accueil()
@@ -642,12 +646,12 @@ class PageJeu(tk.Frame):
         dm = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}")
         hid = dm.get("settings", {}).get("host_id") if dm else None
         self.labels_moi = self.creer_grille(self.moi_side, self.controller.pseudo + (" 👑" if self.controller.player_id == hid else ""), True)
-        self.msg_c = tk.Frame(self.moi_side, bg=BG, height=40); self.msg_c.pack()
+        self.msg_c = tk.Frame(self.moi_side, bg=BG, height=35); self.msg_c.pack()
         self.lbl_msg = tk.Label(self.msg_c, text="", font=("Helvetica", 11, "bold"), bg=BG, fg=TXT1); self.lbl_msg.pack(side="left")
         self.btn_def = tk.Label(self.msg_c, text="?", font=("Helvetica", 10, "bold", "underline"), bg=BG, fg=BTN1, cursor="hand2")
         self.btn_def.bind("<Button-1>", lambda e: webbrowser.open(f"https://www.google.com/search?q=D%C3%A9finition+du+mot+{self.mot}"))
         
-        self.creer_clavier(self.moi_side); bf = tk.Frame(self.moi_side, bg=BG); bf.pack(pady=10)
+        self.creer_clavier(self.moi_side); bf = tk.Frame(self.moi_side, bg=BG); bf.pack(pady=5)
         self.btn_valider = BoutonPro(bf, "VALIDER", self.valider, width=100, color="#22c55e"); self.btn_valider.pack(side="left", padx=5)
         self.btn_effacer = BoutonPro(bf, "EFFACER", self.effacer, width=100, color=BTN3); self.btn_effacer.pack(side="left", padx=5)
         
@@ -655,18 +659,27 @@ class PageJeu(tk.Frame):
         self.adv_grids = {}
         self.adv_overlays = {}
         if dm:
-            for pid, p in dm.get("players", {}).items():
-                if pid != self.controller.player_id:
-                    f = tk.Frame(self.adv_container, bg=BG, pady=5); f.pack()
-                    l_name = tk.Label(f, text=p["name"] + (" 👑" if pid == hid else ""), font=("Helvetica", 11, "bold"), fg=TXT1, bg=BG)
-                    l_name.pack(); self.adv_labels[pid] = l_name
-                    
-                    grid_container = tk.Frame(f, bg=BG)
-                    grid_container.pack()
-                    self.adv_grids[pid] = self.creer_grille_sans_label(grid_container)
-                    
-                    overlay = tk.Label(grid_container, text="DÉCONNECTÉ", font=("Helvetica", 11, "bold"), fg=get_txt_color(ACCENT1), bg=ACCENT1, bd=1, relief="solid", padx=10, pady=5)
-                    self.adv_overlays[pid] = overlay
+            opponents = [item for item in dm.get("players", {}).items() if item[0] != self.controller.player_id]
+            use_2_cols = len(opponents) > 2
+            adv_wrapper = tk.Frame(self.adv_container, bg=BG)
+            adv_wrapper.pack()
+            for idx, (pid, p) in enumerate(opponents):
+                if use_2_cols:
+                    r, c = divmod(idx, 2)
+                    f = tk.Frame(adv_wrapper, bg=BG, padx=4, pady=2)
+                    f.grid(row=r, column=c, sticky="n", padx=4, pady=2)
+                else:
+                    f = tk.Frame(adv_wrapper, bg=BG, pady=2)
+                    f.pack()
+                l_name = tk.Label(f, text=p["name"] + (" 👑" if pid == hid else ""), font=("Helvetica", 10, "bold"), fg=TXT1, bg=BG)
+                l_name.pack(); self.adv_labels[pid] = l_name
+                
+                grid_container = tk.Frame(f, bg=BG)
+                grid_container.pack()
+                self.adv_grids[pid] = self.creer_grille_sans_label(grid_container)
+                
+                overlay = tk.Label(grid_container, text="DÉCONNECTÉ", font=("Helvetica", 9, "bold"), fg=get_txt_color(ACCENT1), bg=ACCENT1, bd=1, relief="solid", padx=6, pady=3)
+                self.adv_overlays[pid] = overlay
                     
         self.active_sync, self.timer_actif = True, True; self.update_timer()
         threading.Thread(target=self.bg_sync, daemon=True).start(); self.ui_loop()
@@ -866,8 +879,14 @@ class PageJeu(tk.Frame):
         tk.Label(parent, text=name, font=("Helvetica", 11, "bold"), fg=TXT1, bg=BG).pack(); return self.creer_grille_sans_label(parent, main)
     
     def creer_grille_sans_label(self, parent, main=False):
-        g, rows, size = tk.Frame(parent, bg=BG), [], (28 if main else 10); g.pack()
-        for l in range(self.controller.settings_config["essais"]):
+        essais = self.controller.settings_config.get("essais", 6)
+        if main:
+            size = 18 if essais >= 9 else (22 if essais >= 7 else 28)
+        else:
+            size = 7 if essais >= 9 else (8 if essais >= 7 else 10)
+        g, rows = tk.Frame(parent, bg=BG), []
+        g.pack()
+        for l in range(essais):
             line = [tk.Label(g, text="", font=("Courier", size, "bold"), width=2, height=1, fg=TXT1, bg=KEY_BG, borderwidth=1, relief="solid", highlightbackground=GRILLE, highlightthickness=1) for _ in range(len(self.mot))]
             [lbl.grid(row=l, column=c, padx=1, pady=1) for c, lbl in enumerate(line)]; rows.append(line)
         return rows
