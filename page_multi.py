@@ -610,13 +610,23 @@ class PageLobby(tk.Frame):
 class PageJeu(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg=BG); self.controller, self.active_sync = controller, False
-        self.timer_actif, self.last_sync_data = False, None
+        self.user_zoom = self.me_charger_zoom()
         
         # En-tête fixe en haut de la fenêtre (toujours visible)
         h = tk.Frame(self, bg=BG, pady=5); h.pack(side="top", fill="x", padx=10)
         BoutonPro(h, "MENU", self.quitter_jeu, width=80, height=35, color=BTN3).pack(side="left", padx=10)
         self.lbl_info = tk.Label(h, text="ROUND", fg=ACCENT2, bg=BG, font=("Helvetica", 15, "bold")); self.lbl_info.pack(side="left", padx=10)
         self.lbl_scores = tk.Label(h, text="", fg=TXT1, bg=BG, font=("Helvetica", 10, "bold")); self.lbl_scores.pack(side="left", padx=15)
+        
+        # Contrôle du zoom utilisateur (côté client)
+        zf = tk.Frame(h, bg=BG)
+        zf.pack(side="right", padx=5)
+        tk.Label(zf, text="Taille:", fg=TXT3, bg=BG, font=("Helvetica", 9, "bold")).pack(side="left", padx=2)
+        BoutonPro(zf, "-", lambda: self.adjust_zoom(-0.1), width=28, height=28, color=BTN3).pack(side="left", padx=2)
+        self.lbl_zoom = tk.Label(zf, text=f"{int(self.user_zoom*100)}%", fg=TXT1, bg=BG, font=("Helvetica", 9, "bold"), width=4)
+        self.lbl_zoom.pack(side="left", padx=2)
+        BoutonPro(zf, "+", lambda: self.adjust_zoom(0.1), width=28, height=28, color="#22c55e").pack(side="left", padx=2)
+
         self.lbl_timer = tk.Label(h, text="03:00", fg=TXT1, bg=BG, font=("Courier", 22, "bold")); self.lbl_timer.pack(side="right", padx=10)
         
         # Zone principale de jeu
@@ -627,6 +637,36 @@ class PageJeu(tk.Frame):
         self.adv_container = tk.Frame(ga, bg=BG); self.adv_container.pack(side="left", padx=15, fill="y")
         self.btn_next = BoutonPro(self.main_c, "ROUND SUIVANT", self.clic_suivant, color=ACCENT2, width=250)
         self.bind("<Configure>", self.on_resize)
+
+    def me_charger_zoom(self):
+        try:
+            dossier = os.path.join(os.getenv('APPDATA'), "SMOUT") if sys.platform == "win32" else os.path.join(os.path.expanduser("~"), ".config", "SMOUT")
+            p = os.path.join(dossier, "config.json")
+            if os.path.exists(p):
+                with open(p, 'r') as f: return float(json.load(f).get("user_zoom", 1.0))
+        except: pass
+        return 1.0
+
+    def sauver_zoom_pref(self):
+        try:
+            dossier = os.path.join(os.getenv('APPDATA'), "SMOUT") if sys.platform == "win32" else os.path.join(os.path.expanduser("~"), ".config", "SMOUT")
+            os.makedirs(dossier, exist_ok=True)
+            p = os.path.join(dossier, "config.json")
+            cfg = {}
+            if os.path.exists(p):
+                with open(p, 'r') as f: cfg = json.load(f)
+            cfg["user_zoom"] = self.user_zoom
+            with open(p, 'w') as f: json.dump(cfg, f)
+        except: pass
+
+    def adjust_zoom(self, delta):
+        new_zoom = round(max(0.5, min(2.5, self.user_zoom + delta)), 2)
+        if new_zoom != self.user_zoom:
+            self.user_zoom = new_zoom
+            if hasattr(self, "lbl_zoom"):
+                self.lbl_zoom.config(text=f"{int(self.user_zoom * 100)}%")
+            self.actualiser_tailles_grilles()
+            self.sauver_zoom_pref()
     
     def on_resize(self, e):
         if e.widget == self:
@@ -887,12 +927,13 @@ class PageJeu(tk.Frame):
         try: win_h = self.winfo_toplevel().winfo_height()
         except: win_h = 900
         if win_h <= 1: win_h = 900
-        scale = max(0.65, win_h / 900.0)
+        zoom = getattr(self, "user_zoom", 1.0)
+        scale = max(0.4, (win_h / 900.0) * zoom)
         essais = self.controller.settings_config.get("essais", 6)
         main_base = 18 if essais >= 9 else (22 if essais >= 7 else 28)
         adv_base = 7 if essais >= 9 else (8 if essais >= 7 else 10)
-        main_size = max(14, int(main_base * scale))
-        adv_size = max(6, int(adv_base * scale))
+        main_size = max(10, int(main_base * scale))
+        adv_size = max(5, int(adv_base * scale))
         return main_size, adv_size
 
     def actualiser_tailles_grilles(self):
