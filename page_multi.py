@@ -218,7 +218,7 @@ class PageMulti(tk.Frame):
         self.pseudo = self.charger_pseudo_local()
         self.lobby_code, self.is_host, self.current_score = "", False, 0
         self.server_time_offset = 0 # Pour ajuster l'horloge
-        self.settings_config = {"essais": 6, "min": 6, "max": 10, "round_num": 1, "timer": 180, "password": "", "visible": True}
+        self.settings_config = {"essais": 8, "min": 6, "max": 7, "round_num": 1, "timer": 180, "password": "", "visible": True}
         self.charger_mots()
         # Left gold glow line
         self.left_glow = tk.Canvas(self, width=3, bg=BG, highlightthickness=0)
@@ -501,12 +501,12 @@ class PageLobby(tk.Frame):
 
         box_essais = tk.Frame(col_r, bg=KEY_BG, highlightbackground=BTN1, highlightthickness=1, padx=4, pady=3)
         box_essais.pack(pady=3, fill="x")
-        self.s_essais = SingleSlider(box_essais, 4, 10, 6, label="ESSAIS", callback=lambda v: self.sync_params())
+        self.s_essais = SingleSlider(box_essais, 4, 10, 8, label="ESSAIS", callback=lambda v: self.sync_params())
         self.s_essais.pack()
 
         box_len = tk.Frame(col_r, bg=KEY_BG, highlightbackground=BTN1, highlightthickness=1, padx=4, pady=3)
         box_len.pack(pady=3, fill="x")
-        self.s_len = RangeSlider(box_len, 6, 10, 6, 10, callback=lambda v1, v2: self.sync_params())
+        self.s_len = RangeSlider(box_len, 6, 10, 6, 7, callback=lambda v1, v2: self.sync_params())
         self.s_len.pack()
 
         self.lbl_status = tk.Label(c, text="EN ATTENTE...", font=FONT_UI, fg=ACCENT1, bg=BG); self.lbl_status.pack(pady=10)
@@ -520,8 +520,11 @@ class PageLobby(tk.Frame):
         self.active_mode = mode
         self.controller.settings_config["game_mode"] = mode
         
+        # 8 essais et 6 à 7 lettres par défaut pour chaque mode
+        self.s_essais.set_val(8)
+        self.s_len.set_vals(6, 7)
+        
         if mode == "MYSTERE":
-            self.s_essais.set_val(6)
             self.s_time.set_val(180)
             self.s_rounds.set_val(3)
         elif mode == "RUSH":
@@ -531,12 +534,10 @@ class PageLobby(tk.Frame):
             self.s_time.set_val(60)
             self.s_rounds.set_val(3)
         elif mode == "PRECISION":
-            self.s_essais.set_val(6)
             self.s_time.set_val(180)
             self.s_rounds.set_val(3)
         elif mode == "CLASSIQUE":
             self.s_time.set_val(180)
-            self.s_essais.set_val(6)
             self.s_rounds.set_val(3)
             
         self.update_mode_ui(mode)
@@ -568,7 +569,7 @@ class PageLobby(tk.Frame):
         if self.controller.is_host and not self.controller.lobby_code:
             self.controller.lobby_code = str(random.randint(1000, 9999)); sc = self.controller.settings_config
             mode = sc.get("game_mode", "CLASSIQUE")
-            self.controller.fb_put(f"lobbies/{self.controller.lobby_code}", {"status": "waiting", "settings": {"game_mode": mode, "rounds":3, "essais":6, "min":6, "max":10, "timer": 180, "host_id": self.controller.player_id, "password": sc["password"], "visible": sc["visible"]}, "players": {self.controller.player_id: {"name": self.controller.pseudo, "score": 0, "last_seen": {".sv": "timestamp"}}}})
+            self.controller.fb_put(f"lobbies/{self.controller.lobby_code}", {"status": "waiting", "settings": {"game_mode": mode, "rounds":3, "essais":8, "min":6, "max":7, "timer": 180, "host_id": self.controller.player_id, "password": sc["password"], "visible": sc["visible"]}, "players": {self.controller.player_id: {"name": self.controller.pseudo, "score": 0, "last_seen": {".sv": "timestamp"}}}})
         self.lbl_code.config(text=self.controller.lobby_code); self.ecouter_lobby()
     
     def ecouter_lobby(self):
@@ -601,10 +602,12 @@ class PageLobby(tk.Frame):
             self.update_mode_ui(mode)
 
             if not self.controller.is_host:
-                self.s_rounds.set_val(s.get("rounds", 3)); self.s_essais.set_val(s.get("essais", 6)); self.s_len.set_vals(s.get("min", 6), s.get("max", 10)); self.s_time.set_val(s.get("timer", 180))
+                self.s_rounds.set_val(s.get("rounds", 3)); self.s_essais.set_val(s.get("essais", 8)); self.s_len.set_vals(s.get("min", 6), s.get("max", 7)); self.s_time.set_val(s.get("timer", 180))
             
             if d.get("status") == "playing":
-                self.active_sync = False; self.controller.settings_config.update({"game_mode": mode, "target_word": s.get("target_word"), "essais": s.get("essais"), "round_num": s.get("current_round", 1), "rounds": s.get("rounds"), "timer": s.get("timer"), "start_time": s.get("start_time")})
+                self.active_sync = False
+                self.controller.settings_config.update(s)
+                self.controller.settings_config["round_num"] = s.get("current_round", 1)
                 self.controller.show_frame("PageJeu"); return
                 
             pids = list(p.keys())
@@ -638,7 +641,16 @@ class PageLobby(tk.Frame):
         timer_val = self.s_time.v
         target_w = rush_words[0] if mode == "RUSH" else random.choice(f_sorted)
         
-        self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", {"status": "playing", "settings": {"game_mode": mode, "target_word": target_w, "rush_seed": rush_seed, "rounds": self.s_rounds.get_value(), "current_round": 1, "essais": self.s_essais.get_value(), "min": mi, "max": ma, "timer": timer_val, "host_id": self.controller.player_id, "password": sc["password"], "visible": sc["visible"], "start_time": time.time() + self.controller.server_time_offset}, "match_data": None, "fini_states": None, "round_wins": None})
+        new_settings = {
+            "game_mode": mode, "target_word": target_w, "rush_seed": rush_seed,
+            "rounds": self.s_rounds.get_value(), "current_round": 1,
+            "essais": self.s_essais.get_value(), "min": mi, "max": ma,
+            "timer": timer_val, "host_id": self.controller.player_id,
+            "password": sc.get("password", ""), "visible": sc.get("visible", True),
+            "start_time": time.time() + self.controller.server_time_offset
+        }
+        self.controller.settings_config.update(new_settings)
+        self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", {"status": "playing", "settings": new_settings, "match_data": None, "fini_states": None, "round_wins": None})
 
 class PageJeu(tk.Frame):
     def __init__(self, parent, controller):
@@ -670,6 +682,23 @@ class PageJeu(tk.Frame):
         self.adv_container = tk.Frame(ga, bg=BG); self.adv_container.pack(side="left", padx=15, fill="y")
         self.btn_next = BoutonPro(self.main_c, "ROUND SUIVANT", self.clic_suivant, color=ACCENT2, width=250)
         self.bind("<Configure>", self.on_resize)
+
+    def recreer_grille_adv(self, pid, word_len):
+        if pid in self.adv_grid_containers:
+            gc = self.adv_grid_containers[pid]
+            for w in gc.winfo_children():
+                if w != self.adv_overlays.get(pid):
+                    w.destroy()
+            main_size, adv_size = self.get_grid_sizes()
+            essais = self.controller.settings_config.get("essais", 6)
+            g, rows = tk.Frame(gc, bg=BG), []
+            g.pack()
+            for l in range(essais):
+                line = [tk.Label(g, text="", font=("Courier", adv_size, "bold"), width=2, height=1, fg=TXT1, bg=KEY_BG, borderwidth=1, relief="solid", highlightbackground=GRILLE, highlightthickness=1) for _ in range(word_len)]
+                [lbl.grid(row=l, column=c, padx=1, pady=1) for c, lbl in enumerate(line)]
+                rows.append(line)
+            self.adv_grids[pid] = rows
+            self.adv_last_word_len[pid] = word_len
 
     def me_charger_zoom(self):
         try:
@@ -728,6 +757,8 @@ class PageJeu(tk.Frame):
         r_gen = random.Random(rush_seed)
         self.rush_words = [r_gen.choice(f_list) for _ in range(100)]
         self.rush_index = 0
+        if mode == "RUSH":
+            self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}", {"rush_index": 0})
         
         self.mot = conf.get("target_word") or (self.rush_words[0] if mode == "RUSH" else "SMOUT")
         self.round_actuel = conf.get("round_num", 1)
@@ -744,7 +775,9 @@ class PageJeu(tk.Frame):
         self.statut_lettres, self.boutons_clavier = {l: KEY_BG for l in ALPHABET}, {}
         
         hid = dm.get("settings", {}).get("host_id") if dm else None
-        self.labels_moi = self.creer_grille(self.moi_side, self.controller.pseudo + (" 👑" if self.controller.player_id == hid else ""), True)
+        crown = " 👑" if self.controller.player_id == hid else ""
+        rush_num = f" (Mot #{self.rush_index + 1})" if mode == "RUSH" else ""
+        self.labels_moi = self.creer_grille(self.moi_side, f"{self.controller.pseudo}{crown}{rush_num}", True)
         self.msg_c = tk.Frame(self.moi_side, bg=BG, height=35); self.msg_c.pack()
         self.lbl_msg = tk.Label(self.msg_c, text="", font=("Helvetica", 11, "bold"), bg=BG, fg=TXT1); self.lbl_msg.pack(side="left")
         self.btn_def = tk.Label(self.msg_c, text="?", font=("Helvetica", 10, "bold", "underline"), bg=BG, fg=BTN1, cursor="hand2")
@@ -757,6 +790,8 @@ class PageJeu(tk.Frame):
         self.adv_labels = {} 
         self.adv_grids = {}
         self.adv_overlays = {}
+        self.adv_grid_containers = {}
+        self.adv_last_word_len = {}
         if dm:
             opponents = [item for item in dm.get("players", {}).items() if item[0] != self.controller.player_id]
             use_2_cols = len(opponents) > 2
@@ -775,7 +810,9 @@ class PageJeu(tk.Frame):
                 
                 grid_container = tk.Frame(f, bg=BG)
                 grid_container.pack()
+                self.adv_grid_containers[pid] = grid_container
                 self.adv_grids[pid] = self.creer_grille_sans_label(grid_container)
+                self.adv_last_word_len[pid] = len(self.mot)
                 
                 overlay = tk.Label(grid_container, text="DÉCONNECTÉ", font=("Helvetica", 9, "bold"), fg=get_txt_color(ACCENT1), bg=ACCENT1, bd=1, relief="solid", padx=6, pady=3)
                 self.adv_overlays[pid] = overlay
@@ -803,7 +840,10 @@ class PageJeu(tk.Frame):
         server_now = max([pdat.get("last_seen", 0) for pdat in p.values()] + [0])
         
         if int(s.get("current_round", 1)) > int(self.round_actuel): 
-            self.active_sync = False; self.controller.settings_config.update({"target_word": s.get("target_word"), "round_num": int(s["current_round"]), "start_time": s.get("start_time")}); self.initialiser_partie(); return
+            self.active_sync = False
+            self.controller.settings_config.update(s)
+            self.controller.settings_config["round_num"] = int(s["current_round"])
+            self.initialiser_partie(); return
         
         hid = s.get("host_id")
         mode = s.get("game_mode", "CLASSIQUE")
@@ -815,6 +855,10 @@ class PageJeu(tk.Frame):
         elif mode == "RUSH": mode_label = " • RUSH 🌊"
         self.lbl_scores.config(text=" | ".join([f"{v['name']}: {v.get('score', 0)}" for v in p.values()]))
         self.lbl_info.config(text=f"ROUND {s.get('current_round')} / {s.get('rounds')}{mode_label}")
+        
+        if mode == "RUSH" and hasattr(self, "lbl_moi_nom") and self.lbl_moi_nom.winfo_exists():
+            crown = " 👑" if self.controller.player_id == hid else ""
+            self.lbl_moi_nom.config(text=f"{self.controller.pseudo}{crown} (Mot #{self.rush_index + 1})")
         
         for pid in list(self.adv_grids.keys()):
             is_disconnected = True
@@ -837,7 +881,15 @@ class PageJeu(tk.Frame):
                 if pid in self.adv_labels:
                     name = p[pid]["name"]
                     crown = " 👑" if pid == hid else ""
-                    self.adv_labels[pid].config(text=f"{name}{crown}", fg=TXT1)
+                    if mode == "RUSH":
+                        adv_idx = p[pid].get("rush_index", p[pid].get("score", 0))
+                        if adv_idx < self.rush_index:
+                            adv_w = self.rush_words[adv_idx] if adv_idx < len(self.rush_words) else "?"
+                            self.adv_labels[pid].config(text=f"{name}{crown} (Mot #{adv_idx+1}: {adv_w})", fg=ACCENT2)
+                        else:
+                            self.adv_labels[pid].config(text=f"{name}{crown} (Mot #{adv_idx+1})", fg=TXT1)
+                    else:
+                        self.adv_labels[pid].config(text=f"{name}{crown}", fg=TXT1)
 
         active_pids = [pid for pid, pdat in p.items() if server_now == 0 or (server_now - pdat.get("last_seen", 0))/1000 <= 15]
         if not active_pids: active_pids = list(p.keys())
@@ -846,14 +898,26 @@ class PageJeu(tk.Frame):
         round_over = (fc >= len(active_pids)) or (self.temps_restant <= 0)
         if round_over: self.timer_actif = False
         md = d.get("match_data", {})
-        for pid, grid in self.adv_grids.items():
+        for pid in list(self.adv_grids.keys()):
+            if mode == "RUSH" and hasattr(self, "rush_words"):
+                adv_idx = p.get(pid, {}).get("rush_index", p.get(pid, {}).get("score", 0))
+                if adv_idx < len(self.rush_words):
+                    exp_len = len(self.rush_words[adv_idx])
+                    if self.adv_last_word_len.get(pid) != exp_len:
+                        self.recreer_grille_adv(pid, exp_len)
+
+            grid = self.adv_grids[pid]
             for l_row in grid:
                 for lbl in l_row:
                     lbl.config(text="", bg=KEY_BG, fg=TXT1)
                     
             if pid in md:
                 data_p = md[pid]
-                show_letters = self.fini_local and (mode != "RUSH")
+                if mode == "RUSH":
+                    adv_idx = p.get(pid, {}).get("rush_index", p.get(pid, {}).get("score", 0))
+                    show_letters = (adv_idx < self.rush_index)
+                else:
+                    show_letters = self.fini_local
                 if isinstance(data_p, list):
                     for idx, content in enumerate(data_p):
                         if content and idx < len(grid):
@@ -938,7 +1002,8 @@ class PageJeu(tk.Frame):
         if mode == "MYSTERE":
             t_suffix = "".join(self.tape)
             target_suffix = self.mot[1:]
-            if t_suffix not in self.controller.banque_verif and t_suffix != target_suffix:
+            is_valid = (t_suffix == target_suffix) or any((chr(code) + t_suffix) in self.controller.banque_verif for code in range(65, 91))
+            if not is_valid:
                 self.lbl_msg.config(text="MOT INCONNU", fg=ACCENT1)
                 self.after(1000, lambda: self.lbl_msg.config(text="") if not self.fini_local else None)
                 return
@@ -988,7 +1053,7 @@ class PageJeu(tk.Frame):
             if t == self.mot:
                 if mode == "RUSH":
                     self.controller.current_score += 1
-                    self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}", {"score": self.controller.current_score})
+                    self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}", {"score": self.controller.current_score, "rush_index": self.rush_index + 1})
                     self.lbl_msg.config(text="+1 PT ! MOT SUIVANT...", fg="#22c55e")
                     self.after(1000, lambda: self.lbl_msg.config(text="") if not self.fini_local else None)
                     self.reinitialiser_grille_rush()
@@ -1030,11 +1095,13 @@ class PageJeu(tk.Frame):
         
         self.controller.fb_delete(f"lobbies/{self.controller.lobby_code}/match_data/{self.controller.player_id}")
         self.controller.fb_put(f"lobbies/{self.controller.lobby_code}/match_data/{self.controller.player_id}", {})
+        self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}", {"rush_index": self.rush_index, "score": self.controller.current_score})
         
         [w.destroy() for w in self.moi_side.winfo_children()]
         dm = self.last_sync_data or self.controller.fb_get(f"lobbies/{self.controller.lobby_code}")
         hid = dm.get("settings", {}).get("host_id") if dm else None
-        self.labels_moi = self.creer_grille(self.moi_side, self.controller.pseudo + (" 👑" if self.controller.player_id == hid else ""), True)
+        crown = " 👑" if self.controller.player_id == hid else ""
+        self.labels_moi = self.creer_grille(self.moi_side, f"{self.controller.pseudo}{crown} (Mot #{self.rush_index + 1})", True)
         
         self.msg_c = tk.Frame(self.moi_side, bg=BG, height=35); self.msg_c.pack()
         self.lbl_msg = tk.Label(self.msg_c, text="", font=("Helvetica", 11, "bold"), bg=BG, fg=TXT1); self.lbl_msg.pack(side="left")
@@ -1070,19 +1137,38 @@ class PageJeu(tk.Frame):
         if not self.btn_def.winfo_ismapped(): self.btn_def.pack(side="left")
     
     def clic_suivant(self):
-        self.btn_next.pack_forget(); d = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}")
+        self.btn_next.pack_forget()
+        d = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}")
         if not d: return
         s = d["settings"]
         if int(s["current_round"]) < int(s["rounds"]):
-            f = [m for m in self.controller.liste_mots if int(s["min"]) <= len(m) <= int(s["max"])]
-            s.update({"target_word": random.choice(f or self.controller.liste_mots), "current_round": int(s["current_round"])+1, "start_time": time.time() + self.controller.server_time_offset})
+            mi, ma = int(s.get("min", 6)), int(s.get("max", 10))
+            f = [m for m in self.controller.liste_mots if mi <= len(m) <= ma]
+            f_sorted = sorted(f or self.controller.liste_mots)
+            new_rush_seed = random.randint(1000, 999999)
+            r_gen = random.Random(new_rush_seed)
+            rush_words = [r_gen.choice(f_sorted) for _ in range(100)]
+            mode = s.get("game_mode", "CLASSIQUE")
+            target_w = rush_words[0] if mode == "RUSH" else random.choice(f_sorted)
+            s.update({
+                "target_word": target_w,
+                "rush_seed": new_rush_seed,
+                "current_round": int(s["current_round"]) + 1,
+                "start_time": time.time() + self.controller.server_time_offset
+            })
+            self.controller.settings_config.update(s)
             self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", {"settings": s, "status": "playing", "match_data": None, "fini_states": None})
-        else: self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", {"status": "finished"})
+        else:
+            self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", {"status": "finished"})
     
     def clavier_physique(self, e):
         if self.fini_local: return
         k, c = e.keysym, e.char.upper()
-        if c in ALPHABET and len(c) == 1: (self.tape.append(c) if len(self.tape) < len(self.mot) else None); self.maj_affichage()
+        mode = self.controller.settings_config.get("game_mode", "CLASSIQUE")
+        max_l = len(self.mot) - 1 if mode == "MYSTERE" else len(self.mot)
+        if c in ALPHABET and len(c) == 1:
+            (self.tape.append(c) if len(self.tape) < max_l else None)
+            self.maj_affichage()
         elif k == "BackSpace": self.effacer()
         elif k == "Return": self.valider()
     
@@ -1132,7 +1218,11 @@ class PageJeu(tk.Frame):
                     for lbl in row: lbl.config(font=("Courier", adv_size, "bold"))
 
     def creer_grille(self, parent, name, main):
-        tk.Label(parent, text=name, font=("Helvetica", 11, "bold"), fg=TXT1, bg=BG).pack(); return self.creer_grille_sans_label(parent, main)
+        lbl = tk.Label(parent, text=name, font=("Helvetica", 11, "bold"), fg=TXT1, bg=BG)
+        lbl.pack()
+        if main:
+            self.lbl_moi_nom = lbl
+        return self.creer_grille_sans_label(parent, main)
     
     def creer_grille_sans_label(self, parent, main=False):
         main_size, adv_size = self.get_grid_sizes()
@@ -1150,7 +1240,7 @@ class PageJeu(tk.Frame):
         for r in ["ABCDEFGHIJKLM", "NOPQRSTUVWXYZ"]:
             row = tk.Frame(f, bg=BG); row.pack()
             for c in r: 
-                btn = tk.Button(row, text=c, width=2, font=("Arial", 8, "bold"), bg=KEY_BG, fg=get_txt_color(KEY_BG), relief="raised", bd=2, command=lambda x=c: (self.tape.append(x), self.maj_affichage()) if len(self.tape) < len(self.mot) and not self.fini_local else None)
+                btn = tk.Button(row, text=c, width=2, font=("Arial", 8, "bold"), bg=KEY_BG, fg=get_txt_color(KEY_BG), relief="raised", bd=2, command=lambda x=c: (self.tape.append(x), self.maj_affichage()) if len(self.tape) < (len(self.mot)-1 if self.controller.settings_config.get("game_mode") == "MYSTERE" else len(self.mot)) and not self.fini_local else None)
                 btn.pack(side="left", padx=1, pady=1); self.boutons_clavier[c] = btn
     def maj_clavier(self):
         for char, color in self.statut_lettres.items():
@@ -1192,5 +1282,9 @@ class PageScoreFinal(tk.Frame):
         d = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}")
         if d:
             self.controller.current_score = 0; p = d.get("players", {})
-            for pid in p: p[pid]["score"] = 0
-            self.controller.fb_put(f"lobbies/{self.controller.lobby_code}", {"status": "waiting", "players": p, "settings": d.get("settings", {}), "match_data": None, "fini_states": None})
+            for pid in p:
+                p[pid]["score"] = 0
+                p[pid]["rush_index"] = 0
+            s = d.get("settings", {})
+            s["rush_seed"] = random.randint(1000, 999999)
+            self.controller.fb_put(f"lobbies/{self.controller.lobby_code}", {"status": "waiting", "players": p, "settings": s, "match_data": None, "fini_states": None})
