@@ -650,7 +650,7 @@ class PageLobby(tk.Frame):
             "start_time": time.time() + self.controller.server_time_offset
         }
         self.controller.settings_config.update(new_settings)
-        self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", {"status": "playing", "settings": new_settings, "match_data": None, "fini_states": None, "round_wins": None})
+        self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", {"status": "playing", "settings": new_settings, "match_data": None, "fini_states": None, "round_wins": None, "rush_recap": None})
 
 class PageJeu(tk.Frame):
     def __init__(self, parent, controller):
@@ -921,6 +921,8 @@ class PageJeu(tk.Frame):
                 if isinstance(data_p, list):
                     for idx, content in enumerate(data_p):
                         if content and idx < len(grid):
+                            if mode == "RUSH" and content.get("w_idx") != adv_idx:
+                                continue
                             for c_idx, coul in enumerate(content.get("c", [])):
                                 if c_idx < len(grid[idx]): grid[idx][c_idx].config(bg=coul, fg=get_txt_color(coul))
                             if show_letters:
@@ -931,6 +933,8 @@ class PageJeu(tk.Frame):
                         try:
                             idx = int(l_idx)
                             if idx < len(grid) and content:
+                                if mode == "RUSH" and content.get("w_idx") != adv_idx:
+                                    continue
                                 for c_idx, coul in enumerate(content.get("c", [])):
                                     if c_idx < len(grid[idx]): grid[idx][c_idx].config(bg=coul, fg=get_txt_color(coul))
                                 if show_letters:
@@ -1048,7 +1052,11 @@ class PageJeu(tk.Frame):
                 elif res[i] == MUTED and cur not in [ACCENT1, ACCENT2]: self.statut_lettres[char] = MUTED
             self.maj_clavier()
             for i, c in enumerate(res): self.labels_moi[self.ligne][i].config(bg=c, fg=get_txt_color(c))
-            self.controller.fb_put(f"lobbies/{self.controller.lobby_code}/match_data/{self.controller.player_id}/{self.ligne}", {"c": res, "l": self.tape})
+            payload = {"c": res, "l": self.tape}
+            if mode == "RUSH":
+                payload["w_idx"] = self.rush_index
+            if not (mode == "RUSH" and t == self.mot):
+                self.controller.fb_put(f"lobbies/{self.controller.lobby_code}/match_data/{self.controller.player_id}/{self.ligne}", payload)
             
             if t == self.mot:
                 if mode == "RUSH":
@@ -1113,9 +1121,33 @@ class PageJeu(tk.Frame):
         self.btn_effacer = BoutonPro(bf, "EFFACER", self.effacer, width=100, color=BTN3); self.btn_effacer.pack(side="left", padx=5)
         self.maj_affichage()
 
+    def get_max_tape(self):
+        if hasattr(self, "labels_moi") and self.labels_moi and self.ligne < len(self.labels_moi):
+            nb_cells = len(self.labels_moi[self.ligne])
+            if self.controller.settings_config.get("game_mode") == "MYSTERE":
+                return max(0, nb_cells - 1)
+            return nb_cells
+        mode = self.controller.settings_config.get("game_mode", "CLASSIQUE")
+        return len(self.mot) - 1 if mode == "MYSTERE" else len(self.mot)
+
+    def ajouter_lettre(self, char):
+        if self.fini_local: return
+        max_l = self.get_max_tape()
+        if len(self.tape) > max_l:
+            self.tape = self.tape[:max_l]
+        if len(self.tape) < max_l:
+            self.tape.append(char)
+        self.maj_affichage()
+
     def effacer(self):
+        if self.fini_local: return
+        max_l = self.get_max_tape()
+        if len(self.tape) > max_l:
+            self.tape = self.tape[:max_l]
         min_len = 0 if self.controller.settings_config.get("game_mode") == "MYSTERE" else 1
-        (self.tape.pop() if not self.fini_local and len(self.tape) > min_len else None); self.maj_affichage()
+        if len(self.tape) > min_len:
+            self.tape.pop()
+        self.maj_affichage()
     
     def finir_round(self, vic):
         self.fini_local = True; self.btn_valider.pack_forget(); self.btn_effacer.pack_forget()
@@ -1141,6 +1173,13 @@ class PageJeu(tk.Frame):
         d = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}")
         if not d: return
         s = d["settings"]
+        mode = s.get("game_mode", "CLASSIQUE")
+        if mode == "RUSH" and hasattr(self, "rush_words"):
+            p = d.get("players", {})
+            max_idx = max([pdat.get("rush_index", 0) for pdat in p.values()] + [self.rush_index, 0])
+            round_words = self.rush_words[:max_idx + 1]
+            self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/rush_recap", {f"r{self.round_actuel}": round_words})
+
         if int(s["current_round"]) < int(s["rounds"]):
             mi, ma = int(s.get("min", 6)), int(s.get("max", 10))
             f = [m for m in self.controller.liste_mots if mi <= len(m) <= ma]
@@ -1148,7 +1187,6 @@ class PageJeu(tk.Frame):
             new_rush_seed = random.randint(1000, 999999)
             r_gen = random.Random(new_rush_seed)
             rush_words = [r_gen.choice(f_sorted) for _ in range(100)]
-            mode = s.get("game_mode", "CLASSIQUE")
             target_w = rush_words[0] if mode == "RUSH" else random.choice(f_sorted)
             s.update({
                 "target_word": target_w,
@@ -1164,16 +1202,16 @@ class PageJeu(tk.Frame):
     def clavier_physique(self, e):
         if self.fini_local: return
         k, c = e.keysym, e.char.upper()
-        mode = self.controller.settings_config.get("game_mode", "CLASSIQUE")
-        max_l = len(self.mot) - 1 if mode == "MYSTERE" else len(self.mot)
         if c in ALPHABET and len(c) == 1:
-            (self.tape.append(c) if len(self.tape) < max_l else None)
-            self.maj_affichage()
+            self.ajouter_lettre(c)
         elif k == "BackSpace": self.effacer()
         elif k == "Return": self.valider()
     
     def maj_affichage(self):
         if self.fini_local: return
+        max_l = self.get_max_tape()
+        if len(self.tape) > max_l:
+            self.tape = self.tape[:max_l]
         mode = self.controller.settings_config.get("game_mode", "CLASSIQUE")
         if mode == "MYSTERE":
             if len(self.tape) > 0 and self.tape[0] == self.mot[0] and len(self.tape) == len(self.mot):
@@ -1182,17 +1220,15 @@ class PageJeu(tk.Frame):
             for i, c in enumerate(self.tape):
                 if i + 1 < len(self.labels_moi[self.ligne]):
                     self.labels_moi[self.ligne][i+1].config(text=c, bg=BG, fg=TXT1)
-            for i in range(len(self.tape)+1, len(self.mot)):
-                if i < len(self.labels_moi[self.ligne]):
-                    self.labels_moi[self.ligne][i].config(text="", bg=BG)
+            for i in range(len(self.tape)+1, len(self.labels_moi[self.ligne])):
+                self.labels_moi[self.ligne][i].config(text="", bg=BG)
         else:
             for i, c in enumerate(self.tape): 
                 coul = ACCENT1 if i == 0 else BG
                 if i < len(self.labels_moi[self.ligne]):
                     self.labels_moi[self.ligne][i].config(text=c, bg=coul, fg=get_txt_color(coul))
-            for i in range(len(self.tape), len(self.mot)):
-                if i < len(self.labels_moi[self.ligne]):
-                    self.labels_moi[self.ligne][i].config(text="", bg=BG)
+            for i in range(len(self.tape), len(self.labels_moi[self.ligne])):
+                self.labels_moi[self.ligne][i].config(text="", bg=BG)
     
     def get_grid_sizes(self):
         try: win_h = self.winfo_toplevel().winfo_height()
@@ -1240,7 +1276,7 @@ class PageJeu(tk.Frame):
         for r in ["ABCDEFGHIJKLM", "NOPQRSTUVWXYZ"]:
             row = tk.Frame(f, bg=BG); row.pack()
             for c in r: 
-                btn = tk.Button(row, text=c, width=2, font=("Arial", 8, "bold"), bg=KEY_BG, fg=get_txt_color(KEY_BG), relief="raised", bd=2, command=lambda x=c: (self.tape.append(x), self.maj_affichage()) if len(self.tape) < (len(self.mot)-1 if self.controller.settings_config.get("game_mode") == "MYSTERE" else len(self.mot)) and not self.fini_local else None)
+                btn = tk.Button(row, text=c, width=2, font=("Arial", 8, "bold"), bg=KEY_BG, fg=get_txt_color(KEY_BG), relief="raised", bd=2, command=lambda x=c: self.ajouter_lettre(x))
                 btn.pack(side="left", padx=1, pady=1); self.boutons_clavier[c] = btn
     def maj_clavier(self):
         for char, color in self.statut_lettres.items():
@@ -1251,14 +1287,40 @@ class PageScoreFinal(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg=BG); self.controller, self.active_sync = controller, False
         c = tk.Frame(self, bg=BG); c.place(relx=0.5, rely=0.5, anchor="center")
-        tk.Label(c, text="MATCH FINI", font=("Helvetica", 40, "bold"), fg=ACCENT2, bg=BG).pack(pady=30)
-        self.lbl_res = tk.Label(c, text="", font=("Helvetica", 22, "bold"), fg=TXT1, bg=BG, justify="center"); self.lbl_res.pack(pady=30)
+        tk.Label(c, text="MATCH FINI", font=("Helvetica", 36, "bold"), fg=ACCENT2, bg=BG).pack(pady=15)
+        self.lbl_res = tk.Label(c, text="", font=("Helvetica", 18, "bold"), fg=TXT1, bg=BG, justify="center"); self.lbl_res.pack(pady=10)
+        self.lbl_rush_recap = tk.Label(c, text="", font=("Helvetica", 12), fg=TXT2, bg=BG, justify="center", wraplength=700)
         self.btn_f = tk.Frame(c, bg=BG); self.btn_f.pack()
         self.btn_lobby = BoutonPro(self.btn_f, "RETOUR AU SALON", self.retour_lobby_host, color="#22c55e", width=300)
         BoutonPro(c, "RETOUR AU MENU", self.quitter_depuis_score, color=BTN3, width=300).pack(pady=10)
         self.lbl_wait = tk.Label(c, text="ATTENTE DE L'HÔTE...", font=FONT_UI, fg=MUTED, bg=BG)
 
     def quitter_depuis_score(self): self.active_sync = False; self.controller.quitter_lobby_logic(); self.controller.controller.creer_menu_accueil()
+
+    def maj_rush_recap(self, d):
+        recap_data = d.get("rush_recap")
+        mode = d.get("settings", {}).get("game_mode", "CLASSIQUE")
+        if mode == "RUSH" and recap_data:
+            recap_lines = []
+            if isinstance(recap_data, dict):
+                sorted_keys = sorted(recap_data.keys(), key=lambda k: int(k.replace("r", "")) if k.replace("r", "").isdigit() else 0)
+                for k in sorted_keys:
+                    r_num = k.replace("r", "")
+                    words_list = recap_data[k]
+                    if isinstance(words_list, list) and words_list:
+                        recap_lines.append(f"round {r_num} : {', '.join(words_list)}")
+            elif isinstance(recap_data, list):
+                for r_num, words_list in enumerate(recap_data):
+                    if words_list and isinstance(words_list, list):
+                        recap_lines.append(f"round {r_num} : {', '.join(words_list)}")
+            if recap_lines:
+                self.lbl_rush_recap.config(text="\n".join(recap_lines))
+                if not self.lbl_rush_recap.winfo_ismapped():
+                    self.lbl_rush_recap.pack(pady=10, before=self.btn_f)
+                return
+        self.lbl_rush_recap.config(text="")
+        if self.lbl_rush_recap.winfo_ismapped():
+            self.lbl_rush_recap.pack_forget()
 
     def afficher_vainqueur(self):
         self.active_sync = True; self.btn_lobby.pack_forget(); self.lbl_wait.pack_forget()
@@ -1269,6 +1331,7 @@ class PageScoreFinal(tk.Frame):
             items = sorted(p.values(), key=lambda x: x.get("score", 0), reverse=True)
             winners = [v["name"] for v in items if v.get("score", 0) == items[0].get("score", 0)]
             self.lbl_res.config(text=f"{'VAINQUEUR : ' + winners[0] if len(winners)==1 else 'ÉGALITÉ : ' + ', '.join(winners)}\n\n" + "\n".join([f"{v['name']} : {v.get('score', 0)} pts" for v in items]))
+            self.maj_rush_recap(d)
             (self.btn_lobby.pack(pady=10) if self.controller.is_host else self.lbl_wait.pack(pady=10))
             self.ecouter_fin()
 
@@ -1276,7 +1339,10 @@ class PageScoreFinal(tk.Frame):
         if self.active_sync:
             d = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}")
             if d and d.get("status") == "waiting": self.active_sync = False; self.controller.current_score = 0; self.controller.show_frame("PageLobby")
-            else: self.after(1000, self.ecouter_fin)
+            else:
+                if d and not self.lbl_rush_recap.cget("text"):
+                    self.maj_rush_recap(d)
+                self.after(1000, self.ecouter_fin)
 
     def retour_lobby_host(self):
         d = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}")
@@ -1287,4 +1353,4 @@ class PageScoreFinal(tk.Frame):
                 p[pid]["rush_index"] = 0
             s = d.get("settings", {})
             s["rush_seed"] = random.randint(1000, 999999)
-            self.controller.fb_put(f"lobbies/{self.controller.lobby_code}", {"status": "waiting", "players": p, "settings": s, "match_data": None, "fini_states": None})
+            self.controller.fb_put(f"lobbies/{self.controller.lobby_code}", {"status": "waiting", "players": p, "settings": s, "match_data": None, "fini_states": None, "round_wins": None, "rush_recap": None})

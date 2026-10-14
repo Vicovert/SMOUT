@@ -293,9 +293,18 @@ class PageJeu(tk.Frame):
         elif e.keysym == "BackSpace": self.effacer()
         elif e.keysym == "Return": self.valider()
     def ajouter_lettre(self, c):
-        if len(self.mot_tape) < len(self.mot) and not self.fini_local: self.mot_tape.append(c); self.maj_affichage()
+        nb_cases = len(self.grille_labels[self.ligne_actuelle]) if self.ligne_actuelle < len(self.grille_labels) else len(self.mot)
+        if len(self.mot_tape) < nb_cases and not self.fini_local:
+            self.mot_tape.append(c)
+            self.maj_affichage()
     def effacer(self):
-        if len(self.mot_tape) > 1 and not self.fini_local: self.mot_tape.pop(); self.maj_affichage()
+        if self.fini_local: return
+        nb_cases = len(self.grille_labels[self.ligne_actuelle]) if self.ligne_actuelle < len(self.grille_labels) else len(self.mot)
+        if len(self.mot_tape) > nb_cases:
+            self.mot_tape = self.mot_tape[:nb_cases]
+        if len(self.mot_tape) > 1:
+            self.mot_tape.pop()
+        self.maj_affichage()
     def maj_affichage(self):
         if self.fini_local: return
         for i, c in enumerate(self.mot_tape): 
