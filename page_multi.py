@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import messagebox as tkm
-import json, random, os, sys, time, requests, threading, webbrowser
+import json, random, os, sys, time, requests, threading, webbrowser, queue, traceback
 from pathlib import Path
 
 # --- CONFIGURATION DYNAMIQUE ---
@@ -235,8 +235,23 @@ class PageMulti(tk.Frame):
         self.container.grid_rowconfigure(0, weight=1); self.container.grid_columnconfigure(0, weight=1)
         self.frames = {F.__name__: F(parent=self.container, controller=self) for F in (PageAccueil, PageHostSetup, PageCode, PageLobby, PageJeu, PageScoreFinal)}
         for f in self.frames.values(): f.grid(row=0, column=0, sticky="nsew")
+        self.reponses_reseau = queue.Queue(); self.pomper_reponses()
         self.show_frame("PageAccueil"); self.controller.winfo_toplevel().protocol("WM_DELETE_WINDOW", self.on_closing)
         self.heartbeat_active = True; self.start_heartbeat()
+
+    def fb_get_async(self, path, callback):
+        """Lit Firebase dans un thread puis appelle callback(data) dans le thread de l'interface (pas de gel de la fenêtre)."""
+        def worker(): self.reponses_reseau.put((callback, self.fb_get(path)))
+        threading.Thread(target=worker, daemon=True).start()
+
+    def pomper_reponses(self):
+        try:
+            while True:
+                callback, data = self.reponses_reseau.get_nowait()
+                try: callback(data)
+                except Exception: traceback.print_exc()
+        except queue.Empty: pass
+        self.after(50, self.pomper_reponses)
 
     def start_heartbeat(self):
         if self.heartbeat_active and self.lobby_code:
@@ -409,7 +424,12 @@ class PageCode(tk.Frame):
         self.e.delete(0, tk.END)
         self.e.focus_set()
         for w in self.lf.winfo_children(): w.destroy()
-        data = self.controller.fb_get("lobbies") or {}
+        tk.Label(self.lf, text="Chargement...", fg=TXT1, bg=KEY_BG, font=("Helvetica", 9, "italic")).pack(pady=8)
+        self.controller.fb_get_async("lobbies", self.afficher_liste)
+    def afficher_liste(self, data):
+        if not self.winfo_exists(): return
+        for w in self.lf.winfo_children(): w.destroy()
+        data = data or {}
         for code, val in data.items():
             s, p = val.get("settings", {}), val.get("players", {})
             if s.get("visible") and val.get("status") == "waiting":
@@ -567,14 +587,22 @@ class PageLobby(tk.Frame):
     def entrer_lobby(self):
         self.active_sync = True; self.btn_lancer.pack_forget(); self.controller.current_score = 0
         if self.controller.is_host and not self.controller.lobby_code:
-            self.controller.lobby_code = str(random.randint(1000, 9999)); sc = self.controller.settings_config
+            code = str(random.randint(1000, 9999))
+            for _ in range(5):  # évite d'écraser un salon existant qui aurait le même code
+                if self.controller.fb_get(f"lobbies/{code}") is None: break
+                code = str(random.randint(1000, 9999))
+            self.controller.lobby_code = code; sc = self.controller.settings_config
             mode = sc.get("game_mode", "CLASSIQUE")
             self.controller.fb_put(f"lobbies/{self.controller.lobby_code}", {"status": "waiting", "settings": {"game_mode": mode, "rounds":3, "essais":8, "min":6, "max":7, "timer": 180, "host_id": self.controller.player_id, "password": sc["password"], "visible": sc["visible"]}, "players": {self.controller.player_id: {"name": self.controller.pseudo, "score": 0, "last_seen": {".sv": "timestamp"}}}})
-        self.lbl_code.config(text=self.controller.lobby_code); self.ecouter_lobby()
+        self.lobby_gen = getattr(self, "lobby_gen", 0) + 1
+        self.lbl_code.config(text=self.controller.lobby_code); self.ecouter_lobby(self.lobby_gen)
     
-    def ecouter_lobby(self):
-        if not self.active_sync: return
-        d = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}")
+    def ecouter_lobby(self, gen):
+        if not self.active_sync or gen != self.lobby_gen: return
+        self.controller.fb_get_async(f"lobbies/{self.controller.lobby_code}", lambda d: self.traiter_lobby(d, gen))
+
+    def traiter_lobby(self, d, gen):
+        if not self.active_sync or gen != self.lobby_gen: return
         if d:
             s, p = d.get("settings", {}), d.get("players", {})
             server_now = max([pdat.get("last_seen", 0) for pdat in p.values()] + [0])
@@ -624,7 +652,7 @@ class PageLobby(tk.Frame):
                 self.lbl_status.config(text=f"🟢 {len(p)} JOUEURS", fg="#22c55e"); (self.btn_lancer.pack(pady=5) if self.controller.is_host else None)
             else: self.lbl_status.config(text="🔴 EN ATTENTE...", fg=ACCENT1); self.btn_lancer.pack_forget()
             [sw.activer(self.controller.is_host) for sw in [self.s_rounds, self.s_essais, self.s_len, self.s_time, self.btn_mode_classique, self.btn_mode_blast, self.btn_mode_precision, self.btn_mode_mystere, self.btn_mode_rush]]
-        self.after(800, self.ecouter_lobby)
+        self.after(800, lambda: self.ecouter_lobby(gen))
 
     def quitter(self): self.active_sync = False; self.controller.quitter_lobby_logic(); self.controller.show_frame("PageAccueil")
 
@@ -740,6 +768,7 @@ class PageJeu(tk.Frame):
     def quitter_jeu(self): self.active_sync, self.timer_actif = False, False; self.winfo_toplevel().unbind("<Key>"); self.controller.quitter_lobby_logic(); self.controller.controller.creer_menu_accueil()
     
     def initialiser_partie(self):
+        self.sync_gen = getattr(self, "sync_gen", 0) + 1  # invalide les boucles du round précédent
         self.active_sync, self.last_sync_data, self.timer_actif = False, None, False; self.btn_next.pack_forget()
         [w.destroy() for w in self.moi_side.winfo_children() + self.adv_container.winfo_children()]
         
@@ -817,20 +846,24 @@ class PageJeu(tk.Frame):
                 overlay = tk.Label(grid_container, text="DÉCONNECTÉ", font=("Helvetica", 9, "bold"), fg=get_txt_color(ACCENT1), bg=ACCENT1, bd=1, relief="solid", padx=6, pady=3)
                 self.adv_overlays[pid] = overlay
                     
-        self.active_sync, self.timer_actif = True, True; self.update_timer()
-        threading.Thread(target=self.bg_sync, daemon=True).start(); self.ui_loop()
+        gen = self.sync_gen
+        self.active_sync, self.timer_actif = True, True; self.update_timer(gen)
+        threading.Thread(target=self.bg_sync, args=(gen,), daemon=True).start(); self.ui_loop(gen)
         self.winfo_toplevel().bind("<Key>", self.clavier_physique); self.maj_affichage()
 
-    def bg_sync(self):
-        while self.active_sync:
+    def boucle_valide(self, gen):
+        return self.active_sync and gen == getattr(self, "sync_gen", 0)
+
+    def bg_sync(self, gen):
+        while self.boucle_valide(gen):
             d = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}")
-            if d: self.last_sync_data = d
+            if d and gen == self.sync_gen: self.last_sync_data = d
             time.sleep(0.8)
 
-    def ui_loop(self):
-        if self.active_sync:
-            if self.last_sync_data: self.traiter_match(self.last_sync_data)
-            self.after(200, self.ui_loop)
+    def ui_loop(self, gen):
+        if not self.boucle_valide(gen): return
+        if self.last_sync_data: self.traiter_match(self.last_sync_data)
+        if self.boucle_valide(gen): self.after(200, lambda: self.ui_loop(gen))
 
     def traiter_match(self, d):
         if d.get("status") == "waiting": return
@@ -846,6 +879,17 @@ class PageJeu(tk.Frame):
             self.initialiser_partie(); return
         
         hid = s.get("host_id")
+        active_pids = [pid for pid, pdat in p.items() if server_now == 0 or (server_now - pdat.get("last_seen", 0))/1000 <= 15]
+        if not active_pids: active_pids = list(p.keys())
+
+        # Réattribution de l'hôte s'il a quitté ou ne répond plus (sinon la partie reste bloquée)
+        if active_pids and hid not in active_pids:
+            nouvel_hote = sorted(active_pids)[0]  # même choix chez tous les joueurs
+            if nouvel_hote == self.controller.player_id:
+                self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/settings", {"host_id": nouvel_hote})
+            hid = nouvel_hote
+        self.controller.is_host = (hid == self.controller.player_id)
+
         mode = s.get("game_mode", "CLASSIQUE")
         self.controller.settings_config["game_mode"] = mode
         mode_label = ""
@@ -856,9 +900,10 @@ class PageJeu(tk.Frame):
         self.lbl_scores.config(text=" | ".join([f"{v['name']}: {v.get('score', 0)}" for v in p.values()]))
         self.lbl_info.config(text=f"ROUND {s.get('current_round')} / {s.get('rounds')}{mode_label}")
         
-        if mode == "RUSH" and hasattr(self, "lbl_moi_nom") and self.lbl_moi_nom.winfo_exists():
+        if hasattr(self, "lbl_moi_nom") and self.lbl_moi_nom.winfo_exists():
             crown = " 👑" if self.controller.player_id == hid else ""
-            self.lbl_moi_nom.config(text=f"{self.controller.pseudo}{crown} (Mot #{self.rush_index + 1})")
+            rush_num = f" (Mot #{self.rush_index + 1})" if mode == "RUSH" else ""
+            self.lbl_moi_nom.config(text=f"{self.controller.pseudo}{crown}{rush_num}")
         
         for pid in list(self.adv_grids.keys()):
             is_disconnected = True
@@ -891,8 +936,6 @@ class PageJeu(tk.Frame):
                     else:
                         self.adv_labels[pid].config(text=f"{name}{crown}", fg=TXT1)
 
-        active_pids = [pid for pid, pdat in p.items() if server_now == 0 or (server_now - pdat.get("last_seen", 0))/1000 <= 15]
-        if not active_pids: active_pids = list(p.keys())
         fs = d.get("fini_states") or {}
         fc = sum(1 for pid in active_pids if fs.get(pid))
         round_over = (fc >= len(active_pids)) or (self.temps_restant <= 0)
@@ -988,14 +1031,14 @@ class PageJeu(tk.Frame):
                     self.btn_next.set_text("VOIR LES RÉSULTATS" if int(s['current_round']) >= int(s['rounds']) else "ROUND SUIVANT"); self.btn_next.pack(pady=15)
             else: self.lbl_msg.config(text=f"ATTENTE... ({fc}/{len(active_pids)}) ", fg=BTN1)
 
-    def update_timer(self):
-        if not self.timer_actif: return
+    def update_timer(self, gen):
+        if not self.timer_actif or gen != self.sync_gen: return
         self.temps_restant = max(0, int(int(self.controller.settings_config.get("timer", 180)) - ((time.time() + self.controller.server_time_offset) - self.start_time_round)))
         m, s = divmod(self.temps_restant, 60); self.lbl_timer.config(text=f"{m:02d}:{s:02d}", fg=TXT1 if self.temps_restant > 30 else ACCENT1)
         if self.temps_restant <= 0:
             if not self.fini_local: self.finir_round(False)
             self.timer_actif = False
-        else: self.after(500, self.update_timer)
+        else: self.after(500, lambda: self.update_timer(gen))
     
     def valider(self):
         if self.fini_local: return
@@ -1333,16 +1376,20 @@ class PageScoreFinal(tk.Frame):
             self.lbl_res.config(text=f"{'VAINQUEUR : ' + winners[0] if len(winners)==1 else 'ÉGALITÉ : ' + ', '.join(winners)}\n\n" + "\n".join([f"{v['name']} : {v.get('score', 0)} pts" for v in items]))
             self.maj_rush_recap(d)
             (self.btn_lobby.pack(pady=10) if self.controller.is_host else self.lbl_wait.pack(pady=10))
-            self.ecouter_fin()
+            self.fin_gen = getattr(self, "fin_gen", 0) + 1
+            self.ecouter_fin(self.fin_gen)
 
-    def ecouter_fin(self):
-        if self.active_sync:
-            d = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}")
-            if d and d.get("status") == "waiting": self.active_sync = False; self.controller.current_score = 0; self.controller.show_frame("PageLobby")
-            else:
-                if d and not self.lbl_rush_recap.cget("text"):
-                    self.maj_rush_recap(d)
-                self.after(1000, self.ecouter_fin)
+    def ecouter_fin(self, gen):
+        if not self.active_sync or gen != self.fin_gen: return
+        self.controller.fb_get_async(f"lobbies/{self.controller.lobby_code}", lambda d: self.traiter_fin(d, gen))
+
+    def traiter_fin(self, d, gen):
+        if not self.active_sync or gen != self.fin_gen: return
+        if d and d.get("status") == "waiting": self.active_sync = False; self.controller.current_score = 0; self.controller.show_frame("PageLobby")
+        else:
+            if d and not self.lbl_rush_recap.cget("text"):
+                self.maj_rush_recap(d)
+            self.after(1000, lambda: self.ecouter_fin(gen))
 
     def retour_lobby_host(self):
         d = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}")

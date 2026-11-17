@@ -237,11 +237,12 @@ class PageJeu(tk.Frame):
         BoutonPro(actions, "EFFACER", self.effacer, width=130, color=BTN3).pack(side="left", padx=10)
         BoutonPro(actions, "ABANDON", lambda: self.gestion_fin("PERDU"), width=130, color=ACCENT1).pack(side="left", padx=10)
         self.overlay_fin = EcranFin(self, self.controller, self.initialiser_partie, lambda: self.controller.show_frame("PageAccueil"))
-        self.debut_temps, self.timer_actif = time.time(), True; self.update_loop(); self.winfo_toplevel().bind("<Key>", self.clavier_physique); self.maj_affichage()
-    def update_loop(self):
-        if self.timer_actif:
+        self.timer_gen = getattr(self, "timer_gen", 0) + 1
+        self.debut_temps, self.timer_actif = time.time(), True; self.update_loop(self.timer_gen); self.winfo_toplevel().bind("<Key>", self.clavier_physique); self.maj_affichage()
+    def update_loop(self, gen):
+        if self.timer_actif and gen == self.timer_gen:
             ecoule = int(time.time() - self.debut_temps); self.label_timer.config(text=f"{ecoule // 60:02d}:{ecoule % 60:02d}")
-            self.label_score.config(text=f"SCORE: {max(0, self.score_initial - (ecoule * 2) - self.penalite_dict)}"); self.after(1000, self.update_loop)
+            self.label_score.config(text=f"SCORE: {max(0, self.score_initial - (ecoule * 2) - self.penalite_dict)}"); self.after(1000, lambda: self.update_loop(gen))
     def valider(self):
         if len(self.mot_tape) != len(self.mot) or self.fini_local: return
         tentative = "".join(self.mot_tape)
