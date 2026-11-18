@@ -1,31 +1,8 @@
 {
   "rules": {
     "lobbies": {
-      ".read": "true",
-      ".write": "true",
-      "$lobby_code": {
-        "settings": {
-          ".validate": "newData.hasChildren(['essais', 'min', 'max', 'rounds', 'host_id', 'timer', 'password', 'visible'])"
-        },
-        "players": {
-          "$player_id": {
-            ".validate": "newData.hasChildren(['name', 'score'])"
-          }
-        },
-        "match_data": {
-          "$player_id": {
-            ".write": "true"
-          }
-        },
-        "status": {
-          ".validate": "newData.isString()"
-        },
-        "fini_states": {
-          "$player_id": {
-            ".validate": "newData.isBoolean()"
-          }
-        }
-      }
+      ".read": false,
+      ".write": false
     },
     "v5": {
       "index": {
@@ -33,15 +10,33 @@
         "$code": {
           ".write": "auth != null && (!data.exists() || data.child('owner').val() === auth.uid || data.child('maj').val() < now - 20000)",
           ".validate": "$code.matches(/^[0-9]{4}$/) && newData.hasChildren(['owner', 'maj', 'version'])",
-          "owner": { ".validate": "newData.isString()" },
-          "hote": { ".validate": "newData.isString() && newData.val().length <= 30" },
-          "nb": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 4" },
-          "prive": { ".validate": "newData.isBoolean()" },
-          "visible": { ".validate": "newData.isBoolean()" },
-          "status": { ".validate": "newData.isString()" },
-          "version": { ".validate": "newData.isString()" },
-          "maj": { ".validate": "newData.isNumber() && newData.val() <= now" },
-          "$autre": { ".validate": false }
+          "owner": {
+            ".validate": "newData.isString()"
+          },
+          "hote": {
+            ".validate": "newData.isString() && newData.val().length <= 30"
+          },
+          "nb": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 4"
+          },
+          "prive": {
+            ".validate": "newData.isBoolean()"
+          },
+          "visible": {
+            ".validate": "newData.isBoolean()"
+          },
+          "status": {
+            ".validate": "newData.isString()"
+          },
+          "version": {
+            ".validate": "newData.isString()"
+          },
+          "maj": {
+            ".validate": "newData.isNumber() && newData.val() <= now"
+          },
+          "$autre": {
+            ".validate": false
+          }
         }
       },
       "lobbies": {
@@ -59,12 +54,18 @@
             "$uid": {
               ".write": "auth != null && ((auth.uid === $uid && (!newData.exists() || data.parent().parent().child('settings').exists())) || (!newData.exists() && data.child('last_seen').val() < now - 25000))",
               ".validate": "newData.hasChildren(['name', 'score'])",
-              "name": { ".validate": "newData.isString() && newData.val().length <= 30" },
-              "score": { ".validate": "newData.isNumber()" }
+              "name": {
+                ".validate": "newData.isString() && newData.val().length <= 30"
+              },
+              "score": {
+                ".validate": "newData.isNumber()"
+              }
             }
           },
           "match_data": {
-            "$uid": { ".write": "auth != null && auth.uid === $uid" }
+            "$uid": {
+              ".write": "auth != null && auth.uid === $uid"
+            }
           },
           "fini_states": {
             "$uid": {
@@ -74,10 +75,14 @@
           },
           "round_wins": {
             "$round": {
-              "$uid": { ".write": "auth != null && auth.uid === $uid" }
+              "$uid": {
+                ".write": "auth != null && auth.uid === $uid"
+              }
             }
           },
-          "status": { ".validate": "newData.isString()" }
+          "status": {
+            ".validate": "newData.isString()"
+          }
         }
       }
     }
