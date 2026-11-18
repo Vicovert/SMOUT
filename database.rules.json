@@ -90,7 +90,7 @@
       "index": {
         ".read": "auth != null",
         "$code": {
-          ".write": "auth != null && (!data.exists() || data.child('owner').val() === auth.uid || data.child('maj').val() < now - 20000)",
+          ".write": "auth != null && (!data.exists() || data.child('owner').val() === auth.uid || data.child('maj').val() < now - 20000 || root.child('v7/lobbies/' + $code + '/settings/host_id').val() === auth.uid || (!newData.exists() && !root.child('v7/lobbies/' + $code).exists()))",
           ".validate": "$code.matches(/^[0-9]{4}$/) && newData.hasChildren(['owner', 'maj', 'version'])",
           "owner": {
             ".validate": "newData.isString()"

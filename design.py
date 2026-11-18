@@ -3,7 +3,7 @@ import tkinter as tk
 import tkinter.font as tkfont
 import os, sys, ctypes, colorsys, hashlib
 
-VERSION_APP = "7.2"
+VERSION_APP = "8.0"
 URL_WEB = "https://vicovert.github.io/SMOUT/"
 
 def mot_graine(liste_triee, graine, index=0):
@@ -439,8 +439,10 @@ class CarteChoix(tk.Canvas):
         fg1 = P["sur_mal"] if sel else P["texte"]; fg2 = melanger(fg1, fill, 0.2) if sel else P["texte2"]
         if not self.actif and not sel: fg1 = melanger(fg1, fill, 0.35)
         arrondi(self, 1, 1, self.l - 1, self.h - 1, 12, fill=fill, outline=out, width=1.2 if out else 0)
-        self.create_text(20, 26, text=self.titre, anchor="w", fill=fg1, font=police("texte", 17, True))
-        self.create_text(20, 50, text=self.desc, anchor="w", fill=fg2, font=police("texte", 12), width=self.l - 30)
+        compact = self.l < 200  # grille de 4 cartes par rangée
+        x = 14 if compact else 20
+        self.create_text(x, self.h * 0.36, text=self.titre, anchor="w", fill=fg1, font=police("texte", 15 if compact else 17, True))
+        self.create_text(x, self.h * 0.7, text=self.desc, anchor="w", fill=fg2, font=police("texte", 11 if compact else 12), width=self.l - x - 8)
 
 
 class Clavier(tk.Frame):
@@ -776,3 +778,15 @@ def enregistrer_marathon(nb_mots, score, dernier_mot=""):
     if nouveau: m["record"], m["record_score"] = nb_mots, int(score)
     st["historique"] = ([{"d": datetime.date.today().isoformat(), "g": "marathon", "m": dernier_mot, "v": nb_mots > 0, "e": nb_mots, "s": int(score), "x": ""}] + st["historique"])[:30]
     maj_config(stats=st); return nouveau
+
+# ---------------------------------------------------------------- mode Chaîne (identique à smout.js)
+def mots_chaine(liste_triee, graine, n=100):
+    """Suite de mots où chaque mot commence par la dernière lettre du précédent (même suite sur PC et sur le web)."""
+    initiales = {m[0] for m in liste_triee}
+    jouables = [m for m in liste_triee if m[-1] in initiales] or liste_triee  # la chaîne ne doit jamais se bloquer
+    par_lettre = {}
+    for m in jouables: par_lettre.setdefault(m[0], []).append(m)
+    mots = [mot_graine(jouables, graine, 0)]
+    for i in range(1, n):
+        mots.append(mot_graine(par_lettre.get(mots[-1][-1]) or jouables, graine, i))
+    return mots

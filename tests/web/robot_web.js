@@ -34,10 +34,26 @@ async function clicTexte(sel, txt) { return ev((s, t) => { const e = [...documen
     try { const res = await fetch(c, { method: r.method(), body: r.postData(), headers: { "Content-Type": "application/json" } });
       r.respond({ status: res.status, headers: { "Access-Control-Allow-Origin": "*" }, contentType: "application/json", body: await res.text() }); } catch (e) { try { r.abort(); } catch (e2) {} }
   });
-  await p.evaluateOnNewDocument(n => localStorage.setItem("smout_config", JSON.stringify({ pseudo: n })), S.nom);
+  let confInit = { pseudo: S.nom };
+  if (S.config_depuis) {  // reprise : configuration (identité, partie en cours) laissée par un robot qui a planté
+    for (let i = 0; i < 600 && !(fs.existsSync(S.config_depuis) && JSON.parse(fs.readFileSync(S.config_depuis)).config); i++) await sleep(500);
+    const prec = fs.existsSync(S.config_depuis) ? JSON.parse(fs.readFileSync(S.config_depuis)) : {};
+    if (!prec.config) { log("ÉCHEC pas de configuration à reprendre"); R.erreurs.push("pas de configuration"); fs.writeFileSync(S.sortie, JSON.stringify(R)); process.exit(0); }
+    confInit = JSON.parse(prec.config); await sleep((S.attente_reprise || 0) * 1000);
+  }
+  await p.evaluateOnNewDocument(c => { if (!sessionStorage.getItem("i")) { localStorage.setItem("smout_config", c); sessionStorage.setItem("i", "1"); } }, JSON.stringify(confInit));
   await p.goto((process.env.SMOUT_SITE || "http://127.0.0.1:8000/"), { waitUntil: "networkidle0" });
   await clicTexte(".carte-menu", "Multijoueur"); await sleep(1200);
-  if (S.role === "host") {
+  if (S.role === "rapide") {
+    await clicTexte("button", "Partie rapide");
+    if (!(await attendre(() => M.lobby !== "", 20000))) { log("ÉCHEC partie rapide"); return fin(false); }
+    R.code = await ev(() => M.lobby); S.role = (await ev(() => M.estHote)) ? "host" : "join"; log("partie rapide :", S.role === "host" ? "salon créé" : "a rejoint", R.code);
+  } else if (S.role === "reprise") {
+    if (!(await attendre(() => [...document.querySelectorAll("button")].some(b => b.textContent === "Reprendre"), 15000))) { log("ÉCHEC pas de proposition de reprise"); return fin(false); }
+    await clicTexte("button", "Reprendre");
+    if (!(await attendre(() => M.lobby !== "", 15000))) { log("ÉCHEC reprise"); return fin(false); }
+    R.code = await ev(() => M.lobby); log("partie reprise", R.code, "score", await ev(() => M.score));
+  } else if (S.role === "host") {
     await clicTexte("button", "Créer un salon"); await sleep(400);
     if (S.prive) await clicTexte(".choix", "Privé");
     if (S.mdp) { await ev(() => document.querySelector(".case").click()); await p.type('input[placeholder="Mot de passe"]', S.mdp); }
@@ -67,7 +83,7 @@ async function clicTexte(sel, txt) { return ev((s, t) => { const e = [...documen
     if (S.role === "host") {
       if (!(await attendre(n => M.nbJoueurs >= n && document.querySelector(".joueur"), 120000, S.nb || 2))) { log("ÉCHEC joueurs manquants"); return fin(false); }
       if (partie === 1) {
-        if (S.mode !== "CLASSIQUE") await clicTexte(".choix", ({ BLAST: "Blast", PRECISION: "Précision", MYSTERE: "Mystère", RUSH: "Rush" })[S.mode]);
+        if (S.mode !== "CLASSIQUE") await clicTexte(".choix", ({ BLAST: "Blast", PRECISION: "Précision", MYSTERE: "Mystère", RUSH: "Rush", ELIMINATION: "Élimination", CHAINE: "Chaîne", COOP: "Coopératif" })[S.mode]);
         await sleep(300);
         await ev(m => [...document.querySelectorAll(".chips")][2].children[m - 1].click(), S.manches || 1);
         if (S.timer) { const cur = await ev(() => { const v = document.querySelectorAll(".stepper .v")[1].textContent.split(":"); return +v[0] * 60 + +v[1]; });
@@ -78,13 +94,21 @@ async function clicTexte(sel, txt) { return ev((s, t) => { const e = [...documen
       if (!(await clicTexte("button", "Lancer la partie"))) { log("ÉCHEC lancer"); return fin(false); }
       log("partie lancée", partie);
     }
-    for (let manche = 1; manche <= (S.manches || 1); manche++) {
-      if (!(await attendre(m => document.querySelector(".clavier") && document.querySelector(".stat .v")?.textContent === String(m) && M.dernierMot, 90000, manche))) { log("ÉCHEC manche pas commencée", manche); return fin(false); }
+    let debut = 1;
+    if (S.role === "rapide") {
+    await clicTexte("button", "Partie rapide");
+    if (!(await attendre(() => M.lobby !== "", 20000))) { log("ÉCHEC partie rapide"); return fin(false); }
+    R.code = await ev(() => M.lobby); S.role = (await ev(() => M.estHote)) ? "host" : "join"; log("partie rapide :", S.role === "host" ? "salon créé" : "a rejoint", R.code);
+  } else if (S.role === "reprise") { await attendre(() => document.querySelector(".clavier") && document.querySelector(".stat .v"), 90000); debut = await ev(() => +document.querySelector(".stat .v").textContent || 1); log("reprend à la manche", debut); }
+    for (let manche = debut; manche <= (S.manches || 1); manche++) {
+      if (manche > 1 && await ev(() => !!document.querySelector(".podium"))) { log("partie terminée avant la manche", manche); break; }
+      if (!(await attendre(m => (document.querySelector(".clavier") || document.body.innerText.includes("Tu es éliminé")) && document.querySelector(".stat .v")?.textContent === String(m) && M.dernierMot, 90000, manche))) { log("ÉCHEC manche pas commencée", manche); return fin(false); }
+      if (await ev(() => document.body.innerText.includes("Tu es éliminé"))) { log(`manche ${manche} : éliminé, spectateur`); R.elimine = manche; await attendre(m => document.querySelector(".podium") || +document.querySelector(".stat .v").textContent > m, 300000, manche); continue; }
       await sleep(1200);
       const mot = await ev(() => M.dernierMot); R.mots.push(mot);
       if (S.capture_jeu && manche === 1) { await p.keyboard.type("ab"); await sleep(200); await p.screenshot({ path: S.capture_jeu }); await p.keyboard.press("Backspace"); await p.keyboard.press("Backspace");
         R.deborde = await ev(() => { const w = document.documentElement.clientWidth; return [...document.querySelectorAll("body *")].filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && (r.right > w + 1 || r.left < -1); }).slice(0, 4).map(e => e.className); }); log("débordements", JSON.stringify(R.deborde)); } log(`partie ${partie} manche ${manche} mot ${mot}`);
-      if (S.planter_manche === manche) { log("PLANTAGE simulé"); fs.writeFileSync(S.sortie, JSON.stringify(Object.assign(R, { ok: true, plante: true }))); b.process().kill("SIGKILL"); process.exit(0); }
+      if (S.planter_manche === manche) { log("PLANTAGE simulé"); R.config = await ev(() => localStorage.getItem("smout_config")); fs.writeFileSync(S.sortie, JSON.stringify(Object.assign(R, { ok: true, plante: true }))); b.process().kill("SIGKILL"); process.exit(0); }
       const jeu = S.jeu || "gagne";
       if (jeu === "gagne") { await p.keyboard.type(mot.slice(1).toLowerCase(), { delay: 15 }); await p.keyboard.press("Enter"); }
       else if (jeu === "perd") {

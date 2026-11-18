@@ -10,7 +10,7 @@ A, Bt, C = signup(), signup(), signup(); ua, ub, uc = A[4:], Bt[4:], C[4:]
 SV = {".sv": "timestamp"}
 ok = []
 def t(nom, obt, att): ok.append(obt == att); print(("OK   " if obt == att else "ÉCHEC"), nom, obt, "attendu", att)
-reglages = {"essais": 8, "min": 6, "max": 7, "rounds": 3, "timer": 180, "host_id": ua, "visible": True, "version": "7.0", "game_mode": "CLASSIQUE"}
+reglages = {"essais": 8, "min": 6, "max": 7, "rounds": 3, "timer": 180, "host_id": ua, "visible": True, "version": "8.0", "game_mode": "CLASSIQUE"}
 t("lecture sans connexion", req("GET", "v7/index"), 401)
 t("liste de tous les salons", req("GET", "v7/lobbies", A), 401)
 t("secret écrit avant le salon", req("PUT", "v7/secrets/1234", A, "abc123"), 200)
@@ -30,11 +30,16 @@ t("supprimer un salon actif", req("DELETE", "v7/lobbies/1234", C), 401)
 t("grille d'un autre", req("PUT", f"v7/lobbies/1234/match_data/{ua}/0", Bt, {"c": ["B"]}), 401)
 t("sa propre grille", req("PUT", f"v7/lobbies/1234/match_data/{ub}/0", Bt, {"c": ["B"]}), 200)
 t("l'hôte relance (PUT du salon)", req("PUT", "v7/lobbies/1234", A, {"status": "waiting", "maj": SV, "settings": reglages, "players": {ua: {"name": "A", "score": 0, "last_seen": SV}, ub: {"name": "B", "score": 0, "last_seen": SV}}}), 200)
-t("annonce index", req("PATCH", "v7/index/1234", A, {"owner": ua, "hote": "A", "nb": 2, "prive": True, "visible": True, "status": "waiting", "version": "7.0", "maj": SV}), 200)
-t("écraser l'annonce d'un autre", req("PATCH", "v7/index/1234", Bt, {"owner": ub, "maj": SV, "version": "7.0"}), 401)
+t("annonce index", req("PATCH", "v7/index/1234", A, {"owner": ua, "hote": "A", "nb": 2, "prive": True, "visible": True, "status": "waiting", "version": "8.0", "maj": SV}), 200)
+t("écraser l'annonce d'un autre", req("PATCH", "v7/index/1234", Bt, {"owner": ub, "maj": SV, "version": "8.0"}), 401)
+t("écraser l'annonce d'un autre (pas hôte)", req("PATCH", "v7/index/1234", C, {"owner": uc, "maj": SV, "version": "8.0"}), 401)
+req("PUT", "v7/index/9999", A, {"owner": ua, "maj": SV, "version": "8.0"})
+t("supprimer l'annonce d'un salon disparu", req("DELETE", "v7/index/9999", C), 200)
 urllib.request.urlopen(urllib.request.Request(B + "__vieillir?ms=30000", method="POST"))
 t("reprise d'hôte après 30 s sans signe de vie", req("PATCH", "v7/lobbies/1234/settings", Bt, {"host_id": ub}), 200)
 t("retrait d'un joueur inactif", req("DELETE", f"v7/lobbies/1234/players/{ua}", Bt), 200)
+req("PATCH", "v7/index/1234", A, {"owner": ua, "maj": SV, "version": "8.0"}) if False else None
+t("le nouvel hôte met l'annonce à jour", req("PATCH", "v7/index/1234", Bt, {"owner": ub, "maj": SV, "version": "8.0"}), 200)
 t("supprimer le salon encore actif (B dedans, maj < 2 min)", req("DELETE", "v7/lobbies/1234", C), 401)
 urllib.request.urlopen(urllib.request.Request(B + "__vieillir?ms=130000", method="POST"))
 t("supprimer le salon abandonné (> 2 min)", req("DELETE", "v7/lobbies/1234", C), 200)

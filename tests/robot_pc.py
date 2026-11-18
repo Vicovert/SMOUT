@@ -2,6 +2,8 @@
 Usage : robot_pc.py <repo> '<json scénario>'"""
 import sys, os, time, json, urllib.request, traceback, random
 repo, S = sys.argv[1], json.loads(sys.argv[2])
+if S.get("home"): os.environ["HOME"] = S["home"]  # reprise : même dossier de configuration que le robot qui a planté
+if S.get("attente_reprise"): time.sleep(S["attente_reprise"])
 os.chdir(repo); sys.path.insert(0, repo)
 import requests
 class Sess(requests.Session):
@@ -50,7 +52,17 @@ def fin(ok=True):
     sys.exit(0)
 J, lob = A.frames["PageJeu"], A.frames["PageLobby"]
 try:
-    if S["role"] == "host":
+    if S["role"] == "rapide":
+        A.frames["PageAccueil"].partie_rapide(); pump(1.5)
+        if not A.lobby_code: log("ÉCHEC partie rapide"); fin(False)
+        S["role"] = "host" if A.is_host else "join"; R["code"] = A.lobby_code; log("partie rapide :", "salon créé" if A.is_host else "a rejoint", A.lobby_code)
+    elif S["role"] == "reprise":
+        pe = design.lire_config().get("partie_en_cours")
+        if not pe or not A.frames["PageAccueil"].zone_reprise.winfo_children(): log("ÉCHEC pas de proposition de reprise"); fin(False)
+        A.frames["PageAccueil"].reprendre(pe); pump(1)
+        if not A.lobby_code: log("ÉCHEC reprise"); fin(False)
+        log("partie reprise", A.lobby_code, "score", A.current_score); R["code"] = A.lobby_code
+    elif S["role"] == "host":
         A.show_frame("PageHostSetup"); hs = A.frames["PageHostSetup"]
         if S.get("mdp"): hs.inter.basculer(); hs.champ_mdp.set(S["mdp"])
         if S.get("prive"): hs.set_vis(False)
@@ -85,10 +97,17 @@ try:
                 if S.get("essais"): lob.s_essais.set_valeur(S["essais"])
                 lob.sync_params()
             pump(1.5); lob.lancer(); log("partie lancée", partie)
-        for manche in range(1, S.get("manches", 1) + 1):
+        debut = 1
+        if S["role"] == "reprise":
+            attendre(lambda: J.active_sync, 90); debut = int(J.round_actuel); log("reprend à la manche", debut)
+        for manche in range(debut, S.get("manches", 1) + 1):
+            if manche > 1 and A.frames["PageScoreFinal"].active_sync: log("partie terminée avant la manche", manche); break
             if not attendre(lambda: J.active_sync and int(J.round_actuel) == manche and J.controller.settings_config.get("game_mode") == S["mode"], 90):
                 log("ÉCHEC manche pas commencée", manche); fin(False)
             pump(1.2); R["mots"].append(J.mot); log(f"partie {partie} manche {manche} mot {J.mot}")
+            if getattr(J, "elimine", False):
+                log(f"manche {manche} : éliminé, spectateur"); R["elimine"] = manche
+                attendre(lambda: (J.active_sync and int(J.round_actuel) > manche) or A.frames["PageScoreFinal"].active_sync, 300); continue
             if S.get("planter_manche") == manche:
                 log("PLANTAGE simulé"); json.dump(dict(R, ok=True, plante=True), open(S["sortie"], "w"), ensure_ascii=False); os._exit(0)
             jeu = S.get("jeu", "gagne")

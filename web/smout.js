@@ -5,17 +5,21 @@ const VERSION_APP = D.version;
 const FIREBASE_URL = "https://smout-multi-default-rtdb.europe-west1.firebasedatabase.app/";
 const FIREBASE_API_KEY = "AIzaSyCUliQiMhKmHZzxrMK6k35Gt0z7zBfZP3g";
 const RACINE = "v7";
-const VERSION_JEU = "7.0";
+const VERSION_JEU = "8.0";
 const DELAI_ABANDON_MS = 120000;
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const THEMES = Object.assign({}, D.themes);
 const MODES = [
   ["CLASSIQUE", "Classique", "1 point par mot trouvé"],
-  ["BLAST", "Blast", "Les plus rapides marquent"],
-  ["PRECISION", "Précision", "Moins d'essais, + de points"],
+  ["BLAST", "Blast", "Les rapides marquent"],
+  ["PRECISION", "Précision", "Peu d'essais, + de pts"],
   ["MYSTERE", "Mystère", "1re lettre cachée"],
   ["RUSH", "Rush", "Max de mots avant la fin"],
+  ["ELIMINATION", "Élimination", "Le dernier est éliminé"],
+  ["CHAINE", "Chaîne", "Les mots s'enchaînent"],
+  ["COOP", "Coopératif", "Une grille pour tous"],
 ];
+const RUSHS = ["RUSH", "CHAINE"];  // modes « un maximum de mots avant la fin du temps »
 const NOM_MODE = Object.fromEntries(MODES.map(m => [m[0], m[1]]));
 const COULEURS_AVATAR = ["#F5B83D", "#8FB3FF", "#7ED6A8", "#F2A1C5", "#C4A7FF", "#FFB38A"];
 
@@ -117,6 +121,37 @@ async function motGraine(listeTriee, graine, index = 0) {
   return listeTriee[parseInt(h, 16) % listeTriee.length];
 }
 const trier = l => [...l].sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
+/* Mode Chaîne : chaque mot commence par la dernière lettre du précédent (identique à design.mots_chaine) */
+async function motsChaine(listeTriee, graine, n = 100) {
+  const initiales = new Set(listeTriee.map(m => m[0]));
+  let jouables = listeTriee.filter(m => initiales.has(m[m.length - 1])); if (!jouables.length) jouables = listeTriee;
+  const parLettre = {}; for (const m of jouables) (parLettre[m[0]] ||= []).push(m);
+  const mots = [await motGraine(jouables, graine, 0)];
+  for (let i = 1; i < n; i++) mots.push(await motGraine(parLettre[mots[i - 1][mots[i - 1].length - 1]] || jouables, graine, i));
+  return mots;
+}
+/* Élimination (identique à calcul_elimination de page_multi.py) */
+function calculElimination(d, manche) {
+  const p = d.players || {}, s = d.settings || {}, deja = new Set(s.elimines || []);
+  const vivants = Object.keys(p).filter(x => !deja.has(x)).sort();
+  const rw = d.round_wins || {}, r = (!Array.isArray(rw) && rw[`r${manche}`]) || {};
+  const trouves = Object.fromEntries(Object.entries(r).filter(([pid, t]) => vivants.includes(pid) && typeof t === "number"));
+  const nb = Object.keys(trouves).length; let elim;
+  if (!nb || vivants.length <= 1) elim = [];
+  else if (nb < vivants.length) elim = vivants.filter(x => !(x in trouves));
+  else elim = [Object.keys(trouves).sort((a, b) => trouves[b] - trouves[a] || (a < b ? 1 : -1))[0]];
+  return [elim, vivants.filter(x => !elim.includes(x))];
+}
+/* Coopératif : propositions de tous les joueurs dans l'ordre d'arrivée sur le serveur (identique à fusion_coop) */
+function fusionCoop(md, essais) {
+  const tout = [];
+  for (const [pid, lignes] of Object.entries(md || {})) {
+    const items = Array.isArray(lignes) ? lignes.map((v, i) => [i, v]) : Object.entries(lignes || {});
+    for (const [k, v] of items) if (v && typeof v === "object" && v.c) tout.push([typeof v.t === "number" ? v.t : 9e15, pid, Number(k), v]);
+  }
+  tout.sort((a, b) => a[0] - b[0] || (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0) || a[2] - b[2]);
+  return tout.slice(0, essais);
+}
 
 /* ------------------------------------------------------------------ DOM */
 function h(tag, attrs, ...enfants) {
@@ -653,7 +688,7 @@ function nuancier(onchange) {
 
 /* ------------------------------------------------------------------ Firebase */
 const FB = {
-  uid: "", jetonId: null, refresh: null, expire: 0, offset: 0, enCours: null,
+  uid: "", jetonId: null, refresh: lireConfig().auth_refresh || null, expire: 0, offset: 0, enCours: null,  // même joueur d'une visite à l'autre (reprise de partie)
   async jeton() {
     if (this.jetonId && Date.now() / 1000 < this.expire - 120) return this.jetonId;
     if (this.enCours) return this.enCours;
@@ -670,7 +705,7 @@ const FB = {
     })();
     try { return await this.enCours; } finally { this.enCours = null; }
   },
-  appliquer(t, r, uid, exp) { this.jetonId = t; this.refresh = r; this.uid = uid; this.expire = Date.now() / 1000 + Number(exp); },
+  appliquer(t, r, uid, exp) { if (r && r !== this.refresh) majConfig({ auth_refresh: r }); this.jetonId = t; this.refresh = r; this.uid = uid; this.expire = Date.now() / 1000 + Number(exp); },
   async req(method, path, data, keepalive = false) {
     if (!path || path.endsWith("/") || path.includes("//")) return { ok: false };  // salon déjà quitté : rien à lire
     try {
@@ -711,7 +746,7 @@ const M = {
     if (this.battement) return;
     const tic = async () => {
       if (this.lobby) {
-        const uid = FB.uid;
+        const uid = FB.uid; this.memoriser();
         const r = await FB.req("PATCH", `lobbies/${this.lobby}`, { maj: SV, [`players/${uid}/last_seen`]: SV, [`players/${uid}/name`]: this.pseudo(), [`players/${uid}/score`]: this.score });
         if (r.ok && r.data && typeof r.data.maj === "number") FB.offset = (r.data.maj - (r.avant + r.rtt / 2)) / 1000;
         if (this.estHote) this.majIndex();
@@ -727,8 +762,11 @@ const M = {
     if (await FB.ok("DELETE", `lobbies/${code}`)) { await FB.ok("DELETE", `secrets/${code}`); await FB.ok("DELETE", `index/${code}`); return true; }
     return false;
   },
+  // garde le salon en mémoire : si la page se ferme ou plante, « Reprendre » permet d'y revenir
+  memoriser() { if (this.lobby) majConfig({ partie_en_cours: { code: this.lobby, mdp: this.reglages.password || "", t: Date.now() / 1000, score: this.score } }); },
+  oublier() { majConfig({ partie_en_cours: null }); },
   async quitter(keepalive = false) {
-    if (!this.lobby) return; const code = this.lobby; this.lobby = ""; this.gen++;
+    if (!this.lobby) return; const code = this.lobby; this.lobby = ""; this.gen++; if (!keepalive) this.oublier();  // départ volontaire
     const d = await FB.get(`lobbies/${code}`);
     if (!d) return;
     const joueurs = d.players || {};
@@ -758,6 +796,27 @@ async function multiAccueil() {
   code.addEventListener("input", () => { code.value = code.value.replace(/\D/g, "").slice(0, 4); });
   code.addEventListener("keydown", e => e.key === "Enter" && code.value && tenterRejoindre(code.value));
   const liste = h("div", { style: { width: "min(748px, 94vw)" } });
+  const zoneReprise = h("div");
+  function afficherReprise() {
+    zoneReprise.innerHTML = ""; const pe = lireConfig().partie_en_cours;
+    if (!pe || Date.now() / 1000 - (pe.t || 0) > 900) return;
+    zoneReprise.append(h("div.panneau.ligne", { style: { marginTop: "16px", padding: "16px 20px", gap: "10px", flexWrap: "wrap", boxShadow: "inset 0 0 0 1.5px var(--mal)" } },
+      h("div.gras", { style: { fontSize: "17px", flex: 1, minWidth: "200px" } }, `Partie interrompue dans le salon ${pe.code}`),
+      bouton("Reprendre", () => reprendre(pe), { largeur: 150, hauteur: 44 }), bouton("Ignorer", () => { M.oublier(); afficherReprise(); }, { variante: "discret", largeur: 110, hauteur: 44 })));
+  }
+  async function reprendre(pe) {
+    if (!(await FB.jeton())) return alert("Connexion au serveur impossible.");
+    if (!(await rejoindre(pe.code, pe.mdp || "", true, Number(pe.score) || 0))) { M.oublier(); afficherReprise(); alert("Cette partie est terminée ou le salon n'existe plus."); }
+  }
+  async function partieRapide() {
+    if (!pseudoOk()) return;
+    if (!(await FB.jeton())) return alert("Connexion au serveur impossible.");
+    const idx = await FB.get("index") || {}, maintenant = FB.maintenant() * 1000;
+    const cands = Object.entries(idx).filter(([, v]) => v && v.visible && !v.prive && v.status === "waiting" && v.version === VERSION_JEU && (v.nb || 1) < 4 && maintenant - (v.maj || 0) < 30000)
+      .sort((a, b) => (b[1].nb || 1) - (a[1].nb || 1) || (b[1].maj || 0) - (a[1].maj || 0));
+    for (const [c] of cands) if (await rejoindre(c, "", true)) return;
+    creerSalon(true);
+  }
   const pseudoOk = () => { if (champPseudo.value.trim()) return true; champPseudo.focus(); champPseudo.style.borderColor = "var(--danger)"; return false; };
   // mot de passe
   const mdp = h("input.champ", { type: "password", style: { width: "400px", maxWidth: "80vw" } });
@@ -773,6 +832,8 @@ async function multiAccueil() {
       h("div.titre", { style: { fontSize: "46px", margin: "14px 0 6px" } }, "Multijoueur"),
       h("div.ligne", { style: { gap: "12px", marginBottom: "22px" } }, h("span.t2", { style: { fontSize: "16px" } }, "Ton pseudo"), champPseudo),
       h("div.ligne", { style: { gap: "14px", flexWrap: "wrap" } }, bouton("Créer un salon", () => pseudoOk() && creerSalon(), { largeur: 270, hauteur: 56 }), code, bouton("Rejoindre", () => code.value && tenterRejoindre(code.value), { variante: "tuile-b", largeur: 150, hauteur: 56 })),
+      h("div.ligne", { style: { gap: "14px", flexWrap: "wrap", marginTop: "14px" } }, bouton("Partie rapide", partieRapide, { variante: "secondaire", largeur: 270, hauteur: 48 }), h("span.t2", { style: { fontSize: "14px" } }, "Rejoint le salon public le plus rempli, ou en crée un.")),
+      zoneReprise,
       h("div.ligne", { style: { margin: "34px 0 10px" } }, h("div.caps", {}, "Salons publics"), h("div", { style: { marginLeft: "auto" } }, icone("rafraichir", charger, false, "Actualiser"))),
       liste)));
   vueMdp = superposition(contenuMdp, 460);  // après ecran()
@@ -803,22 +864,22 @@ async function multiAccueil() {
     codeCible = c;
     if (idx.prive) { mdp.value = ""; erreurMdp.textContent = ""; vueMdp.montrer(); mdp.focus(); } else rejoindre(c, "");
   }
-  async function rejoindre(c, motDePasse, silencieux = false) {
-    const joueur = { name: pseudo(), score: 0, last_seen: SV }; const preuve = await preuveSalon(c, motDePasse);
+  async function rejoindre(c, motDePasse, silencieux = false, score = null) {
+    const joueur = { name: pseudo(), score: score || 0, last_seen: SV }; const preuve = await preuveSalon(c, motDePasse);
     if (preuve) joueur.preuve = preuve;
     if (!(await FB.ok("PUT", `lobbies/${c}/players/${FB.uid}`, joueur))) { if (!silencieux) alert("Salon introuvable"); return false; }
     const d = await FB.get(`lobbies/${c}`) || {};
     if (Object.keys(d.players || {}).length > 4) { await FB.ok("DELETE", `lobbies/${c}/players/${FB.uid}`); alert("Ce salon est déjà complet (maximum 4 joueurs)."); return true; }
-    M.estHote = false; M.lobby = c; M.score = 0; M.vuOk = Date.now();
+    M.estHote = false; M.lobby = c; M.score = score || 0; M.reprise = score !== null; M.vuOk = Date.now();
     Object.assign(M.reglages, { password: motDePasse, visible: (d.settings || {}).visible !== false });
     M.demarrerBattement(); salon();
     return true;
   }
-  FB.jeton().then(charger);
+  afficherReprise(); FB.jeton().then(charger);
 }
 
 /* ---------- création */
-function creerSalon() {
+function creerSalon(direct = false) {
   let pub = true;
   const cPub = choix("Public", "Visible dans la liste des salons", () => setVis(true), 306), cPri = choix("Privé", "Seulement avec le code", () => setVis(false), 306);
   const setVis = v => { pub = v; cPub.sel(v); cPri.sel(!v); };
@@ -831,6 +892,7 @@ function creerSalon() {
       h("div.ligne", { style: { gap: "12px", flexWrap: "wrap" } }, cPub, cPri), h("div", { style: { height: "26px" } }), caseMdp, champ, note,
       h("div", { style: { marginTop: "24px" } }, bouton("Créer le salon", valider, { grand: true, largeur: 632 }))))));
   setVis(true);
+  if (direct) valider();  // partie rapide : salon public sans mot de passe
   async function valider() {
     Object.assign(M.reglages, { password: caseMdp.valeur ? champ.value.trim() : "", visible: pub, game_mode: "CLASSIQUE", rounds: 3, essais: 8, min: 6, max: 7, timer: 180 });
     if (!(await FB.jeton())) return alert("Connexion au serveur impossible.");
@@ -861,7 +923,7 @@ function salon() {
     icone("copier", () => { navigator.clipboard?.writeText(M.lobby); lblCode.textContent = "Code copié ✓"; setTimeout(() => lblCode.textContent = "Code du salon", 1500); }, true, "Copier le code"));
   const slots = [0, 1, 2, 3].map(() => h("div.joueur"));
   const cartes = {};
-  const gm = h("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: "10px" } }, MODES.map(([m, n, d]) => cartes[m] = choix(n, d, () => setMode(m))));
+  const gm = h("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(140px, 42vw), 1fr))", gap: "10px" } }, MODES.map(([m, n, d]) => cartes[m] = choix(n, d, () => setMode(m))));
   const R0 = M.reglages;  // réglages en cours (conservés après « Rejouer dans ce salon »)
   const cMin = chips([6, 7, 8, 9, 10], R0.min ?? 6, v => { if (v > cMax.valeur) cMax.set(v); sync(); }), cMax = chips([6, 7, 8, 9, 10], R0.max ?? 7, v => { if (v < cMin.valeur) cMin.set(v); sync(); });
   const cRounds = chips([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], R0.rounds ?? 3, sync), sEssais = stepper(4, 10, R0.essais ?? 8, 1, sync), sTemps = stepper(15, 600, R0.timer ?? 180, 15, sync, mmss);
@@ -887,7 +949,7 @@ function salon() {
     if (!M.estHote || modeActif === m) return;
     modeActif = m; M.reglages.game_mode = m;
     sEssais.set(8); cMin.set(6); cMax.set(7);
-    const [t, r] = { MYSTERE: [180, 3], RUSH: [120, 1], BLAST: [60, 3], PRECISION: [180, 3], CLASSIQUE: [180, 3] }[m];
+    const [t, r] = { MYSTERE: [180, 3], RUSH: [120, 1], BLAST: [60, 3], PRECISION: [180, 3], CLASSIQUE: [180, 3], ELIMINATION: [90, 10], CHAINE: [150, 1], COOP: [180, 3] }[m];
     sTemps.set(t); cRounds.set(r); majModes(); sync();
   }
   function dessinerJoueur(slot, i, nom, hote, deco, moi) {
@@ -949,14 +1011,18 @@ async function partie() {
   const fl = trier(MOTS.multiListe.filter(m => m.length >= (conf.min || 6) && m.length <= (conf.max || 10)));
   const fList = fl.length ? fl : trier(MOTS.multiListe);
   const graine = conf.rush_seed || 12345;
-  const motsRush = await Promise.all(Array.from({ length: 100 }, (_, i) => motGraine(fList, graine, i)));
+  const motsRush = mode === "CHAINE" ? await motsChaine(fList, graine) : await Promise.all(Array.from({ length: 100 }, (_, i) => motGraine(fList, graine, i)));
   if (gen !== M.gen) return;
   const G = { mot: motsRush[0], rush: 0, ligne: 0, fini: false, statut: {}, round: Number(conf.round_num || 1), debut: conf.start_time || FB.maintenant(), reste: conf.timer || 180, minuteur: true, scoresBlast: M._scoresBlast || new Set() };
   M.dernierMot = G.mot;
   G.tape = mode === "MYSTERE" ? [] : [G.mot[0]];
-  if (G.round === 1) { M.score = 0; G.scoresBlast = new Set(); FB.patch(`lobbies/${M.lobby}/players/${FB.uid}`, { score: 0 }); }
+  const reprise = M.reprise; M.reprise = false;
+  if (G.round === 1 && !reprise) { M.score = 0; G.scoresBlast = new Set(); FB.patch(`lobbies/${M.lobby}/players/${FB.uid}`, { score: 0 }); }
   M._scoresBlast = G.scoresBlast;
-  if (mode === "RUSH") FB.patch(`lobbies/${M.lobby}/players/${FB.uid}`, { rush_index: 0 });
+  if (RUSHS.includes(mode)) FB.patch(`lobbies/${M.lobby}/players/${FB.uid}`, { rush_index: 0 });
+  G.elimine = mode === "ELIMINATION" && (conf.elimines || []).includes(FB.uid);
+  if (mode === "ELIMINATION" && G.round > 1 && !G.elimine) { M.score = G.round - 1; FB.patch(`lobbies/${M.lobby}/players/${FB.uid}`, { score: M.score }); }  // 1 point par manche survécue
+  G.coopN = 0; G.coopAttente = []; G.coopMd = {}; G.coopSig = "";
 
   const kh = hauteurFenetre() >= 760 ? 50 : 40;
   const tailleMoi = () => Math.floor(Math.max(24, Math.min(70, Math.min(58, (hauteurFenetre() - 250 - 3 * (kh + 8)) / (conf.essais || 6) - 8, (Math.min(window.innerWidth - (window.innerWidth > 900 ? 330 : 0), 640) - 30) / Math.max(G.mot.length, 5) - 8) * (lireConfig().user_zoom || 1))));
@@ -1026,23 +1092,53 @@ async function partie() {
     }
     const t = G.tape.join("");
     if (!MOTS.multiBanque.has(t) && t !== G.mot) return messageTemp("Mot inconnu", "var(--danger)");
+    if (mode === "COOP") return validerCoop();
     const res = evaluer(G.tape, G.mot);
     majStatuts(G.statut, G.tape, res); for (const ch of ALPHABET) kb.setCouleur(ch, G.statut[ch]);
     gMoi.cases[G.ligne].forEach((c, i) => c.maj(G.tape[i], res[i], false));
     const payload = { c: enCodes(res), l: G.tape };
-    if (mode === "RUSH") payload.w_idx = G.rush;
-    if (!(mode === "RUSH" && t === G.mot)) FB.put(`lobbies/${M.lobby}/match_data/${FB.uid}/${G.ligne}`, payload);
+    if (RUSHS.includes(mode)) payload.w_idx = G.rush;
+    if (!(RUSHS.includes(mode) && t === G.mot)) FB.put(`lobbies/${M.lobby}/match_data/${FB.uid}/${G.ligne}`, payload);
     if (t === G.mot) {
-      if (mode === "RUSH") { M.score++; FB.patch(pj, { score: M.score, rush_index: G.rush + 1 }); sS.set(nombre(M.score)); motSuivantRush(); messageTemp("+1 point · mot suivant !", "var(--succes)"); }
+      if (RUSHS.includes(mode)) { M.score++; FB.patch(pj, { score: M.score, rush_index: G.rush + 1 }); sS.set(nombre(M.score)); motSuivantRush(); messageTemp("+1 point · mot suivant !", "var(--succes)"); }
       else finirRound(true);
     } else if (G.ligne >= essais - 1) {
-      if (mode === "RUSH") {
+      if (RUSHS.includes(mode)) {
         const c = gMoi.cases;
         for (let r = 0; r < essais - 1; r++) c[r].forEach((x, i) => x.maj(c[r + 1][i].lettre, c[r + 1][i].etat));
         c[essais - 1].forEach(x => x.maj("", ""));
         G.ligne = essais - 1; G.tape = [G.mot[0]]; maj();
       } else finirRound(false);
     } else { G.ligne++; G.tape = [G.mot[0]]; maj(); }
+  }
+  /* coopératif : une grille commune remplie par tous les joueurs */
+  function validerCoop() {
+    const k = G.coopN++, res = evaluer(G.tape, G.mot);
+    const v = { c: enCodes(res), l: [...G.tape], t: SV };
+    FB.put(`lobbies/${M.lobby}/match_data/${FB.uid}/${k}`, v);
+    G.coopAttente.push([FB.uid, k, Object.assign({}, v, { t: null })]);  // affiché tout de suite, en attendant le serveur
+    G.tape = [G.mot[0]]; rendreCoop();
+  }
+  function rendreCoop() {
+    const essais = conf.essais || 6, serveur = fusionCoop(G.coopMd, essais);
+    const connus = new Set(serveur.map(([, pid, k]) => pid + "/" + k));
+    G.coopAttente = G.coopAttente.filter(([pid, k]) => !connus.has(pid + "/" + k));
+    const lignes = [...serveur, ...G.coopAttente.map(([pid, k, v]) => [9e15, pid, k, v])].slice(0, essais);
+    const sig = lignes.map(([, pid, k]) => pid + "/" + k).join(",");
+    if (sig !== G.coopSig) {
+      G.coopSig = sig; G.statut = {};
+      gMoi.cases.forEach((row, r) => {
+        if (r < lignes.length) { const v = lignes[r][3]; row.forEach((t, c) => t.maj((v.l || [])[c] || "", deCode((v.c || [])[c] || "A"), false));
+          majStatuts(G.statut, v.l || [], (v.c || []).map(x => ({ B: "bien", M: "mal" })[x] || "absent")); }
+        else if (!(G.fini && r === G.ligne)) row.forEach(t => t.maj("", "", false));
+      });
+      for (const ch of ALPHABET) kb.setCouleur(ch, G.statut[ch]);
+    }
+    if (G.fini) return;
+    G.ligne = Math.min(lignes.length, essais - 1);
+    if (lignes.some(([, , , v]) => (v.c || ["A"]).every(x => x === "B"))) finirRound(true);
+    else if (lignes.length >= essais) finirRound(false);
+    else maj();
   }
   function motSuivantRush() {
     G.rush++; G.mot = motsRush[G.rush] || fList[Math.floor(Math.random() * fList.length)]; M.dernierMot = G.mot;
@@ -1051,14 +1147,14 @@ async function partie() {
     FB.patch(pj, { rush_index: G.rush, score: M.score });
     const ng = grille(conf.essais || 6, G.mot.length, tailleMoi()); gMoi.replaceWith(ng); gMoi = ng;
     for (const ch of ALPHABET) kb.setCouleur(ch, null);
-    info.textContent = `Rush · mot n° ${G.rush + 1} · ${G.mot.length} lettres`; maj();
+    info.textContent = `${NOM_MODE[mode]} · mot n° ${G.rush + 1} · ${G.mot.length} lettres`; maj();
   }
   function finirRound(vic) {
     G.fini = true; gMoi.cases[Math.min(G.ligne, gMoi.cases.length - 1)].forEach(t => t.classList.remove("curseur"));
     if (vic) {
-      if (mode === "CLASSIQUE" || mode === "MYSTERE") { M.score++; FB.patch(pj, { score: M.score }); }
+      if (mode === "CLASSIQUE" || mode === "MYSTERE" || mode === "COOP") { M.score++; FB.patch(pj, { score: M.score }); }
       else if (mode === "PRECISION") { const base = Math.max(1, (conf.essais || 6) - G.ligne); M.score += G.ligne === 0 ? base * 2 : base; FB.patch(pj, { score: M.score }); }
-      else if (mode === "BLAST") FB.put(`lobbies/${M.lobby}/round_wins/r${G.round}/${FB.uid}`, SV);
+      else if (mode === "BLAST" || mode === "ELIMINATION") FB.put(`lobbies/${M.lobby}/round_wins/r${G.round}/${FB.uid}`, SV);
     }
     sS.set(nombre(M.score));
     FB.put(`lobbies/${M.lobby}/fini_states/${FB.uid}`, true);
@@ -1069,15 +1165,23 @@ async function partie() {
     suivant.classList.add("cache");
     const d = await M.lireSalon(); if (!d) return;
     const s = d.settings;
-    if (mode === "RUSH") {
+    if (RUSHS.includes(mode)) {
       const maxIdx = Math.max(0, G.rush, ...Object.values(d.players || {}).map(p => p.rush_index || 0));
       FB.patch(`lobbies/${M.lobby}/rush_recap`, { [`r${G.round}`]: motsRush.slice(0, maxIdx + 1) });
+    }
+    const fin = { status: "finished" };
+    if (mode === "ELIMINATION") {
+      const [elim, vivants] = calculElimination(d, Number(s.current_round));
+      s.elimines = [...(s.elimines || []), ...elim];
+      // scores finaux écrits avec la fin de partie : 1 point par manche survécue (les survivants ont survécu à toutes)
+      fin["settings/elimines"] = s.elimines; for (const v of vivants) fin[`players/${v}/score`] = Number(s.current_round);
+      if (vivants.length <= 1) { M.statut = "finished"; FB.patch(`lobbies/${M.lobby}`, fin); return; }
     }
     if (Number(s.current_round) < Number(s.rounds)) {
       Object.assign(s, { rush_seed: 1000 + Math.floor(Math.random() * 999000), current_round: Number(s.current_round) + 1, start_time: FB.maintenant() });
       Object.assign(M.reglages, s);
       FB.patch(`lobbies/${M.lobby}`, { settings: s, status: "playing", match_data: null, fini_states: null });
-    } else { M.statut = "finished"; FB.patch(`lobbies/${M.lobby}`, { status: "finished" }); }
+    } else { M.statut = "finished"; FB.patch(`lobbies/${M.lobby}`, fin); }
   }
   function pointsBlast(d) {
     const rw = d.round_wins || {}; let r = {};
@@ -1086,7 +1190,11 @@ async function partie() {
   }
   function traiter(d) {
     if (d.status === "waiting") { G.minuteur = false; salon(); return false; }
-    if (d.status === "finished") { G.minuteur = false; resultats(); return false; }
+    if (d.status === "finished") {
+      const sf = d.settings || {};
+      if (sf.game_mode === "ELIMINATION" && !(sf.elimines || []).includes(FB.uid)) { M.score = Number(sf.current_round || 1); FB.patch(pj, { score: M.score }); }  // a survécu jusqu'au bout
+      G.minuteur = false; resultats(); return false;
+    }
     const s = d.settings || {}, p = d.players || {};
     const serverNow = Math.max(0, ...Object.values(p).map(x => x.last_seen || 0));
     // nouvelle manche, ou nouvelle partie lancée après la manche en cours (une lecture en retard est ignorée)
@@ -1100,8 +1208,9 @@ async function partie() {
     M.estHote = s.host_id === FB.uid; M.nbJoueurs = Object.keys(p).length;
     sM.set(String(s.current_round || 1), null, ` / ${s.rounds || 1}`);
     const moi = p[FB.uid] || {}; sS.set(nombre(Math.max(M.score, typeof moi.score === "number" ? moi.score : 0)));
-    if (mode === "RUSH") info.textContent = `Rush · mot n° ${G.rush + 1} · ${G.mot.length} lettres`;
+    if (RUSHS.includes(mode)) info.textContent = `${NOM_MODE[mode]} · mot n° ${G.rush + 1} · ${G.mot.length} lettres`;
     const fs = d.fini_states || {}, md = d.match_data || {};
+    if (mode === "COOP") { G.coopMd = md; rendreCoop(); }
     const fc = actifs.filter(pid => fs[pid]).length;
     const roundFini = fc >= actifs.length || G.reste <= 0;
     if (roundFini) G.minuteur = false;
@@ -1110,17 +1219,19 @@ async function partie() {
       a.nm.textContent = capitaliser(pd.name || a.nm.textContent) + (pid === hid ? " ♛" : "");
       a.sc.textContent = nombre(typeof pd.score === "number" ? pd.score : 0);
       const advIdx = pd.rush_index ?? pd.score ?? 0;
-      if (mode === "RUSH" && advIdx < motsRush.length && a.longueur !== motsRush[advIdx].length) construireAdv(pid, a.nm.textContent, motsRush[advIdx].length);
+      if (RUSHS.includes(mode) && advIdx < motsRush.length && a.longueur !== motsRush[advIdx].length) construireAdv(pid, a.nm.textContent, motsRush[advIdx].length);
       let lignes = md[pid] || {}; lignes = Array.isArray(lignes) ? lignes.map((v, i) => [i, v]) : Object.entries(lignes).filter(([k]) => /^\d+$/.test(k)).map(([k, v]) => [Number(k), v]);
-      lignes = lignes.filter(([, v]) => v && (mode !== "RUSH" || v.w_idx === advIdx));
+      lignes = lignes.filter(([, v]) => v && (!RUSHS.includes(mode) || v.w_idx === advIdx));
       const trouve = lignes.some(([, v]) => (v.c || []).every(c => c === "B"));
       let etat, coul = "var(--texte2)";
       if (deco) { etat = "Déconnecté"; coul = "var(--danger)"; }
-      else if (mode === "RUSH") etat = `Mot n° ${advIdx + 1}` + (advIdx < G.rush ? ` · ${motsRush[advIdx]}` : "");
+      else if (mode === "ELIMINATION" && (s.elimines || []).includes(pid)) etat = "Éliminé";
+      else if (mode === "COOP") etat = `${lignes.length} proposition${lignes.length > 1 ? "s" : ""}`;
+      else if (RUSHS.includes(mode)) etat = `Mot n° ${advIdx + 1}` + (advIdx < G.rush ? ` · ${motsRush[advIdx]}` : "");
       else if (fs[pid]) { etat = trouve ? `Trouvé en ${lignes.length}` : "Pas trouvé"; if (trouve) coul = "var(--succes)"; }
       else etat = `Essai ${Math.min(lignes.length + 1, conf.essais || 6)}`;
       a.et.textContent = etat; a.et.style.color = coul;
-      const voir = mode === "RUSH" ? advIdx < G.rush : G.fini;
+      const voir = RUSHS.includes(mode) ? advIdx < G.rush : (G.fini || mode === "COOP");
       const cible = a.g.cases.map(r => r.map(() => ["", ""]));
       for (const [i, v] of lignes) { if (i >= cible.length) continue; (v.c || []).forEach((c, j) => { if (j < cible[i].length) cible[i][j] = [voir ? ((v.l || [])[j] || "") : "", deCode(c)]; }); }
       a.g.cases.forEach((r, i) => r.forEach((t, j) => t.maj(cible[i][j][0], cible[i][j][1])));
@@ -1135,9 +1246,15 @@ async function partie() {
       if (roundFini) {
         let t = `Le mot était ${G.mot}`;
         if (mode === "BLAST") { const parts = pointsBlast(d).slice(0, 4).map(([pid], r) => `${capitaliser((p[pid] || {}).name || "Joueur")} +${[4, 3, 2, 1][r]}`); if (parts.length) t += "\n" + parts.join("   ·   "); }
+        let derniere = Number(s.current_round) >= Number(s.rounds);
+        if (mode === "ELIMINATION") {
+          const [elim, vivants] = calculElimination(d, Number(s.current_round || 1));
+          t += elim.length ? `\nÉliminé${elim.length > 1 ? "s" : ""} : ${elim.map(x => capitaliser((p[x] || {}).name || "?")).join(", ")}` : "\nPersonne n'est éliminé";
+          derniere = derniere || vivants.length <= 1;
+        }
         msg.textContent = t; msg.style.color = "var(--mal)";
-        if (M.estHote && suivant.classList.contains("cache")) { suivant.textContent = Number(s.current_round) >= Number(s.rounds) ? "Voir les résultats" : "Manche suivante"; suivant.classList.remove("cache"); }
-      } else { msg.textContent = `En attente des autres joueurs (${fc}/${actifs.length})`; msg.style.color = "var(--texte2)"; }
+        if (M.estHote && suivant.classList.contains("cache")) { suivant.textContent = derniere ? "Voir les résultats" : "Manche suivante"; suivant.classList.remove("cache"); }
+      } else { msg.textContent = (G.elimine ? "Tu es éliminé : tu regardes la fin de la partie\n" : "") + `En attente des autres joueurs (${fc}/${actifs.length})`; msg.style.color = "var(--texte2)"; }
     }
     return true;
   }
@@ -1157,6 +1274,11 @@ async function partie() {
   }, 500);
   nettoyageEcran.push(() => clearInterval(minuteur));
   maj();
+  if (G.elimine) {  // spectateur jusqu'à la fin de la partie
+    G.fini = true; kb.remove(); gMoi.cases[0].forEach(t => t.classList.remove("curseur"));
+    FB.put(`lobbies/${M.lobby}/fini_states/${FB.uid}`, true);
+    msg.textContent = "Tu es éliminé : tu regardes la fin de la partie"; msg.style.color = "var(--texte2)";
+  }
 }
 
 /* ---------- résultats */
@@ -1179,7 +1301,7 @@ async function resultats() {
   const tab = h("div.tableau", {}, h("div.r.h", {}, h("span", { style: { width: "62px" } }, "#"), h("span", {}, "Joueur"), h("span.p", {}, "Points")),
     classement.map(([pid, v]) => h("div.r" + (pid === FB.uid ? ".moi" : ""), {}, h("span", { style: { width: "62px" } }, String(rang[pid] + 1)), h("span", {}, capitaliser(v.name) + (pid === FB.uid ? " (vous)" : "")), h("span.p", {}, nombre(v.score || 0)))));
   const recap = h("div.t2", { style: { textAlign: "center", fontSize: "14px", whiteSpace: "pre-line" } });
-  const majRecap = dd => { const rc = dd.rush_recap; if ((dd.settings || {}).game_mode !== "RUSH" || !rc) return;
+  const majRecap = dd => { const rc = dd.rush_recap; if (!RUSHS.includes((dd.settings || {}).game_mode) || !rc) return;
     const l = Array.isArray(rc) ? rc.map((w, i) => w && Array.isArray(w) ? `Manche ${i} : ${w.join(", ")}` : null).filter(Boolean)
       : Object.keys(rc).sort((a, b) => parseInt(a.replace("r", "")) - parseInt(b.replace("r", ""))).filter(k => Array.isArray(rc[k]) && rc[k].length).map(k => `Manche ${k.replace("r", "")} : ${rc[k].join(", ")}`);
     recap.textContent = l.join("\n"); };

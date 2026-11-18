@@ -54,7 +54,10 @@ def regle_ecriture(uid, niveau, D, N):
     if not uid or niveau[:1] != ["v7"]: return False
     if len(niveau) == 3 and niveau[1] == "index":
         d = lire(D, niveau)
-        return not existe(d) or d.get("owner") == uid or (d.get("maj") or 0) < maintenant() - 20000
+        code = niveau[2]
+        return (not existe(d) or d.get("owner") == uid or (d.get("maj") or 0) < maintenant() - 20000
+                or lire(D, ["v7", "lobbies", code, "settings", "host_id"]) == uid  # l'hôte actuel (après une reprise d'hôte)
+                or (not existe(lire(N, niveau)) and not existe(lire(D, ["v7", "lobbies", code]))))  # annonce d'un salon disparu
     if len(niveau) == 3 and niveau[1] == "secrets":
         code = niveau[2]
         if not re.fullmatch(r"[0-9]{4}", code): return False
@@ -152,9 +155,12 @@ class H(BaseHTTPRequestHandler):
         if u.path == "/__reset":
             with LOCK: DATA = {}
             return self.rep(200, True)
+        if "token" in self.path:  # renouvellement : même joueur (comme Firebase), à partir du jeton de rafraîchissement
+            ancien = (parse_qs(b).get("refresh_token") or [""])[0]
+            if ancien.startswith("r-uid"): uid = ancien[2:]; return self.rep(200, {"id_token": "tok-" + uid, "refresh_token": ancien, "user_id": uid, "expires_in": "3600"})
+            return self.rep(400, {"error": "INVALID_REFRESH_TOKEN"})
         uid = f"uid{next(UIDS):03d}"
-        if "token" in self.path: self.rep(200, {"id_token": "tok-" + uid, "refresh_token": "r", "user_id": uid, "expires_in": "3600"})
-        else: self.rep(200, {"idToken": "tok-" + uid, "refreshToken": "r", "localId": uid, "expiresIn": "3600"})
+        self.rep(200, {"idToken": "tok-" + uid, "refreshToken": "r-" + uid, "localId": uid, "expiresIn": "3600"})
     def do_GET(self):
         p, uid = self.chemin()
         if p[:1] == ["__admin"] or (not p and not uid):

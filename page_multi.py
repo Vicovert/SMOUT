@@ -7,7 +7,7 @@ import design
 FIREBASE_URL = "https://smout-multi-default-rtdb.europe-west1.firebasedatabase.app/"
 FIREBASE_API_KEY = "AIzaSyCUliQiMhKmHZzxrMK6k35Gt0z7zBfZP3g"  # clé web publique (normal qu'elle soit dans le client)
 RACINE = "v7"            # données du protocole 7 (PC et web) ; /v5 reste pour les 5.x/6.x
-VERSION_JEU = "7.0"      # version du protocole multi : seuls les joueurs 7.x jouent ensemble (PC et navigateur)
+VERSION_JEU = "8.0"      # version du protocole multi : seuls les joueurs 8.x jouent ensemble (PC et navigateur)
 DELAI_ABANDON_MS = 120000  # un salon dont plus personne ne donne signe de vie depuis 2 min peut être supprimé par n'importe qui
 
 def preuve_salon(code, mot_de_passe):
@@ -21,10 +21,12 @@ class AuthFirebase:
     """Connexion anonyme Firebase (jeton renouvelé automatiquement, sans compte à créer)."""
     def __init__(self, session):
         self.session, self.lock = session, threading.Lock()
-        self.uid = self.id_token = self.refresh_token = None
+        self.uid = self.id_token = None
+        self.refresh_token = design.lire_config().get("auth_refresh")  # même joueur d'un lancement à l'autre (reprise de partie)
         self.expire = 0
 
     def _appliquer(self, id_token, refresh_token, uid, expires_in):
+        if refresh_token != self.refresh_token: design.maj_config(auth_refresh=refresh_token)
         self.id_token, self.refresh_token, self.uid = id_token, refresh_token, uid
         self.expire = time.time() + int(expires_in)
 
@@ -57,12 +59,42 @@ ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 MODES = [
     ("CLASSIQUE", "Classique", "1 point par mot trouvé"),
-    ("BLAST", "Blast", "Les plus rapides marquent"),
-    ("PRECISION", "Précision", "Moins d'essais, + de points"),
+    ("BLAST", "Blast", "Les rapides marquent"),
+    ("PRECISION", "Précision", "Peu d'essais, + de pts"),
     ("MYSTERE", "Mystère", "1re lettre cachée"),
     ("RUSH", "Rush", "Max de mots avant la fin"),
+    ("ELIMINATION", "Élimination", "Le dernier est éliminé"),
+    ("CHAINE", "Chaîne", "Les mots s'enchaînent"),
+    ("COOP", "Coopératif", "Une grille pour tous"),
 ]
 NOM_MODE = {m: n for m, n, _ in MODES}
+RUSHS = ("RUSH", "CHAINE")  # modes « un maximum de mots avant la fin du temps »
+
+
+def calcul_elimination(d, manche):
+    """Élimination : (éliminés de cette manche, joueurs encore en lice après la manche). Même calcul chez tous les joueurs.
+    Qui n'a pas trouvé est éliminé ; si tout le monde a trouvé, le plus lent est éliminé ; si personne n'a trouvé, personne."""
+    p = d.get("players") or {}; s = d.get("settings") or {}
+    deja = set(s.get("elimines") or [])
+    vivants = sorted(pid for pid in p if pid not in deja)
+    rw = d.get("round_wins") or {}
+    r = (rw.get(f"r{manche}") or {}) if isinstance(rw, dict) else {}
+    trouves = {pid: t for pid, t in r.items() if pid in vivants and isinstance(t, (int, float))}
+    if not trouves or len(vivants) <= 1: elim = []
+    elif len(trouves) < len(vivants): elim = [pid for pid in vivants if pid not in trouves]
+    else: elim = [max(trouves, key=lambda k: (trouves[k], k))]
+    return elim, [pid for pid in vivants if pid not in elim]
+
+
+def fusion_coop(md, essais):
+    """Coopératif : propositions de tous les joueurs, dans l'ordre d'arrivée sur le serveur, limitées au nombre d'essais."""
+    tout = []
+    for pid, lignes in (md or {}).items():
+        items = list(enumerate(lignes)) if isinstance(lignes, list) else list(lignes.items()) if isinstance(lignes, dict) else []
+        for k, v in items:
+            if isinstance(v, dict) and v.get("c"): tout.append((v.get("t") if isinstance(v.get("t"), (int, float)) else 9e15, pid, int(k), v))
+    tout.sort(key=lambda x: (x[0], x[1], x[2]))
+    return tout[:essais]
 
 def apply_theme_multi(theme_data):
     """Met à jour les couleurs globales du jeu"""
@@ -158,7 +190,15 @@ class PageMulti(tk.Frame):
             return True
         return False
 
+    def memoriser_partie(self):
+        """Garde le salon en mémoire : si le jeu se ferme ou plante, « Reprendre la partie » permet d'y revenir."""
+        if self.lobby_code:
+            design.maj_config(partie_en_cours={"code": self.lobby_code, "mdp": self.settings_config.get("password", ""), "t": time.time(), "score": self.current_score})
+
+    def oublier_partie(self): design.maj_config(partie_en_cours=None)
+
     def start_heartbeat(self):
+        if self.heartbeat_active and self.lobby_code: self.memoriser_partie()
         if self.heartbeat_active and self.lobby_code:
             # signe de vie du joueur ET du salon (un salon sans signe de vie depuis 2 min est supprimable)
             uid = self.player_id
@@ -181,7 +221,7 @@ class PageMulti(tk.Frame):
     def quitter_lobby_logic(self, exit_mode=False):
         if not self.lobby_code: return
         code_to_clean, self.lobby_code = self.lobby_code, ""
-        self.vu_ok = 0
+        self.vu_ok = 0; self.oublier_partie()  # départ volontaire
         code_index, self.code_affiche = self.code_affiche, ""
         def do_clean():
             try:
@@ -304,6 +344,10 @@ class PageAccueil(tk.Frame):
         self.champ_code.var.trace_add("write", lambda *a: self._filtrer_code())
         self.e = self.champ_code.e
         Bouton(actions, "Rejoindre", self.valider, largeur=150, hauteur=56, variante="tuile", taille=17).pack(side="left")
+        rapide = tk.Frame(c, bg=P["fond"]); rapide.pack(anchor="w", pady=(14, 0))
+        Bouton(rapide, "Partie rapide", self.partie_rapide, largeur=270, hauteur=48, variante="secondaire", taille=16).pack(side="left")
+        etiquette(rapide, "Rejoint le salon public le plus rempli, ou en crée un.", "texte", 14, P["texte2"]).pack(side="left", padx=14)
+        self.zone_reprise = tk.Frame(c, bg=P["fond"]); self.zone_reprise.pack(anchor="w", fill="x")
         tete = tk.Frame(c, bg=P["fond"]); tete.pack(fill="x", pady=(34, 10))
         etiquette(tete, espacer("Salons publics"), "texte", 14, P["texte2"], True).pack(side="left")
         Icone(tete, "rafraichir", self.charger_liste, 34).pack(side="right")
@@ -340,7 +384,36 @@ class PageAccueil(tk.Frame):
     def creer(self):
         if self.pseudo_ok() and self.connecte(): self.controller.show_frame("PageHostSetup")
 
+    def afficher_reprise(self):
+        for w in self.zone_reprise.winfo_children(): w.destroy()
+        pe = design.lire_config().get("partie_en_cours")
+        if not pe or time.time() - pe.get("t", 0) > 900: return
+        p = Panneau(self.zone_reprise, padding=16, largeur=748, contour=P["mal"]); p.pack(anchor="w", pady=(16, 0))
+        i = p.interieur
+        etiquette(i, f"Partie interrompue dans le salon {pe['code']}", "texte", 17, gras=True).pack(side="left", padx=(4, 0))
+        Bouton(i, "Ignorer", lambda: (self.controller.oublier_partie(), self.afficher_reprise()), largeur=110, hauteur=44, variante="discret").pack(side="right")
+        Bouton(i, "Reprendre", lambda: self.reprendre(pe), largeur=150, hauteur=44).pack(side="right", padx=10)
+
+    def reprendre(self, pe):
+        if not self.connecte(): return
+        if not self.rejoindre(pe["code"], pe.get("mdp", ""), silencieux=True, score=int(pe.get("score", 0) or 0)):
+            self.controller.oublier_partie(); self.afficher_reprise()
+            tkm.showwarning("SMOUT", "Cette partie est terminée ou le salon n'existe plus.")
+
+    def partie_rapide(self):
+        """Rejoint le salon public (sans mot de passe) le plus rempli, sinon en crée un."""
+        if not (self.pseudo_ok() and self.connecte()): return
+        idx = self.controller.fb_get("index") or {}
+        maintenant = self.maintenant_ms()
+        candidats = sorted(((v.get("nb", 1), v.get("maj", 0), c) for c, v in idx.items() if isinstance(v, dict) and v.get("visible") and not v.get("prive")
+                            and v.get("status") == "waiting" and v.get("version") == VERSION_JEU and v.get("nb", 1) < 4 and maintenant - (v.get("maj") or 0) < 30000), reverse=True)
+        for _, _, code in candidats:
+            if self.rejoindre(code, "", silencieux=True): return
+        self.controller.settings_config.update({"password": "", "visible": True})
+        self.controller.is_host, self.controller.lobby_code = True, ""; self.controller.show_frame("PageLobby")
+
     def charger_liste(self):
+        self.afficher_reprise()
         self.champ_code.set("")
         for w in self.lf.winfo_children(): w.destroy()
         etiquette(self.lf, "Chargement…", "texte", 15, P["texte2"]).pack(anchor="w", pady=10)
@@ -397,9 +470,9 @@ class PageAccueil(tk.Frame):
         c = self.champ_code.get().strip()
         if c: self.tenter_join(c)
 
-    def rejoindre(self, code, mdp, silencieux=False):
+    def rejoindre(self, code, mdp, silencieux=False, score=None):
         uid = self.controller.player_id
-        joueur = {"name": self.controller.pseudo, "score": 0, "last_seen": {".sv": "timestamp"}}
+        joueur = {"name": self.controller.pseudo, "score": score or 0, "last_seen": {".sv": "timestamp"}}
         preuve = preuve_salon(code, mdp)
         if preuve: joueur["preuve"] = preuve
         # la base n'accepte l'inscription qu'avec la bonne preuve de mot de passe
@@ -411,7 +484,8 @@ class PageAccueil(tk.Frame):
         if len(d.get("players", {})) > 4:
             self.controller.fb_ok("delete", f"lobbies/{code}/players/{uid}")
             tkm.showwarning("SMOUT", "Ce salon est déjà complet (maximum 4 joueurs)."); return True
-        self.controller.lobby_code, self.controller.code_affiche, self.controller.current_score = code, code, 0
+        self.controller.lobby_code, self.controller.code_affiche, self.controller.current_score = code, code, score or 0
+        self.controller.reprise = score is not None  # garde ses points en revenant dans une partie en cours
         self.controller.settings_config.update({"password": mdp, "visible": d.get("settings", {}).get("visible", True)})
         self.controller.show_frame("PageLobby")
         return True
@@ -487,8 +561,8 @@ class PageLobby(tk.Frame):
         gm = tk.Frame(i, bg=i["bg"]); gm.pack(anchor="w")
         self.cartes_mode = {}
         for k, (m, nom, desc) in enumerate(MODES):
-            cc = CarteChoix(gm, nom, desc, lambda m=m: self.set_mode(m), largeur=200, hauteur=66)
-            cc.grid(row=k // 3, column=k % 3, padx=(0, 10), pady=(0, 10)); self.cartes_mode[m] = cc
+            cc = CarteChoix(gm, nom, desc, lambda m=m: self.set_mode(m), largeur=158, hauteur=62)
+            cc.grid(row=k // 4, column=k % 4, padx=(0, 8), pady=(0, 8)); self.cartes_mode[m] = cc
         etiquette(i, "Longueur des mots", "texte", 15, P["texte2"], True).pack(anchor="w", pady=(6, 8))
         lg = tk.Frame(i, bg=i["bg"]); lg.pack(anchor="w")
         etiquette(lg, "de", "texte", 15, P["texte2"]).pack(side="left", padx=(0, 8))
@@ -528,7 +602,8 @@ class PageLobby(tk.Frame):
         self.controller.settings_config["game_mode"] = mode
         # 8 essais et 6 à 7 lettres par défaut pour chaque mode
         self.s_essais.set_valeur(8); self.c_min.set_valeur(6); self.c_max.set_valeur(7)
-        temps, manches = {"MYSTERE": (180, 3), "RUSH": (120, 1), "BLAST": (60, 3), "PRECISION": (180, 3), "CLASSIQUE": (180, 3)}[mode]
+        temps, manches = {"MYSTERE": (180, 3), "RUSH": (120, 1), "BLAST": (60, 3), "PRECISION": (180, 3), "CLASSIQUE": (180, 3),
+                          "ELIMINATION": (90, 10), "CHAINE": (150, 1), "COOP": (180, 3)}[mode]
         self.s_time.set_valeur(temps); self.c_rounds.set_valeur(manches)
         self.update_mode_ui(mode)
         self.sync_params()
@@ -550,7 +625,8 @@ class PageLobby(tk.Frame):
 
     # --- cycle de vie ---
     def entrer_lobby(self):
-        self.active_sync = True; self.controller.current_score = 0
+        self.active_sync = True
+        if not getattr(self.controller, "reprise", False): self.controller.current_score = 0
         self.btn_lancer.activer(False)
         if self.controller.is_host and not self.controller.lobby_code:
             sc, ctl = self.controller.settings_config, self.controller
@@ -771,21 +847,30 @@ class PageJeu(tk.Frame):
         mi, ma = conf.get("min", 6), conf.get("max", 10)
         f_list = sorted([m for m in self.controller.liste_mots if mi <= len(m) <= ma] or self.controller.liste_mots)
         rush_seed = conf.get("rush_seed", 12345)
-        self.rush_words = [mot_graine(f_list, rush_seed, i) for i in range(100)]  # même calcul sur PC et sur le web
+        if mode == "CHAINE": self.rush_words = design.mots_chaine(f_list, rush_seed)  # même calcul sur PC et sur le web
+        else: self.rush_words = [mot_graine(f_list, rush_seed, i) for i in range(100)]
         self.rush_index = 0
-        if mode == "RUSH":
+        if mode in RUSHS:
             self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}", {"rush_index": 0})
 
         self.mot = self.rush_words[0]  # recalculé depuis la graine partagée (le mot n'est pas dans la base)
         self.controller.dernier_mot = self.mot
         self.round_actuel = conf.get("round_num", 1)
         self.start_time_round = conf.get("start_time", time.time())
-        if int(self.round_actuel) == 1:
+        reprise = getattr(self.controller, "reprise", False); self.controller.reprise = False
+        if int(self.round_actuel) == 1 and not reprise:
             self.controller.current_score = 0
             self.blast_scored_rounds = set()
             self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}", {"score": 0})
         elif not hasattr(self, 'blast_scored_rounds'):
             self.blast_scored_rounds = set()
+        self.elimine = False
+        if mode == "ELIMINATION":  # 1 point par manche survécue
+            self.elimine = self.controller.player_id in (conf.get("elimines") or [])
+            if int(self.round_actuel) > 1 and not self.elimine:
+                self.controller.current_score = int(self.round_actuel) - 1
+                self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}", {"score": self.controller.current_score})
+        self.coop_n, self.coop_attente, self.coop_md, self.coop_sig = 0, [], {}, None
 
         self.ligne, self.fini_local, self.temps_restant = 0, False, conf.get("timer", 180)
         self.tape = [] if mode == "MYSTERE" else [self.mot[0]]
@@ -813,6 +898,12 @@ class PageJeu(tk.Frame):
         self.active_sync, self.timer_actif = True, True; self.update_timer(gen)
         threading.Thread(target=self.bg_sync, args=(gen,), daemon=True).start(); self.ui_loop(gen)
         self.winfo_toplevel().bind("<Key>", self.clavier_physique); self.maj_affichage()
+        if self.elimine:  # spectateur jusqu'à la fin de la partie
+            self.fini_local = True; self.winfo_toplevel().unbind("<Key>")
+            for case in self.labels_moi[0]: case.set_curseur(False)
+            for w in self.zone_clavier.winfo_children(): w.destroy()
+            self.controller.fb_put(f"lobbies/{self.controller.lobby_code}/fini_states/{self.controller.player_id}", True)
+            self.lbl_msg.config(text="Tu es éliminé : tu regardes la fin de la partie", fg=P["texte2"])
 
     def recreer_grille_adv(self, pid, word_len):
         a = self.adv_widgets.get(pid)
@@ -846,7 +937,12 @@ class PageJeu(tk.Frame):
     def traiter_match(self, d):
         if d.get("status") == "waiting":  # l'hôte a ramené tout le monde au salon
             self.active_sync, self.timer_actif = False, False; self.winfo_toplevel().unbind("<Key>"); self.controller.show_frame("PageLobby"); return
-        if d.get("status") == "finished": self.active_sync = False; self.winfo_toplevel().unbind("<Key>"); self.controller.show_frame("PageScoreFinal"); return
+        if d.get("status") == "finished":
+            sf = d.get("settings", {})
+            if sf.get("game_mode") == "ELIMINATION" and self.controller.player_id not in (sf.get("elimines") or []):
+                self.controller.current_score = int(sf.get("current_round", 1))  # a survécu jusqu'au bout
+                self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}", {"score": self.controller.current_score})
+            self.active_sync = False; self.winfo_toplevel().unbind("<Key>"); self.controller.show_frame("PageScoreFinal"); return
         s, p = d.get("settings", {}), d.get("players", {})
         server_now = max([pdat.get("last_seen", 0) for pdat in p.values()] + [0])
 
@@ -880,8 +976,8 @@ class PageJeu(tk.Frame):
         self.s_manche.set(str(s.get("current_round", 1)), suffixe=f" / {s.get('rounds', 1)}")
         moi = p.get(self.controller.player_id, {})
         self.s_score.set(nombre(max(self.controller.current_score, moi.get("score", 0) if isinstance(moi.get("score", 0), (int, float)) else 0)))
-        if mode == "RUSH":
-            self.lbl_info.config(text=f"Rush · mot n° {self.rush_index + 1} · {len(self.mot)} lettres")
+        if mode in RUSHS:
+            self.lbl_info.config(text=f"{NOM_MODE[mode]} · mot n° {self.rush_index + 1} · {len(self.mot)} lettres")
 
         fs = d.get("fini_states") or {}
         md = d.get("match_data", {}) or {}
@@ -895,12 +991,14 @@ class PageJeu(tk.Frame):
             lignes = md.get(pid) or {}
             items = list(enumerate(lignes)) if isinstance(lignes, list) else [(int(k), v) for k, v in lignes.items() if str(k).isdigit()] if isinstance(lignes, dict) else []
             items = [(i, v) for i, v in items if v]
-            if mode == "RUSH":
+            if mode in RUSHS:
                 adv_idx = pdat.get("rush_index", pdat.get("score", 0)) or 0
                 items = [(i, v) for i, v in items if v.get("w_idx") == adv_idx]
             trouve = any(all(c == "B" for c in v.get("c", [])) for _, v in items)
             if deco: etat, coul = "Déconnecté", P["danger"]
-            elif mode == "RUSH":
+            elif mode == "ELIMINATION" and pid in (s.get("elimines") or []): etat, coul = "Éliminé", P["texte2"]
+            elif mode == "COOP": etat, coul = f"{len(items)} proposition" + ("s" if len(items) > 1 else ""), P["texte2"]
+            elif mode in RUSHS:
                 adv_idx = pdat.get("rush_index", pdat.get("score", 0)) or 0
                 etat, coul = f"Mot n° {adv_idx + 1}", P["texte2"]
                 if adv_idx < self.rush_index:
@@ -911,11 +1009,12 @@ class PageJeu(tk.Frame):
             if isinstance(etat, tuple): etat, coul = etat
             a.lbl_etat.config(text=etat, fg=coul or P["texte2"])
 
+        if mode == "COOP": self.coop_md = md; self.rendre_coop()
         round_over = (sum(1 for pid in active_pids if fs.get(pid)) >= len(active_pids)) or (self.temps_restant <= 0)
         fc = sum(1 for pid in active_pids if fs.get(pid))
         if round_over: self.timer_actif = False
         for pid in list(self.adv_grids.keys()):
-            if mode == "RUSH" and hasattr(self, "rush_words"):
+            if mode in RUSHS and hasattr(self, "rush_words"):
                 adv_idx = p.get(pid, {}).get("rush_index", p.get(pid, {}).get("score", 0))
                 if adv_idx < len(self.rush_words):
                     exp_len = len(self.rush_words[adv_idx])
@@ -926,13 +1025,13 @@ class PageJeu(tk.Frame):
             if pid in md:
                 data_p = md[pid]
                 adv_idx = p.get(pid, {}).get("rush_index", p.get(pid, {}).get("score", 0))
-                show_letters = (adv_idx < self.rush_index) if mode == "RUSH" else self.fini_local
+                show_letters = (adv_idx < self.rush_index) if mode in RUSHS else (self.fini_local or mode == "COOP")
                 lignes = list(enumerate(data_p)) if isinstance(data_p, list) else list(data_p.items()) if isinstance(data_p, dict) else []
                 for l_idx, content in lignes:
                     try: idx = int(l_idx)
                     except (ValueError, TypeError): continue
                     if not content or idx >= len(grid): continue
-                    if mode == "RUSH" and content.get("w_idx") != adv_idx: continue
+                    if mode in RUSHS and content.get("w_idx") != adv_idx: continue
                     for c_idx, code in enumerate(content.get("c", [])):
                         if c_idx < len(grid[idx]): cible[idx][c_idx] = ("", couleur_code(code))
                     if show_letters:
@@ -966,12 +1065,18 @@ class PageJeu(tk.Frame):
                     pts_map = {0: 4, 1: 3, 2: 2, 3: 1}
                     parts = [f"{p.get(w_pid, {}).get('name', 'Joueur').capitalize()} +{pts_map.get(rank, 0)}" for rank, (w_pid, _) in enumerate(sorted_wins) if rank in pts_map]
                     if parts: msg_text += "\n" + "   ·   ".join(parts)
+                derniere = int(s['current_round']) >= int(s['rounds'])
+                if mode == "ELIMINATION":
+                    elim, vivants = calcul_elimination(d, int(s.get("current_round", 1)))
+                    noms = ", ".join(p.get(x, {}).get("name", "?").capitalize() for x in elim)
+                    msg_text += f"\nÉliminé{'s' if len(elim) > 1 else ''} : {noms}" if elim else "\nPersonne n'est éliminé"
+                    derniere = derniere or len(vivants) <= 1
                 if self.lbl_msg.cget("text") != msg_text: self.lbl_msg.config(text=msg_text, fg=P["mal"])
                 if self.controller.is_host and not self.btn_next.winfo_ismapped():
-                    self.btn_next.set_text("Voir les résultats" if int(s['current_round']) >= int(s['rounds']) else "Manche suivante")
+                    self.btn_next.set_text("Voir les résultats" if derniere else "Manche suivante")
                     self.btn_next.pack(pady=(4, 10), before=self.zone_clavier)
             else:
-                t = f"En attente des autres joueurs ({fc}/{len(active_pids)})"
+                t = ("Tu es éliminé : tu regardes la fin de la partie\n" if self.elimine else "") + f"En attente des autres joueurs ({fc}/{len(active_pids)})"
                 if self.lbl_msg.cget("text") != t: self.lbl_msg.config(text=t, fg=P["texte2"])
 
     def update_timer(self, gen):
@@ -1019,18 +1124,19 @@ class PageJeu(tk.Frame):
             t = "".join(self.tape)
             if t not in self.controller.banque_verif and t != self.mot:
                 self.message_temp("Mot inconnu", P["danger"]); return
+            if mode == "COOP": return self.valider_coop()
             res = design.evaluer(self.tape, self.mot)
             self.maj_statuts(self.tape, res)
             for i, e in enumerate(res): self.labels_moi[self.ligne][i].config(bg=P[e])
             for case in self.labels_moi[self.ligne]: case.set_curseur(False)
             payload = {"c": en_codes(res), "l": self.tape}
-            if mode == "RUSH":
+            if mode in RUSHS:
                 payload["w_idx"] = self.rush_index
-            if not (mode == "RUSH" and t == self.mot):
+            if not (mode in RUSHS and t == self.mot):
                 self.controller.fb_put(f"lobbies/{self.controller.lobby_code}/match_data/{self.controller.player_id}/{self.ligne}", payload)
 
             if t == self.mot:
-                if mode == "RUSH":
+                if mode in RUSHS:
                     self.controller.current_score += 1
                     self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}", {"score": self.controller.current_score, "rush_index": self.rush_index + 1})
                     self.s_score.set(nombre(self.controller.current_score))
@@ -1039,7 +1145,7 @@ class PageJeu(tk.Frame):
                 else:
                     self.finir_round(True)
             elif self.ligne >= self.controller.settings_config["essais"]-1:
-                if mode == "RUSH":
+                if mode in RUSHS:
                     essais = self.controller.settings_config["essais"]
                     for r in range(0, essais - 1):
                         for c_idx in range(len(self.labels_moi[r])):
@@ -1056,6 +1162,45 @@ class PageJeu(tk.Frame):
                 self.ligne += 1
                 self.tape = [self.mot[0]]
                 self.maj_affichage()
+
+    # --- mode coopératif : une grille commune remplie par tous les joueurs ---
+    def valider_coop(self):
+        uid, k = self.controller.player_id, self.coop_n
+        res = design.evaluer(self.tape, self.mot)
+        v = {"c": en_codes(res), "l": list(self.tape), "t": {".sv": "timestamp"}}
+        self.coop_n += 1
+        self.controller.fb_put(f"lobbies/{self.controller.lobby_code}/match_data/{uid}/{k}", v)
+        self.coop_attente.append((uid, k, dict(v, t=None)))  # affiché tout de suite, en attendant le serveur
+        self.tape = [self.mot[0]]
+        self.rendre_coop()
+
+    def rendre_coop(self):
+        essais = int(self.controller.settings_config.get("essais", 6))
+        serveur = fusion_coop(self.coop_md, essais)
+        connus = {(pid, k) for _, pid, k, _ in serveur}
+        self.coop_attente = [x for x in self.coop_attente if (x[0], x[1]) not in connus]
+        lignes = (serveur + [(9e15, pid, k, v) for pid, k, v in self.coop_attente])[:essais]
+        sig = tuple((pid, k) for _, pid, k, _ in lignes)
+        if sig != self.coop_sig:
+            self.coop_sig = sig
+            self.statut_lettres = {l: None for l in ALPHABET}
+            etats = {"B": "bien", "M": "mal", "A": "absent"}
+            for r, row in enumerate(self.labels_moi):
+                if r < len(lignes):
+                    v = lignes[r][3]
+                    for c, case in enumerate(row):
+                        code = (v.get("c") or [])[c] if c < len(v.get("c") or []) else "A"
+                        case.config(text=(v.get("l") or [""] * len(row))[c] if c < len(v.get("l") or []) else "", bg=couleur_code(code)); case.set_curseur(False)
+                    self.maj_statuts(list(v.get("l") or []), [etats.get(x, "absent") for x in v.get("c") or []])
+                elif not (self.fini_local and r == self.ligne):
+                    for case in row: case.config(text="", bg=BG); case.set_curseur(False)
+            self.maj_clavier()
+        if self.fini_local: return
+        self.ligne = min(len(lignes), essais - 1)
+        trouve = any(all(x == "B" for x in (v.get("c") or ["A"])) for _, _, _, v in lignes)
+        if trouve: self.finir_round(True)
+        elif len(lignes) >= essais: self.finir_round(False)
+        else: self.maj_affichage()
 
     def maj_statuts(self, lettres, res):
         for i, char in enumerate(lettres):
@@ -1083,7 +1228,7 @@ class PageJeu(tk.Frame):
         [w.destroy() for w in self.moi_side.winfo_children()]
         self.labels_moi = self.creer_grille(self.moi_side, "", True)
         self.maj_clavier()
-        self.lbl_info.config(text=f"Rush · mot n° {self.rush_index + 1} · {len(self.mot)} lettres")
+        self.lbl_info.config(text=f"{NOM_MODE.get(self.controller.settings_config.get('game_mode'), 'Rush')} · mot n° {self.rush_index + 1} · {len(self.mot)} lettres")
         self.maj_affichage()
 
     def get_max_tape(self):
@@ -1116,7 +1261,7 @@ class PageJeu(tk.Frame):
         self.winfo_toplevel().unbind("<Key>")
         mode = self.controller.settings_config.get("game_mode", "CLASSIQUE")
         if vic:
-            if mode in ["CLASSIQUE", "MYSTERE"]:
+            if mode in ["CLASSIQUE", "MYSTERE", "COOP"]:
                 self.controller.current_score += 1
                 self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}", {"score": self.controller.current_score})
             elif mode == "PRECISION":
@@ -1125,7 +1270,7 @@ class PageJeu(tk.Frame):
                 pts = base_pts * 2 if self.ligne == 0 else base_pts
                 self.controller.current_score += pts
                 self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}", {"score": self.controller.current_score})
-            elif mode == "BLAST":
+            elif mode in ("BLAST", "ELIMINATION"):
                 self.controller.fb_put(f"lobbies/{self.controller.lobby_code}/round_wins/r{self.round_actuel}/{self.controller.player_id}", {".sv": "timestamp"})
         self.s_score.set(nombre(self.controller.current_score))
         self.controller.fb_put(f"lobbies/{self.controller.lobby_code}/fini_states/{self.controller.player_id}", True)
@@ -1138,11 +1283,20 @@ class PageJeu(tk.Frame):
         if not d: return
         s = d["settings"]
         mode = s.get("game_mode", "CLASSIQUE")
-        if mode == "RUSH" and hasattr(self, "rush_words"):
+        if mode in RUSHS and hasattr(self, "rush_words"):
             p = d.get("players", {})
             max_idx = max([pdat.get("rush_index", 0) for pdat in p.values()] + [self.rush_index, 0])
             round_words = self.rush_words[:max_idx + 1]
             self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/rush_recap", {f"r{self.round_actuel}": round_words})
+        fin = {"status": "finished"}
+        if mode == "ELIMINATION":
+            elim, vivants = calcul_elimination(d, int(s["current_round"]))
+            s["elimines"] = list(s.get("elimines") or []) + elim
+            # scores finaux écrits avec la fin de partie : 1 point par manche survécue (les survivants ont survécu à toutes)
+            fin.update({"settings/elimines": s["elimines"], **{f"players/{v}/score": int(s["current_round"]) for v in vivants}})
+            if len(vivants) <= 1:
+                self.controller.statut_salon = "finished"
+                self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", fin); return
         if int(s["current_round"]) < int(s["rounds"]):
             s.update({
                 "rush_seed": random.randint(1000, 999999),
@@ -1153,7 +1307,7 @@ class PageJeu(tk.Frame):
             self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", {"settings": s, "status": "playing", "match_data": None, "fini_states": None})
         else:
             self.controller.statut_salon = "finished"
-            self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", {"status": "finished"})
+            self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", fin)
 
     def clavier_physique(self, e):
         if self.fini_local: return
@@ -1238,7 +1392,7 @@ class PageScoreFinal(tk.Frame):
 
     def recap_rush(self, d):
         recap_data = d.get("rush_recap")
-        if d.get("settings", {}).get("game_mode") != "RUSH" or not recap_data: return []
+        if d.get("settings", {}).get("game_mode") not in RUSHS or not recap_data: return []
         lignes = []
         if isinstance(recap_data, dict):
             for k in sorted(recap_data.keys(), key=lambda k: int(k.replace("r", "")) if k.replace("r", "").isdigit() else 0):
