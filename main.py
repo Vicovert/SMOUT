@@ -1,10 +1,53 @@
 import tkinter as tk
 import os, sys, json, colorsys
-from page_solo import PageSolo, apply_theme_solo
-from page_multi import PageMulti, LogoSmout, apply_theme_multi 
+import design
+from design import P, police, etiquette, Bouton, Panneau, Icone, Avatar, Logo, CarteMenu, Defilant, Champ, Superposition, arrondi, calculer_palette, melanger, contraste
+design.charger_polices()  # avant la création de la fenêtre
+from page_solo import PageSolo, PageParametres, apply_theme_solo
+from page_multi import PageMulti, apply_theme_multi
 
-# --- CONFIGURATION DES THÈMES ---
+THEME_PAR_DEFAUT = "PLATEAU DE NUIT"
+ORDRE_CATEGORIES = ["SMOUT", "CLASSIQUE", "NATURE", "TECH", "DOUCEUR", "RÉTRO", "LUXE", "PERSO"]
+
 THEMES = {
+    # --- Thèmes de la refonte 6.0 (catégorie SMOUT) ---
+    "PLATEAU DE NUIT": {
+        "bg": "#0B1226", "accent1": "#C92F35", "accent2": "#F5B83D", "muted": "#131D3F",
+        "btn1": "#F5B83D", "btn2": "#1B2A55", "btn3": "#2F3D72",
+        "txt1": "#EAF0FF", "txt2": "#16130a", "txt3": "#A9B6DA", "type": "SMOUT",
+        "panel": "#131D3F", "tuile": "#1B2A55", "bordure": "#2F3D72", "vide": "#0F1833"
+    },
+    "CLASSIQUE TV": {
+        "bg": "#0A2463", "accent1": "#D62839", "accent2": "#F7C600", "muted": "#10306F",
+        "btn1": "#F7C600", "btn2": "#1749B8", "btn3": "#2B57C4",
+        "txt1": "#FFFFFF", "txt2": "#16130a", "txt3": "#AFC3F2", "type": "SMOUT",
+        "panel": "#0E2C74", "tuile": "#1749B8", "bordure": "#3563D1", "vide": "#0C2869"
+    },
+    "PAPIER": {
+        "bg": "#F4F1EA", "accent1": "#A8322D", "accent2": "#E9A93B", "muted": "#E9E3D5",
+        "btn1": "#A8322D", "btn2": "#DCD3BF", "btn3": "#CFC5AE",
+        "txt1": "#2A2420", "txt2": "#ffffff", "txt3": "#6E6359", "type": "SMOUT",
+        "panel": "#ECE6DA", "tuile": "#DCD3BF", "bordure": "#C9BEA6", "vide": "#EFEAE0"
+    },
+    "MENTHE": {
+        "bg": "#0F1E19", "accent1": "#1F8A5B", "accent2": "#F2C14E", "muted": "#16291F",
+        "btn1": "#F2C14E", "btn2": "#1D3A30", "btn3": "#2C5345",
+        "txt1": "#E8F5EE", "txt2": "#16130a", "txt3": "#9CC3B0", "type": "SMOUT",
+        "panel": "#152A22", "tuile": "#1D3A30", "bordure": "#2C5345", "vide": "#12241D"
+    },
+    "ARCADE": {
+        "bg": "#1A0F2B", "accent1": "#E2407A", "accent2": "#FFD23F", "muted": "#22153A",
+        "btn1": "#FFD23F", "btn2": "#33204F", "btn3": "#4A2F70",
+        "txt1": "#F6EEFF", "txt2": "#16130a", "txt3": "#BFA9E0", "type": "SMOUT",
+        "panel": "#24163B", "tuile": "#33204F", "bordure": "#4A2F70", "vide": "#1F1334"
+    },
+    "CONTRASTE ÉLEVÉ": {
+        "bg": "#000000", "accent1": "#0A84D6", "accent2": "#F0A202", "muted": "#141414",
+        "btn1": "#F0A202", "btn2": "#262626", "btn3": "#3A3A3A",
+        "txt1": "#FFFFFF", "txt2": "#000000", "txt3": "#D4D4D4", "type": "SMOUT",
+        "panel": "#121212", "tuile": "#262626", "bordure": "#5A5A5A", "vide": "#0B0B0B"
+    },
+    # --- Thèmes historiques ---
     "SMOUT CLASSIC": {
         "bg": "#0b1329", "accent1": "#b81d24", "accent2": "#d4af37", "muted": "#1e293b",
         "btn1": "#d4af37", "btn2": "#b81d24", "btn3": "#475569", 
@@ -127,22 +170,9 @@ THEMES = {
     }
 }
 
-def hex_to_rgb(hex_color):
-    """Utilitaire central de conversion"""
-    hex_color = hex_color.lstrip('#')
-    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-
-def get_contrast_color(hex_color):
-    try:
-        r, g, b = hex_to_rgb(hex_color)
-        luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-        return "#f8fafc" if luminance < 0.6 else "#0f172a"
-    except: return "white"
 
 def resource_path(relative_path):
-    try: base_path = sys._MEIPASS
-    except Exception: base_path = os.path.abspath(".")
-    return os.path.join(base_path, relative_path)
+    return design.resource_path(relative_path)
 
 class ColorPickerWidget(tk.Frame):
     def __init__(self, parent, callback, bg_color):
@@ -186,321 +216,307 @@ class ColorPickerWidget(tk.Frame):
         color = '#{:02x}{:02x}{:02x}'.format(int(rgb[0]*255), int(rgb[1]*255), int(rgb[2]*255))
         self.callback(color)
 
-class BoutonSquare(tk.Canvas):
-    def __init__(self, parent, text, command, size=180, color="#f5deb3", is_wide=False, h_override=None, text_color=None):
-        width = size * 2 + 60 if is_wide else size
-        height = h_override if h_override else (60 if is_wide else size)
-        super().__init__(parent, width=width, height=height+6, bg=parent["bg"], highlightthickness=0, cursor="hand2")
-        self.command, self.color = command, color
-        self.width, self.height = width, height
-        self.text_val = text
-        self.draw_button(color, text_color)
-        self.bind("<ButtonRelease-1>", self._on_release)
 
-    def _on_release(self, e):
-        if 0 <= e.x <= self.winfo_width() and 0 <= e.y <= self.winfo_height():
-            self.command()
 
-    def draw_button(self, color, text_color=None, bg_color=None):
-        self.delete("all")
-        if bg_color: self.configure(bg=bg_color)
-        rgb = hex_to_rgb(color)
-        lum = (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255
-        self.hover_color = self._adjust_color(rgb, 0.85 if lum > 0.7 else 1.2)
-        self.shadow = self.draw_round_rect(4, 8, self.width-4, self.height+4, 15, fill="#030f1e")
-        self.rect = self.draw_round_rect(4, 4, self.width-4, self.height-4, 15, fill=color)
-        self.glow = self.create_line(15, 6, self.width-15, 6, fill=self._adjust_color(rgb, 1.35), width=2, capstyle="round")
-        f_size = 9 if (self.height < 100) else 12
-        t_col = text_color if text_color else get_contrast_color(color)
-        self.create_text(self.width/2, self.height/2, text=self.text_val, fill=t_col, font=("Helvetica", f_size, "bold"), width=self.width-20, justify="center")
-        self.bind("<Enter>", lambda e: [self.itemconfig(self.rect, fill=self.hover_color), self.itemconfig(self.glow, fill=self._adjust_color(hex_to_rgb(self.hover_color), 1.2))])
-        self.bind("<Leave>", lambda e: [self.itemconfig(self.rect, fill=color), self.itemconfig(self.glow, fill=self._adjust_color(rgb, 1.35))])
+def dessiner_apercu(c, pal, x0=0, y0=0, taille=46, ecart=8):
+    """Mini-partie dessinée avec une palette donnée (aperçu d'un thème sans l'appliquer)."""
+    lignes = [("STORE", "bmmaa"), ("SOUPE", "bmmaa"), ("SMO", "sss")]
+    for r in range(4):
+        mot, etats = lignes[r] if r < len(lignes) else ("", "")
+        for col in range(5):
+            x, y = x0 + col * (taille + ecart), y0 + r * (taille + ecart)
+            ch = mot[col] if col < len(mot) else ""
+            e = etats[col] if col < len(etats) else ""
+            if e == "b": fill, fg = pal["bien"], pal["sur_bien"]
+            elif e == "m": fill, fg = pal["mal"], pal["sur_mal"]
+            elif e == "a": fill, fg = pal["absent"], pal["texte_absent"]
+            elif e == "s": fill, fg = pal["tuile"], pal["texte"]
+            else: fill, fg = pal["vide"], pal["texte"]
+            arrondi(c, x, y, x + taille, y + taille, 8, fill=fill, outline="")
+            if r == 2 and col == 3: arrondi(c, x + 1, y + 1, x + taille - 1, y + taille - 1, 8, fill="", outline=pal["mal"], width=2)
+            if ch: c.create_text(x + taille / 2, y + taille / 2, text=ch, fill=fg, font=police("chiffres", taille * 0.5))
 
-    def _adjust_color(self, rgb, factor):
-        try:
-            return '#{:02x}{:02x}{:02x}'.format(*[min(255, max(0, int(c * factor))) for c in rgb])
-        except: return '#000000'
 
-    def draw_round_rect(self, x1, y1, x2, y2, r, **kwargs):
-        p = [x1+r,y1, x1+r,y1, x2-r,y1, x2-r,y1, x2,y1, x2,y1+r, x2,y1+r, x2,y2-r, x2,y2-r, x2,y2, x2-r,y2, x2-r,y2, x1+r,y2, x1+r,y2, x1,y2, x1,y2-r, x1,y2-r, x1,y1+r, x1,y1+r, x1,y1]
-        return self.create_polygon(p, **kwargs, smooth=True)
+class CarteTheme(tk.Canvas):
+    """Vignette d'un thème dessinée avec ses propres couleurs."""
+    def __init__(self, parent, nom, theme, commande, choisi=False, actuel=False, on_suppr=None, largeur=206, hauteur=108):
+        super().__init__(parent, width=largeur, height=hauteur, bg=P["fond"], highlightthickness=0, cursor="hand2")
+        pal = calculer_palette(theme); l, h = largeur, hauteur
+        if choisi: arrondi(self, 0, 0, l, h, 18, fill="", outline=P["mal"], width=3)
+        arrondi(self, 4, 4, l - 4, h - 4, 15, fill=pal["fond"], outline=pal["bordure"] if pal["fond"] == P["fond"] else "")
+        etats = [("S", "bien"), ("M", "tuile"), ("O", "mal"), ("U", "vide"), ("T", "bien")]
+        for i, (ch, e) in enumerate(etats):
+            x = 22 + i * 34
+            fg = pal["sur_bien"] if e == "bien" else pal["sur_mal"] if e == "mal" else pal["texte_absent"] if e == "vide" else pal["texte"]
+            arrondi(self, x, 22, x + 28, 50, 6, fill=pal[e], outline="")
+            self.create_text(x + 14, 36, text=ch, fill=fg, font=police("chiffres", 14))
+        nom_aff = design.nom_theme(nom)
+        self.create_text(22, 80, text=nom_aff, anchor="w", fill=pal["texte"], font=police("texte", 16, True), width=l - 70)
+        if actuel: self.create_line(l - 44, 80, l - 37, 87, l - 24, 72, fill=pal["texte"], width=2.5, capstyle="round", joinstyle="round")
+        self.bind("<ButtonRelease-1>", lambda e: commande(nom))
+        if on_suppr:
+            arrondi(self, l - 34, 12, l - 12, 34, 6, fill=pal["panneau"], outline="", tags="x")
+            self.create_text(l - 23, 23, text="×", fill=pal["texte"], font=police("texte", 16, True), tags="x")
+            self.tag_bind("x", "<ButtonRelease-1>", lambda e: (on_suppr(nom), "break")[1])
+
+
+class PageSkins(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent, bg=P["fond"])
+        self.controller = controller
+        self.choix = controller.current_theme_name
+        tk.Frame(self, bg=P["fond"], height=4).pack()
+        h = tk.Frame(self, bg=P["fond"]); h.pack(fill="x", padx=28, pady=(14, 0))
+        Icone(h, "retour", controller.creer_menu_accueil).pack(side="left")
+        corps = tk.Frame(self, bg=P["fond"]); corps.pack(fill="both", expand=True, padx=60, pady=(4, 20))
+        etiquette(corps, "Thèmes", "titre", 46).pack(anchor="w", pady=(0, 22))
+        ligne = tk.Frame(corps, bg=P["fond"]); ligne.pack(fill="both", expand=True)
+        # Aperçu
+        self.apercu = Panneau(ligne, padding=28, largeur=350); self.apercu.pack(side="left", anchor="n")
+        i = self.apercu.interieur
+        self.lbl_apercu = etiquette(i, "", "texte", 13, P["texte2"], True); self.lbl_apercu.pack()
+        self.can = tk.Canvas(i, width=294, height=330, bg=P["panneau"], highlightthickness=0); self.can.pack(pady=(14, 18))
+        self.btn_appliquer = Bouton(i, "Appliquer ce thème", self.appliquer, largeur=294, hauteur=50); self.btn_appliquer.pack()
+        # Liste
+        self.liste = Defilant(ligne, hauteur=600); self.liste.pack(side="left", fill="both", expand=True, padx=(26, 0))
+        self.remplir(); self.maj_apercu()
+
+    def remplir(self):
+        from design import THEMES_CAT_LIB
+        cont = self.liste.interieur
+        for w in cont.winfo_children(): w.destroy()
+        cats = {}
+        for nom, t in THEMES.items(): cats.setdefault(t.get("type", "CLASSIQUE"), []).append(nom)
+        nb_perso = len(cats.get("PERSO", []))
+        try: larg = self.winfo_toplevel().winfo_width()
+        except Exception: larg = 1200
+        if larg < 300: larg = 1200
+        nc = max(1, min(3, int((larg - 120 - 350 - 30) // 218)))
+        for cat in ORDRE_CATEGORIES:
+            noms = cats.get(cat, [])
+            if not noms and cat != "PERSO": continue
+            etiquette(cont, design.espacer(THEMES_CAT_LIB.get(cat, cat)), "texte", 12, P["texte2"], True).pack(anchor="w", pady=(10, 8))
+            g = tk.Frame(cont, bg=P["fond"]); g.pack(anchor="w")
+            items = list(noms)
+            for k, nom in enumerate(items):
+                CarteTheme(g, nom, THEMES[nom], self.choisir, choisi=(nom == self.choix), actuel=(nom == self.controller.current_theme_name),
+                           on_suppr=self.supprimer if cat == "PERSO" else None).grid(row=k // nc, column=k % nc, padx=(0, 12), pady=(0, 12))
+            if cat == "PERSO":
+                k = len(items)
+                c = tk.Canvas(g, width=206, height=108, bg=P["fond"], highlightthickness=0, cursor="hand2" if nb_perso < 4 else "")
+                arrondi(c, 4, 4, 202, 104, 15, fill="", outline=P["bordure"], width=1.5, dash=(5, 4))
+                c.create_text(103, 54, text="+ Créer mon thème" if nb_perso < 4 else "Limite de 4 thèmes perso", fill=P["texte2"], font=police("texte", 15, True))
+                if nb_perso < 4: c.bind("<ButtonRelease-1>", lambda e: self.controller.show_custom_creator())
+                c.grid(row=k // nc, column=k % nc, padx=(0, 12), pady=(0, 12))
+
+    def choisir(self, nom):
+        self.choix = nom; self.remplir(); self.maj_apercu()
+
+    def maj_apercu(self):
+        t = THEMES[self.choix]; pal = calculer_palette(t)
+        nom = design.nom_theme(self.choix)
+        self.lbl_apercu.config(text=design.espacer("Aperçu") + " · " + design.espacer(nom))
+        c = self.can; c.delete("all")
+        arrondi(c, 0, 0, 294, 330, 14, fill=pal["fond"], outline="")
+        c.create_text(90, 30, text=design.espacer("Temps"), fill=pal["texte2"], font=police("texte", 11, True))
+        c.create_text(90, 58, text="01:42", fill=pal["texte"], font=police("chiffres", 28))
+        c.create_text(204, 30, text=design.espacer("Score"), fill=pal["texte2"], font=police("texte", 11, True))
+        c.create_text(204, 58, text="2 450", fill=pal["mal"], font=police("chiffres", 28))
+        dessiner_apercu(c, pal, 22, 96, 46, 7)
+        actuel = self.choix == self.controller.current_theme_name
+        self.btn_appliquer.set_text("Thème actuel ✓" if actuel else "Appliquer ce thème")
+        self.btn_appliquer.set_variante("discret" if actuel else "principal"); self.btn_appliquer.actif = not actuel
+
+    def appliquer(self):
+        self.controller.apply_theme(self.choix); self.controller.show_skins()
+
+    def supprimer(self, nom):
+        if nom in THEMES:
+            del THEMES[nom]
+            if self.controller.current_theme_name == nom: self.controller.apply_theme(THEME_PAR_DEFAUT)
+            self.controller.save_custom_themes_to_config(); self.controller.show_skins()
+
 
 class PageCustomTheme(tk.Frame):
+    PROPRIETES = [("bg", "Fond"), ("tuile", "Tuile"), ("accent1", "Bien placée"), ("accent2", "Mal placée"), ("muted", "Absente"),
+                  ("btn1", "Bouton principal"), ("txt1", "Texte"), ("txt3", "Texte secondaire")]
     def __init__(self, parent, controller):
-        from page_multi import BG, TXT1, BTN1, BTN3, TXT2
-        super().__init__(parent, bg=BG)
+        super().__init__(parent, bg=P["fond"])
         self.controller, self.selected_key = controller, "bg"
-        curr_name = self.controller.current_theme_name
-        self.current_custom = THEMES[curr_name].copy()
+        self.current_custom = dict(THEMES[controller.current_theme_name])
+        self.current_custom.setdefault("tuile", P["tuile"])
+        for k in ("panel", "vide", "bordure"): self.current_custom.pop(k, None)  # recalculés à partir du fond
         self.current_custom["type"] = "PERSO"
-        
-        tk.Label(self, text="CRÉATEUR DE THÈME", font=("Helvetica", 24, "bold"), fg=TXT1, bg=BG).pack(pady=15)
-        main_ui = tk.Frame(self, bg=BG); main_ui.pack(expand=True, anchor="center")
-
-        # GAUCHE : SÉLECTION DES PROPRIÉTÉS
-        self.left_p = tk.Frame(main_ui, bg=BG); self.left_p.pack(side="left", padx=15)
-        self.boxes = {}
-        keys = [("bg", "Fond Principal"), ("accent1", "Lettre Validée"), ("accent2", "Lettre Mal Placée"), ("muted", "Lettre Absente"),
-                ("btn1", "Bouton Solo"), ("btn2", "Bouton Multi"), ("btn3", "Bouton Skins"),
-                ("txt1", "Texte Titre"), ("txt2", "Texte Bouton"), ("txt3", "Texte Info")]
-        for k, lbl in keys:
-            f = tk.Frame(self.left_p, bg=BG); f.pack(fill="x", pady=2)
-            tk.Label(f, text=lbl, fg=TXT1, bg=BG, width=16, anchor="w").pack(side="left")
-            b = tk.Canvas(f, width=35, height=22, bg=self.current_custom[k], highlightthickness=2, highlightbackground=TXT1, cursor="hand2")
-            b.pack(side="left", padx=5); b.bind("<Button-1>", lambda e, k=k: self.select_prop(k))
-            self.boxes[k] = b
-
-        # CENTRE : PREVIEW DYNAMIQUE MOTUS
-        self.center_p = tk.Frame(main_ui, bg=BG); self.center_p.pack(side="left", padx=15)
-        tk.Label(self.center_p, text="APERÇU DU JEU", font=("Helvetica", 10, "bold"), fg=TXT1, bg=BG).pack(pady=5)
-        self.preview_frame = tk.Frame(self.center_p, width=320, height=450, bg=self.current_custom["bg"], highlightthickness=2, highlightbackground=TXT1)
-        self.preview_frame.pack_propagate(False); self.preview_frame.pack(pady=10)
-        self.prev_title = tk.Label(self.preview_frame, text="MOTUS", font=("Helvetica", 18, "bold"), bg=self.current_custom["bg"], fg=self.current_custom["txt1"])
-        self.prev_title.pack(pady=(15, 10))
-        
-        self.grid_frame = tk.Frame(self.preview_frame, bg=self.current_custom["bg"]); self.grid_frame.pack(pady=10)
-        self.grid_cells = []
-        cell_data = [("S", "accent1"), ("M", "accent2"), ("O", "muted")]
-        for char, key in cell_data:
-            c = tk.Label(self.grid_frame, text=char, font=("Helvetica", 16, "bold"), width=2, height=1, 
-                         bg=self.current_custom[key], fg=self.current_custom["txt1"], relief="flat")
-            c.pack(side="left", padx=5); self.grid_cells.append((c, key))
-
-        self.prev_btn1 = BoutonSquare(self.preview_frame, "SOLO", lambda: None, size=140, h_override=40, color=self.current_custom["btn1"], text_color=self.current_custom["txt2"])
-        self.prev_btn1.pack(pady=5)
-        self.prev_btn2 = BoutonSquare(self.preview_frame, "MULTI", lambda: None, size=140, h_override=40, color=self.current_custom["btn2"], text_color=self.current_custom["txt2"])
-        self.prev_btn2.pack(pady=5)
-        self.prev_btn3 = BoutonSquare(self.preview_frame, "SKINS", lambda: None, size=140, h_override=40, color=self.current_custom["btn3"], text_color=self.current_custom["txt2"])
-        self.prev_btn3.pack(pady=5)
-        self.prev_info = tk.Label(self.preview_frame, text="Texte informatif du jeu...", font=("Helvetica", 8), bg=self.current_custom["bg"], fg=self.current_custom["txt3"])
-        self.prev_info.pack(side="bottom", pady=15)
-
-        # DROITE : NUANCIER ET MODIFICATION HEXADÉCIMALE
-        self.right_p = tk.Frame(main_ui, bg=BG); self.right_p.pack(side="left", padx=15)
-        self.picker = ColorPickerWidget(self.right_p, self.update_color, BG); self.picker.pack()
-        
-        # Champ de texte Hexadécimal
-        hex_frame = tk.Frame(self.right_p, bg=BG)
-        hex_frame.pack(fill="x", pady=10)
-        tk.Label(hex_frame, text="CODE HEX :", fg=TXT1, bg=BG, font=("Helvetica", 9, "bold")).pack(side="left")
-        self.hex_var = tk.StringVar(value=self.current_custom[self.selected_key])
-        self.hex_entry = tk.Entry(hex_frame, textvariable=self.hex_var, font=("Helvetica", 10), width=10, bg=BG, fg=TXT1, insertbackground=TXT1)
-        self.hex_entry.pack(side="right", padx=5)
-        self.hex_var.trace_add("write", self.on_hex_edit)
-
-        tk.Label(self.right_p, text="NOM DU STYLE :", fg=TXT1, bg=BG).pack(pady=(5,0))
-        self.name_entry = tk.Entry(self.right_p, font=("Helvetica", 12), width=20); self.name_entry.insert(0, "STYLE PERSO"); self.name_entry.pack(pady=5)
-
-        btn_f = tk.Frame(self, bg=BG); btn_f.pack(side="bottom", pady=25)
-        BoutonSquare(btn_f, "ENREGISTRER", self.save, size=180, color=BTN1, text_color=TXT2, h_override=50).pack(side="left", padx=10)
-        BoutonSquare(btn_f, "ANNULER", self.controller.show_skins, size=180, color=BTN3, text_color=TXT2, h_override=50).pack(side="left", padx=10)
+        h = tk.Frame(self, bg=P["fond"]); h.pack(fill="x", padx=28, pady=(18, 0))
+        Icone(h, "retour", controller.show_skins).pack(side="left")
+        corps = tk.Frame(self, bg=P["fond"]); corps.pack(fill="both", expand=True, padx=90)
+        etiquette(corps, "Créer mon thème", "titre", 46).pack(anchor="w", pady=(0, 20))
+        ligne = tk.Frame(corps, bg=P["fond"]); ligne.pack(anchor="w")
+        # Propriétés
+        gauche = Panneau(ligne, padding=22, largeur=280); gauche.pack(side="left", anchor="n")
+        gi = gauche.interieur; self.boxes = {}
+        etiquette(gi, "Couleurs", "texte", 17, gras=True).pack(anchor="w", pady=(0, 10))
+        for k, lbl in self.PROPRIETES:
+            f = tk.Frame(gi, bg=P["panneau"], cursor="hand2"); f.pack(fill="x", pady=3)
+            b = tk.Canvas(f, width=34, height=34, bg=P["panneau"], highlightthickness=0, cursor="hand2"); b.pack(side="left")
+            l = etiquette(f, lbl, "texte", 15); l.pack(side="left", padx=10)
+            for w in (f, b, l): w.bind("<Button-1>", lambda e, k=k: self.select_prop(k))
+            self.boxes[k] = (b, l)
+        # Aperçu
+        centre = Panneau(ligne, padding=22, largeur=330); centre.pack(side="left", anchor="n", padx=24)
+        etiquette(centre.interieur, design.espacer("Aperçu"), "texte", 12, P["texte2"], True).pack()
+        self.can = tk.Canvas(centre.interieur, width=286, height=300, bg=P["panneau"], highlightthickness=0); self.can.pack(pady=(12, 0))
+        # Nuancier
+        droite = Panneau(ligne, padding=22); droite.pack(side="left", anchor="n")
+        di = droite.interieur
+        self.picker = ColorPickerWidget(di, self.update_color, P["panneau"]); self.picker.pack()
+        etiquette(di, "Code hexadécimal", "texte", 13, P["texte2"]).pack(anchor="w", pady=(14, 4))
+        self.hex_champ = Champ(di, largeur=240, hauteur=44, mono=True, taille=15); self.hex_champ.pack(anchor="w")
+        self.hex_var = self.hex_champ.var; self.hex_var.trace_add("write", self.on_hex_edit)
+        etiquette(di, "Nom du thème", "texte", 13, P["texte2"]).pack(anchor="w", pady=(14, 4))
+        self.nom_champ = Champ(di, largeur=240, hauteur=44, taille=15); self.nom_champ.set("MON THÈME"); self.nom_champ.pack(anchor="w")
+        self.name_entry = self.nom_champ.e
+        bf = tk.Frame(corps, bg=P["fond"]); bf.pack(anchor="w", pady=24)
+        Bouton(bf, "Enregistrer", self.save, largeur=200, hauteur=50).pack(side="left")
+        Bouton(bf, "Annuler", controller.show_skins, largeur=160, hauteur=50, variante="discret").pack(side="left", padx=12)
         self.select_prop("bg")
 
     def select_prop(self, key):
         self.selected_key = key
-        self.hex_var.set(self.current_custom[key])
-        for k, b in self.boxes.items(): b.config(highlightbackground="white" if k == key else self.controller.current_txt1)
+        self.hex_var.set(self.current_custom.get(key, "#000000"))
+        self._refresh()
 
     def on_hex_edit(self, *args):
         val = self.hex_var.get().strip()
         if len(val) == 7 and val.startswith('#'):
             try:
-                self.preview_frame.winfo_rgb(val)
-                self.update_color(val, from_entry=True)
-            except: pass
+                self.winfo_rgb(val); self.update_color(val, from_entry=True)
+            except tk.TclError: pass
 
     def update_color(self, hex_col, from_entry=False):
         self.current_custom[self.selected_key] = hex_col
-        self.boxes[self.selected_key].config(bg=hex_col)
         if not from_entry: self.hex_var.set(hex_col)
-        self._refresh_preview(self.selected_key)
+        self._refresh()
 
-    def _refresh_preview(self, target_key=None):
-        if target_key is None or target_key == "bg":
-            self.preview_frame.config(bg=self.current_custom["bg"])
-            self.grid_frame.config(bg=self.current_custom["bg"])
-            self.prev_title.config(bg=self.current_custom["bg"])
-            self.prev_info.config(bg=self.current_custom["bg"])
-            self.prev_btn1.draw_button(self.current_custom["btn1"], self.current_custom["txt2"], bg_color=self.current_custom["bg"])
-            self.prev_btn2.draw_button(self.current_custom["btn2"], self.current_custom["txt2"], bg_color=self.current_custom["bg"])
-            self.prev_btn3.draw_button(self.current_custom["btn3"], self.current_custom["txt2"], bg_color=self.current_custom["bg"])
-        
-        if target_key is None or target_key == "txt1":
-            self.prev_title.config(fg=self.current_custom["txt1"])
-            for cell, key in self.grid_cells:
-                if key in ["accent1", "accent2", "muted"]:
-                    cell.config(fg=self.current_custom["txt1"])
-
-        if target_key is None or target_key == "txt3":
-            self.prev_info.config(fg=self.current_custom["txt3"])
-
-        if target_key is None or target_key in ["accent1", "accent2", "muted"]:
-            for cell, key in self.grid_cells:
-                if key == target_key or target_key is None:
-                    cell.config(bg=self.current_custom[key])
-
-        if target_key is None or target_key == "btn1" or target_key == "txt2":
-            self.prev_btn1.draw_button(self.current_custom["btn1"], self.current_custom["txt2"], bg_color=self.current_custom["bg"])
-
-        if target_key is None or target_key == "btn2" or target_key == "txt2":
-            self.prev_btn2.draw_button(self.current_custom["btn2"], self.current_custom["txt2"], bg_color=self.current_custom["bg"])
-
-        if target_key is None or target_key == "btn3" or target_key == "txt2":
-            self.prev_btn3.draw_button(self.current_custom["btn3"], self.current_custom["txt2"], bg_color=self.current_custom["bg"])
+    def _refresh(self):
+        for k, (b, l) in self.boxes.items():
+            b.delete("all")
+            arrondi(b, 2, 2, 32, 32, 8, fill=self.current_custom.get(k, "#000000"), outline=P["mal"] if k == self.selected_key else P["bordure"], width=2.5 if k == self.selected_key else 1)
+            l.config(fg=P["texte"] if k == self.selected_key else P["texte2"])
+        pal = calculer_palette(self.current_custom)
+        c = self.can; c.delete("all")
+        arrondi(c, 0, 0, 286, 300, 14, fill=pal["fond"], outline="")
+        dessiner_apercu(c, pal, 18, 22, 44, 8)
+        arrondi(c, 18, 242, 268, 284, 10, fill=pal["accent"], outline="")
+        c.create_text(143, 263, text="Bouton principal", fill=pal["sur_accent"], font=police("texte", 14, True))
 
     def save(self):
-        name = self.name_entry.get().strip().upper()
+        name = self.nom_champ.get().strip().upper()
         if name:
-            THEMES[name] = self.current_custom.copy()
+            THEMES[name] = dict(self.current_custom)
             self.controller.save_custom_themes_to_config()
             self.controller.apply_theme(name)
             self.controller.show_skins()
 
-class PageSkins(tk.Frame):
-    def __init__(self, parent, controller):
-        from page_multi import BG as B_IMPORT, TXT1, BTN3, TXT2, BTN1
-        super().__init__(parent, bg=B_IMPORT)
-        self.controller = controller
-        tk.Label(self, text="CHOISIS TON STYLE", font=("Helvetica", 24, "bold"), fg=TXT1, bg=B_IMPORT).pack(pady=(30, 20))
-        main_grid = tk.Frame(self, bg=B_IMPORT); main_grid.place(relx=0.5, rely=0.45, anchor="center")
-        layout_map = {"CLASSIQUE": (0, 0), "NATURE": (0, 1), "TECH": (1, 0), "DOUCEUR": (1, 1), "RÉTRO": (2, 0), "LUXE": (2, 1), "PERSO": (3, 0)}
-        cat_data = {}; perso_count = 0
-        for name, data in THEMES.items():
-            cat = data.get("type", "CLASSIQUE")
-            if cat == "PERSO": perso_count += 1
-            cat_data.setdefault(cat, []).append((name, data))
-        for cat_name, themes in cat_data.items():
-            r, c = layout_map.get(cat_name, (0, 0))
-            cat_frame = tk.Frame(main_grid, bg=B_IMPORT, padx=20, pady=10)
-            if cat_name == "PERSO": cat_frame.grid(row=r, column=0, columnspan=2)
-            else: cat_frame.grid(row=r, column=c, sticky="nw")
-            tk.Label(cat_frame, text=cat_name, font=("Helvetica", 11, "bold"), fg=TXT1, bg=B_IMPORT).pack(anchor="w", padx=5, pady=(0, 5))
-            row_f = tk.Frame(cat_frame, bg=B_IMPORT); row_f.pack()
-            for name, colors in themes:
-                f = tk.Frame(row_f, bg=B_IMPORT, padx=4); f.pack(side="left")
-                preview = tk.Frame(f, bg=colors["bg"], width=165, height=40, highlightthickness=1, highlightbackground=TXT1)
-                preview.pack(pady=(0, 2)); preview.pack_propagate(False)
-                tk.Frame(preview, bg=colors["accent1"], width=20, height=15).place(x=40, y=12)
-                tk.Frame(preview, bg=colors["accent2"], width=20, height=15).place(x=72, y=12)
-                btn = BoutonSquare(f, name, lambda n=name: self.select_skin(n), size=165, h_override=70, color=colors["btn1"], text_color=colors["txt2"])
-                btn.pack()
-                if colors.get("type") == "PERSO":
-                    del_btn = tk.Canvas(preview, width=15, height=15, bg="#db3a34", highlightthickness=0, cursor="hand2")
-                    del_btn.place(x=145, y=5); del_btn.create_text(8, 7, text="X", fill="white", font=("Arial", 8, "bold"))
-                    del_btn.bind("<Button-1>", lambda e, n=name: self.delete_theme(n))
-        bottom_f = tk.Frame(self, bg=B_IMPORT); bottom_f.pack(side="bottom", pady=40)
-        if perso_count < 4:
-            BoutonSquare(bottom_f, "CRÉER SON PROPRE THÈME", self.controller.show_custom_creator, size=180, color=BTN1, is_wide=True, text_color=TXT2).pack(pady=5)
-        else:
-            msg_f = tk.Frame(bottom_f, bg=B_IMPORT); msg_f.pack(pady=10)
-            tk.Label(msg_f, text="LIMITE DE 4 THÈMES PERSO ATTEINTE", font=("Helvetica", 10, "bold"), fg="#db3a34", bg=B_IMPORT).pack()
-            tk.Label(msg_f, text="Supprimez-en un pour en créer un nouveau", font=("Helvetica", 9), fg=TXT1, bg=B_IMPORT).pack()
-        BoutonSquare(bottom_f, "RETOUR AU MENU", self.controller.creer_menu_accueil, size=180, color=BTN3, is_wide=True, text_color=TXT2).pack(pady=5)
-
-    def select_skin(self, name):
-        self.controller.apply_theme(name); self.controller.show_skins()
-
-    def delete_theme(self, name):
-        if name in THEMES:
-            del THEMES[name]
-            self.controller.save_custom_themes_to_config()
-            self.controller.show_skins()
 
 class MenuPrincipal(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("SMOUT");
-        self.geometry("1100x900")
-
-        # --- MODIFICATION CROSS-PLATFORM ---
-        if sys.platform == "win32":
-            self.config_dir = os.path.join(os.getenv('APPDATA'), "SMOUT")
-        else:
-            # Pour Linux et Mac, on sauvegarde dans un dossier caché du répertoire utilisateur
-            self.config_dir = os.path.join(os.path.expanduser("~"), ".config", "SMOUT")
-
+        self.title("SMOUT")
+        sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
+        w, h = min(1200, sw - 40), min(860, sh - 90)
+        self.geometry(f"{w}x{h}+{max(0, (sw - w) // 2)}+{max(0, (sh - h) // 3)}"); self.minsize(min(980, w), min(640, h))
+        self.config_dir = design.dossier_config()
         self.config_path = os.path.join(self.config_dir, "config.json")
-        self.current_theme_name = "SMOUT CLASSIC"
+        self.current_theme_name = THEME_PAR_DEFAUT
         self.charger_themes_personnalises()
         self.apply_theme(self.charger_parametre_theme(), save=False)
         icon_path = resource_path(os.path.join('fichiers', 'logo.ico'))
         if os.path.exists(icon_path):
             try: self.iconbitmap(icon_path)
-            except: pass
-        self.container = tk.Frame(self, bg=self.current_bg); self.container.pack(fill="both", expand=True)
+            except Exception: pass
+        self.container = tk.Frame(self, bg=P["fond"]); self.container.pack(fill="both", expand=True)
         self.creer_menu_accueil()
 
+    # --- configuration ---
     def charger_themes_personnalises(self):
-        if os.path.exists(self.config_path):
-            try:
-                with open(self.config_path, 'r') as f:
-                    data = json.load(f).get("custom_themes", {})
-                    for n, c in data.items(): c["type"] = "PERSO"; THEMES[n] = c
-            except: pass
+        for n, c in design.lire_config().get("custom_themes", {}).items():
+            c["type"] = "PERSO"; THEMES[n] = c
 
     def save_custom_themes_to_config(self):
-        os.makedirs(self.config_dir, exist_ok=True)
-        data = {}
-        if os.path.exists(self.config_path):
-            try:
-                with open(self.config_path, 'r') as f: data = json.load(f)
-            except: pass
-        data["custom_themes"] = {n: d for n, d in THEMES.items() if d.get("type") == "PERSO"}
-        with open(self.config_path, 'w') as f: json.dump(data, f)
+        design.maj_config(custom_themes={n: d for n, d in THEMES.items() if d.get("type") == "PERSO"})
 
     def charger_parametre_theme(self):
-        if os.path.exists(self.config_path):
-            try:
-                with open(self.config_path, 'r') as f:
-                    t = json.load(f).get("theme", "SMOUT CLASSIC")
-                    return t if t in THEMES else "SMOUT CLASSIC"
-            except: pass
-        return "SMOUT CLASSIC"
+        t = design.lire_config().get("theme", THEME_PAR_DEFAUT)
+        return t if t in THEMES else THEME_PAR_DEFAUT
 
     def apply_theme(self, theme_name, save=True):
         self.current_theme_name = theme_name
-        theme_data = THEMES[theme_name].copy()
+        theme_data = dict(THEMES[theme_name])
+        design.appliquer_theme(theme_data)
         apply_theme_multi(theme_data); apply_theme_solo(theme_data)
-        from page_multi import BG, BTN1, BTN2, BTN3, TXT1, TXT2
-        self.current_bg, self.current_btn1, self.current_btn2, self.current_btn3, self.current_txt1, self.current_txt2 = BG, BTN1, BTN2, BTN3, TXT1, TXT2
-        self.configure(bg=BG)
-        if hasattr(self, 'container'): self.container.configure(bg=BG)
-        if save:
-            data = {}
-            if os.path.exists(self.config_path):
-                try:
-                    with open(self.config_path, 'r') as f: data = json.load(f)
-                except: pass
-            data["theme"] = theme_name
-            with open(self.config_path, 'w') as f: json.dump(data, f)
+        self.configure(bg=P["fond"])
+        if hasattr(self, 'container'): self.container.configure(bg=P["fond"])
+        if save: design.maj_config(theme=theme_name)
+
+    def pseudo(self): return design.lire_config().get("pseudo", "") or "ANONYME"
+
+    # --- écrans ---
+    def vider(self):
+        for widget in self.container.winfo_children(): widget.destroy()
+        self.unbind("<Key>")
 
     def creer_menu_accueil(self):
         self.protocol("WM_DELETE_WINDOW", self.quitter_jeu)
-        for widget in self.container.winfo_children(): widget.destroy()
-        from page_multi import BG, BTN1, BTN2, BTN3, TXT2
-        main_frame = tk.Frame(self.container, bg=BG); main_frame.place(relx=0.5, rely=0.5, anchor="center")
-        LogoSmout(main_frame, 130).pack(pady=(0, 60))
-        l_btn = tk.Frame(main_frame, bg=BG); l_btn.pack()
-        BoutonSquare(l_btn, "SOLO", self.ouvrir_solo, size=180, color=BTN1, text_color=TXT2).pack(side="left", padx=15)
-        BoutonSquare(l_btn, "MULTIJOUEUR", self.ouvrir_multi, size=180, color=BTN2, text_color=TXT2).pack(side="left", padx=15)
-        BoutonSquare(main_frame, "SKINS", self.show_skins, size=180, color=BTN3, is_wide=True, text_color=TXT2).pack(pady=10)
-        BoutonSquare(main_frame, "QUITTER", self.quitter_jeu, size=180, color=BTN2, is_wide=True, text_color=TXT2).pack(pady=10)
+        self.vider(); self.container.configure(bg=P["fond"])
+        page = tk.Frame(self.container, bg=P["fond"]); page.pack(fill="both", expand=True)
+        haut = tk.Frame(page, bg=P["fond"]); haut.pack(fill="x", padx=28, pady=(22, 0))
+        self.avatar = Avatar(haut, self.pseudo(), 46, self.changer_pseudo); self.avatar.pack(side="right", padx=(10, 0))
+        Icone(haut, "reglages", self.ouvrir_parametres).pack(side="right", padx=8)
+        Icone(haut, "palette", self.show_skins).pack(side="right", padx=8)
+        centre = tk.Frame(page, bg=P["fond"]); centre.place(relx=0.5, rely=0.5, anchor="center")
+        Logo(centre, 88, 14).pack()
+        etiquette(centre, "Trouvez le mot caché.", "texte", 19, P["texte2"]).pack(pady=(14, 56))
+        CarteMenu(centre, "Solo", "À votre rythme", lambda: self.ouvrir_solo(False)).pack(pady=8)
+        CarteMenu(centre, "Multijoueur", "Salons publics ou entre amis", self.ouvrir_multi).pack(pady=8)
+        serie, joue = design.serie_mot_du_jour()
+        badge = (f"Série {serie}" if serie else "") + (" · Joué ✓" if joue else "") if (serie or joue) else None
+        CarteMenu(centre, "Mot du jour", "Un mot, une partie par jour", lambda: self.ouvrir_solo(True), badge=badge.strip(" ·") if badge else None).pack(pady=8)
+        etiquette(page, f"SMOUT v{design.VERSION_APP}", "texte", 14, P["texte2"]).pack(side="bottom", pady=22)
+
+    def changer_pseudo(self):
+        o = Superposition(self.container, largeur=460); i = o.interieur
+        etiquette(i, "Ton pseudo", "titre", 28).pack(anchor="w")
+        etiquette(i, "Il s'affiche pour les autres joueurs en multijoueur.", "texte", 15, P["texte2"]).pack(anchor="w", pady=(4, 16))
+        ch = Champ(i, largeur=400, hauteur=52, mono=True, taille=19); ch.pack(anchor="w")
+        ch.set(design.lire_config().get("pseudo", ""))
+        def filtrer(*a):
+            v = "".join(c for c in ch.get().upper() if c.isalnum())[:15]
+            if v != ch.get(): ch.set(v)
+        ch.var.trace_add("write", filtrer)
+        def ok():
+            if ch.get(): design.maj_config(pseudo=ch.get()); self.creer_menu_accueil()
+            else: o.cacher()
+        ch.bind_entree(ok)
+        bf = tk.Frame(i, bg=i["bg"]); bf.pack(anchor="e", pady=(20, 0))
+        Bouton(bf, "Annuler", o.cacher, largeur=130, variante="discret").pack(side="left", padx=10)
+        Bouton(bf, "Enregistrer", ok, largeur=160).pack(side="left")
+        o.montrer(); ch.focus()
 
     def show_skins(self):
-        for widget in self.container.winfo_children(): widget.destroy()
-        PageSkins(self.container, self).pack(fill="both", expand=True)
+        self.vider(); PageSkins(self.container, self).pack(fill="both", expand=True)
 
     def show_custom_creator(self):
-        for widget in self.container.winfo_children(): widget.destroy()
-        PageCustomTheme(self.container, self).pack(fill="both", expand=True)
+        self.vider(); PageCustomTheme(self.container, self).pack(fill="both", expand=True)
 
-    def ouvrir_solo(self):
-        for widget in self.container.winfo_children(): widget.destroy()
-        PageSolo(parent=self.container, controller=self).pack(fill="both", expand=True)
+    def ouvrir_parametres(self):
+        self.vider(); PageParametres(self.container, self).pack(fill="both", expand=True)
+
+    def ouvrir_solo(self, mdj=False):
+        self.vider(); PageSolo(parent=self.container, controller=self, mdj=mdj).pack(fill="both", expand=True)
 
     def ouvrir_multi(self):
-        for widget in self.container.winfo_children(): widget.destroy()
-        PageMulti(parent=self.container, controller=self).pack(fill="both", expand=True)
+        self.vider(); PageMulti(parent=self.container, controller=self).pack(fill="both", expand=True)
 
     def quitter_jeu(self): self.quit(); self.destroy()
 

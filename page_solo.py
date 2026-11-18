@@ -1,364 +1,273 @@
 import tkinter as tk
-from tkinter import messagebox as tkm
 import json, random, os, sys, time, datetime
+import design
+from design import P, police, etiquette, espacer, Tuile, Bouton, Panneau, Icone, Clavier, Stat, Chips, Superposition, entete, fenetre_aide
 
 
 def get_data_path(filename):
-    # --- MODIFICATION CROSS-PLATFORM ---
-    if sys.platform == "win32":
-        app_dir = os.path.join(os.getenv('APPDATA'), "SMOUT")
-    else:
-        app_dir = os.path.join(os.path.expanduser("~"), ".config", "SMOUT")
-
-    if not os.path.exists(app_dir):
-        os.makedirs(app_dir)
-    return os.path.join(app_dir, filename)
+    return os.path.join(design.dossier_config(), filename)
 
 def resource_path(relative_path):
-    try: base_path = sys._MEIPASS
-    except Exception: base_path = os.path.abspath(".")
-    return os.path.join(base_path, relative_path)
+    return design.resource_path(relative_path)
 
-def get_txt_color(hex_color):
-    try:
-        hex_color = hex_color.lstrip('#')
-        r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
-        luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-        return "#1a1a1a" if luminance > 0.5 else "white"
-    except: return "white"
+def nombre(n):
+    """2450 -> « 2 450 » (espace fine insécable)."""
+    return f"{int(n):,}".replace(",", " ")
 
-def adjust_color(hex_color, factor):
-    try:
-        hex_color = hex_color.lstrip('#')
-        rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-        return '#{:02x}{:02x}{:02x}'.format(*[min(255, max(0, int(c * factor))) for c in rgb])
-    except: return hex_color
-
-# --- CONFIGURATION DYNAMIQUE ---
-BG, ACCENT1, ACCENT2, MUTED = '#0a4160', '#ef4444', '#eab308', '#64748b'
-BTN1, BTN2, BTN3 = '#0ea5e9', '#ef4444', '#eab308'
-TXT1, TXT2, TXT3 = 'white', 'black', 'white'
-GRILLE = "#1a1a1a"
-KEY_BG = "#052132"
-FONT_MONO, FONT_UI = ("Courier", 24, "bold"), ("Helvetica", 12, "bold")
+# --- Couleurs du thème (mises à jour par apply_theme_solo) ---
+BG = ACCENT1 = ACCENT2 = MUTED = KEY_BG = TXT1 = None
 ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 def apply_theme_solo(theme_data):
-    global BG, ACCENT1, ACCENT2, MUTED, BTN1, BTN2, BTN3, TXT1, TXT2, TXT3, GRILLE, KEY_BG
-    BG = theme_data["bg"]
-    ACCENT1 = theme_data["accent1"]
-    ACCENT2 = theme_data["accent2"]
-    MUTED = theme_data["muted"]
-    BTN1 = theme_data["btn1"]
-    BTN2 = theme_data["btn2"]
-    BTN3 = theme_data["btn3"]
-    TXT1 = theme_data["txt1"]
-    TXT2 = theme_data["txt2"]
-    TXT3 = theme_data["txt3"]
-    GRILLE = TXT3
-    if get_txt_color(BG) == "white":
-        KEY_BG = adjust_color(BG, 1.4)
-    else:
-        KEY_BG = adjust_color(BG, 0.85)
+    global BG, ACCENT1, ACCENT2, MUTED, KEY_BG, TXT1
+    if not P: design.appliquer_theme(theme_data)
+    BG, ACCENT1, ACCENT2, MUTED, KEY_BG, TXT1 = P["fond"], P["bien"], P["mal"], P["absent"], P["tuile"], P["texte"]
 
-class BoutonPro(tk.Canvas):
-    def __init__(self, parent, text, command, width=200, height=45, color="#f5deb3", hover_color=None):
-        super().__init__(parent, width=width, height=height+4, bg=parent["bg"], highlightthickness=0, cursor="hand2")
-        self.command, self.color = command, color
-        self.hover_color = hover_color if hover_color else self._adjust_color(color, 1.2)
-        self.shadow = self.draw_round_rect(2, 6, width-2, height+2, 12, fill="#030f1e")
-        self.rect = self.draw_round_rect(2, 2, width-2, height-2, 12, fill=color)
-        self.glow = self.create_line(15, 4, width-15, 4, fill=self._adjust_color(color, 1.35), width=2, capstyle="round")
-        self.txt = self.create_text(width/2, height/2, text=text, fill=get_txt_color(color), font=FONT_UI)
-        self.bind("<ButtonRelease-1>", self._on_release)
-        self.bind("<Enter>", lambda e: [self.itemconfig(self.rect, fill=self.hover_color), self.itemconfig(self.glow, fill=self._adjust_color(self.hover_color, 1.2))])
-        self.bind("<Leave>", lambda e: [self.itemconfig(self.rect, fill=self.color), self.itemconfig(self.glow, fill=self._adjust_color(self.color, 1.35))])
-    def _adjust_color(self, hex_color, factor):
-        try:
-            hex_color = hex_color.lstrip('#')
-            rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-            new_rgb = [min(255, max(0, int(c * factor))) for c in rgb]
-            return '#{:02x}{:02x}{:02x}'.format(*new_rgb)
-        except: return hex_color
-    def draw_round_rect(self, x1, y1, x2, y2, r, **kwargs):
-        points = [x1+r, y1, x1+r, y1, x2-r, y1, x2-r, y1, x2, y1, x2, y1+r, x2, y1+r, x2, y2-r, x2, y2-r, x2, y2, x2-r, y2, x2-r, y2, x1+r, y2, x1+r, y2, x1, y2, x1, y2-r, x1, y2-r, x1, y1+r, x1, y1+r, x1, y1]
-        return self.create_polygon(points, **kwargs, smooth=True)
-    def _on_release(self, e):
-        if 0 <= e.x <= self.winfo_width() and 0 <= e.y <= self.winfo_height(): self.command()
 
-class LogoSmout(tk.Canvas):
-    def __init__(self, parent, tile_size=110):
-        word = "SMOUT"
-        gap = 18
-        total_w = (tile_size + gap) * len(word)
-        super().__init__(parent, width=total_w, height=tile_size + 50, bg=parent["bg"], highlightthickness=0)
-        for i, char in enumerate(word):
-            x = i * (tile_size + gap)
-            p, s = 10, tile_size - 10
-            if char in ["S", "M"]:
-                bg = "#e5a93b" # Gold
-                dark = "#8a6d1c"
-                light = "#ffd700"
-            else:
-                bg = "#e0e0e0" # Silver
-                dark = "#707070"
-                light = "#ffffff"
-            self.draw_round_rect(x+p+6, p+10, x+s+6, s+10, 20, fill="#030f1e")
-            self.draw_round_rect(x+p, p+5, x+s, s+5, 20, fill=dark)
-            self.draw_round_rect(x+p, p, x+s, s, 20, fill=bg)
-            self.draw_round_rect(x+p+5, p+5, x+s-5, p+(s/2.5), 15, fill=light)
-            self.create_text(x+tile_size/2, tile_size/2, text=char, fill="#1a1a1a" if char not in ["S", "M"] else "white", font=("Verdana", int(tile_size*0.5), "bold"))
-    
-    def _adjust_color(self, hex_color, factor):
-        try:
-            hex_color = hex_color.lstrip('#')
-            rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-            new_rgb = [min(255, max(0, int(c * factor))) for c in rgb]
-            return '#{:02x}{:02x}{:02x}'.format(*new_rgb)
-        except: return hex_color
+def charger_config_solo():
+    config = {"nb_essais": 6, "nb_lettres_min": 6, "nb_lettres_max": 10, "last_mdj": ""}
+    cfg = design.lire_config()
+    for k in config:
+        if k in cfg: config[k] = cfg[k]
+    return config
 
-    def draw_round_rect(self, x1, y1, x2, y2, r, **kwargs):
-        points = [x1+r, y1, x1+r, y1, x2-r, y1, x2-r, y1, x2, y1, x2, y1+r, x2, y1+r, x2, y2-r, x2, y2-r, x2, y2, x2-r, y2, x2-r, y2, x1+r, y2, x1+r, y2, x1, y2, x1, y2-r, x1, y2-r, x1, y1+r, x1, y1+r, x1, y1]
-        return self.create_polygon(points, **kwargs, smooth=True)
+def charger_mots():
+    def lire(p):
+        p = resource_path(p)
+        if not os.path.exists(p): return []
+        for enc in ['utf-8', 'latin-1']:
+            try:
+                with open(p, 'r', encoding=enc) as f: return [l.strip().upper() for l in f if l.strip()]
+            except Exception: continue
+        return []
+    liste = lire('fichiers/mots_trouver.txt')
+    return liste, set(lire('fichiers/banque_mots.txt')) or set(liste)
+
 
 class EcranFin(tk.Frame):
-    def __init__(self, parent, controller, rejouer_cmd, menu_cmd):
-        super().__init__(parent, bg=BG); self.rejouer_cmd, self.menu_cmd = rejouer_cmd, menu_cmd
-        self.container = tk.Frame(self, bg=KEY_BG, padx=40, pady=30, highlightbackground=BTN1, highlightthickness=2)
-        self.container.place(relx=0.5, rely=0.5, anchor="center")
-        self.lbl_titre = tk.Label(self.container, text="", font=("Arial Black", 28), bg=KEY_BG)
-        self.lbl_stats = tk.Label(self.container, text="", font=FONT_UI, fg="white", bg=KEY_BG)
-        self.resume_frame = tk.Frame(self.container, bg=KEY_BG); self.lbl_mot = tk.Label(self.container, text="", font=("Courier", 18, "bold"), bg=KEY_BG)
-        self.btns_frame = tk.Frame(self.container, bg=KEY_BG)
-        self.btn_rejouer = BoutonPro(self.btns_frame, "REJOUER", self._on_rejouer, width=140, color="#22c55e")
-        self.btn_rejouer.pack(side="left", padx=10)
-        BoutonPro(self.btns_frame, "ACCUEIL", self._on_menu, width=140, color=BTN3).pack(side="left", padx=10)
-    def _on_rejouer(self): self.place_forget(); self.rejouer_cmd()
-    def _on_menu(self): self.place_forget(); self.menu_cmd()
-    def afficher(self, victoire, mot, historique_donnees, score=0, temps="00:00", mdj=False):
-        for widget in self.container.winfo_children(): widget.pack_forget()
-        self.lbl_titre.config(text="VICTOIRE !" if victoire else "PERDU...", fg=ACCENT2 if victoire else ACCENT1)
-        self.lbl_stats.config(text=f"Score : {score}  |  Temps : {temps}" if victoire else "Dommage !")
-        self.lbl_mot.config(text=f"Le mot était : {mot}", fg="white" if victoire else ACCENT1)
-        self.lbl_titre.pack(pady=(0, 5)); self.lbl_stats.pack(pady=10)
-        for w in self.resume_frame.winfo_children(): w.destroy()
-        if historique_donnees:
-            self.resume_frame.pack(pady=15)
-            for ligne in historique_donnees:
-                row_f = tk.Frame(self.resume_frame, bg=KEY_BG); row_f.pack(pady=1)
-                for char, coul in ligne: tk.Label(row_f, text=char, bg=coul, fg=get_txt_color(coul), font=("Courier", 11, "bold"), width=2, height=1).pack(side="left", padx=1)
-        self.lbl_mot.pack(pady=10); self.btns_frame.pack(pady=(10, 0))
-        if mdj: self.btn_rejouer.pack_forget() 
-        else: self.btn_rejouer.pack(side="left", padx=10)
+    """Fin de partie solo : mot, résultat, statistiques, résumé de la grille."""
+    def __init__(self, parent, rejouer_cmd, menu_cmd):
+        super().__init__(parent, bg=P["fond"])
+        self.rejouer_cmd, self.menu_cmd = rejouer_cmd, menu_cmd
+
+    def afficher(self, victoire, mot, historique, score="0", temps="00:00", essais="", mdj=False):
+        for w in self.winfo_children(): w.destroy()
+        c = tk.Frame(self, bg=P["fond"]); c.place(relx=0.5, rely=0.46, anchor="center")
+        etiquette(c, "Le mot était", "texte", 17, P["texte2"]).pack()
+        tl = tk.Frame(c, bg=P["fond"]); tl.pack(pady=(10, 26))
+        for ch in mot:
+            t = Tuile(tl, 56); t.config(text=ch, bg=P["bien"] if victoire else P["absent"]); t.pack(side="left", padx=4)
+        titre = ("Bravo, mot du jour trouvé !" if mdj else "Bravo, mot trouvé !") if victoire else "Perdu…"
+        etiquette(c, titre, "titre", 52).pack()
+        st = tk.Frame(c, bg=P["fond"]); st.pack(pady=26)
+        for lib, val, coul in (("Temps", temps, None), ("Score", score if victoire else "0", P["mal"]), ("Essais", essais, None)):
+            Stat(st, lib, val, coul, taille=34).pack(side="left", padx=34)
+        if historique:
+            g = tk.Frame(c, bg=P["fond"]); g.pack(pady=(0, 26))
+            for ligne in historique:
+                r = tk.Frame(g, bg=P["fond"]); r.pack(pady=2)
+                for ch, coul in ligne:
+                    t = Tuile(r, 22, mini=True); t.config(bg=coul); t.pack(side="left", padx=2)
+        bf = tk.Frame(c, bg=P["fond"]); bf.pack()
+        if not mdj: Bouton(bf, "Rejouer", self._rejouer, largeur=230, hauteur=54, taille=17).pack(side="left", padx=8)
+        Bouton(bf, "Retour à l'accueil", self.menu_cmd, largeur=230, hauteur=54, variante="discret", taille=17).pack(side="left", padx=8)
         self.place(relx=0, rely=0, relwidth=1, relheight=1); self.tkraise()
 
-class PageSolo(tk.Frame):
-    def __init__(self, parent, controller):
-        super().__init__(parent, bg=BG); self.controller = controller
-        self.charger_parametres(); self.charger_mots()
-        self.container = tk.Frame(self, bg=BG); self.container.pack(fill="both", expand=True)
-        self.container.grid_rowconfigure(0, weight=1)
-        self.container.grid_columnconfigure(0, weight=1)
-        self.frames = {}
-        for F in (PageAccueil, PageParametres, PageJeu):
-            f = F(parent=self.container, controller=self); self.frames[F.__name__] = f; f.grid(row=0, column=0, sticky="nsew")
-        self.show_frame("PageAccueil")
-    def charger_parametres(self):
-        self.config = {"nb_essais": 6, "nb_lettres_min": 6, "nb_lettres_max": 10, "mdj": False, "last_mdj": ""}
-        path = get_data_path('config.json')
-        if os.path.exists(path):
-            try:
-                with open(path, 'r') as f: self.config.update(json.load(f))
-            except: pass
-    def sauver_parametres(self):
-        with open(get_data_path('config.json'), 'w') as f:
-            json.dump(self.config, f)
-    def charger_mots(self):
-        def lire(p):
-            p = resource_path(p)
-            if not os.path.exists(p): return []
-            for enc in ['utf-8', 'latin-1']:
-                try:
-                    with open(p, 'r', encoding=enc) as f: return [l.strip().upper() for l in f if l.strip()]
-                except: continue
-            return []
-        self.liste_mots = lire('fichiers/mots_trouver.txt'); self.banque_verif = set(lire('fichiers/banque_mots.txt')) or set(self.liste_mots)
-    def show_frame(self, name):
-        f = self.frames[name]; (f.initialiser_partie() if name == "PageJeu" else None); f.tkraise()
+    def _rejouer(self): self.place_forget(); self.rejouer_cmd()
 
-class PageAccueil(tk.Frame):
-    def __init__(self, parent, controller):
-        super().__init__(parent, bg=BG)
-        c = tk.Frame(self, bg=BG); c.place(relx=0.5, rely=0.45, anchor="center")
-        LogoSmout(c, 110).pack(pady=(0, 60))
-        BoutonPro(c, text="JOUER", command=lambda: self.lancer(controller, False), color=BTN1).pack(pady=8)
-        BoutonPro(c, text="MOT DU JOUR", command=lambda: self.lancer(controller, True), color=ACCENT2).pack(pady=8)
-        BoutonPro(c, text="PARAMÈTRES", command=lambda: controller.show_frame("PageParametres"), color=BTN2).pack(pady=8)
-        BoutonPro(c, text="ACCUEIL", command=controller.controller.creer_menu_accueil, color=BTN3).pack(pady=8)
-    def lancer(self, c, d): c.config.update({"mdj": d}); c.show_frame("PageJeu")
+
+class PageSolo(tk.Frame):
+    def __init__(self, parent, controller, mdj=False):
+        super().__init__(parent, bg=P["fond"])
+        self.controller, self.mdj = controller, mdj
+        self.config = charger_config_solo(); self.config["mdj"] = mdj
+        self.liste_mots, self.banque_verif = charger_mots()
+        self.jeu = PageJeu(self, self); self.jeu.pack(fill="both", expand=True)
+        self.jeu.initialiser_partie()
+
+    def sauver_parametres(self):
+        design.maj_config(**{k: self.config[k] for k in ("nb_essais", "nb_lettres_min", "nb_lettres_max", "last_mdj")})
+
+    def retour_accueil(self):
+        self.jeu.timer_actif = False
+        self.winfo_toplevel().unbind("<Key>")
+        self.controller.creer_menu_accueil()
+
 
 class PageJeu(tk.Frame):
     def __init__(self, parent, controller):
-        super().__init__(parent, bg=BG); self.controller, self.timer_actif = controller, False
-        self.game_zone = tk.Frame(self, bg=BG); self.game_zone.place(relx=0.5, rely=0.5, anchor="center")
+        super().__init__(parent, bg=P["fond"]); self.controller, self.timer_actif = controller, False
+        self.timer_gen = 0
+
     def initialiser_partie(self):
-        self.timer_actif = False; [w.destroy() for w in self.game_zone.winfo_children()]
+        self.timer_actif = False
+        for w in self.winfo_children(): w.destroy()
         conf, mots = self.controller.config, self.controller.liste_mots
         auj = datetime.datetime.now().strftime("%Y-%m-%d")
-        
         if conf["mdj"]:
             if conf.get("last_mdj") == auj:
-                tk.Label(self.game_zone, text="DÉJÀ JOUÉ AUJOURD'HUI !", font=FONT_MONO, fg=ACCENT1, bg=BG).pack(pady=20)
-                BoutonPro(self.game_zone, "RETOUR", lambda: self.controller.show_frame("PageAccueil"), color=BTN3).pack()
+                entete(self, "Mot du jour", self.controller.retour_accueil)
+                c = tk.Frame(self, bg=P["fond"]); c.place(relx=0.5, rely=0.45, anchor="center")
+                etiquette(c, "Déjà joué aujourd'hui", "titre", 44).pack()
+                serie, _ = design.serie_mot_du_jour()
+                msg = (f"Série en cours : {serie} jour" + ("s" if serie > 1 else "") + ". ") if serie else ""
+                etiquette(c, msg + "Revenez demain pour un nouveau mot.", "texte", 18, P["texte2"]).pack(pady=(10, 28))
+                Bouton(c, "Retour à l'accueil", self.controller.retour_accueil, largeur=240, hauteur=52).pack()
                 return
-            mots_tries = sorted(mots); random.seed(auj.replace("-",""))
+            mots_tries = sorted(mots); random.seed(auj.replace("-", ""))
             self.mot = random.choice(mots_tries); random.seed(); self.nb_essais_partie = 7
+            # la partie compte dès qu'elle commence (on ne peut plus la rejouer en fermant la fenêtre)
+            conf["last_mdj"] = auj; self.controller.sauver_parametres()
         else:
             mi, ma = conf["nb_lettres_min"], conf["nb_lettres_max"]; filtre = [m for m in mots if mi <= len(m) <= ma]
             self.mot = random.choice(filtre if filtre else mots); self.nb_essais_partie = conf["nb_essais"]
-            
+
         self.score_initial, self.penalite_dict, self.historique_complet, self.fini_local = (len(self.mot) * 100) * (13 - self.nb_essais_partie), 0, [], False
-        self.statut_lettres, self.boutons_clavier = {l: BG for l in ALPHABET}, {}
-        header = tk.Frame(self.game_zone, bg=BG); header.pack(fill="x")
-        self.label_score = tk.Label(header, text="SCORE: 0", fg=ACCENT2, bg=BG, font=FONT_UI); self.label_score.pack(side="right", padx=10)
-        self.label_timer = tk.Label(header, text="00:00", fg=TXT1, bg=BG, font=FONT_UI); self.label_timer.pack(side="right", padx=10)
-        self.grid_frame = tk.Frame(self.game_zone, bg=BG); self.grid_frame.pack(pady=10)
-        self.label_message = tk.Label(self.game_zone, text="", font=("Helvetica", 11, "bold"), fg=ACCENT1, bg=BG)
-        self.label_message.pack(pady=5)
+        self.statut_lettres = {l: None for l in ALPHABET}
+        titre = ("Mot du jour" if conf["mdj"] else "Solo") + f" · {len(self.mot)} lettres"
+        entete(self, titre, self.controller.retour_accueil, droite=lambda h: Icone(h, "aide", lambda: self.aide.montrer()))
+
+        stats = tk.Frame(self, bg=P["fond"]); stats.pack(pady=(10, 0))
+        self.s_temps = Stat(stats, "Temps", "00:00"); self.s_temps.pack(side="left", padx=40)
+        self.s_score = Stat(stats, "Score", "0", P["mal"]); self.s_score.pack(side="left", padx=40)
+        self.s_essai = Stat(stats, "Essai", "1"); self.s_essai.pack(side="left", padx=40)
+        self.s_essai.set("1", suffixe=f" / {self.nb_essais_partie}")
+
+        taille = self.taille_tuile()
+        self.grid_frame = tk.Frame(self, bg=P["fond"]); self.grid_frame.pack(pady=(18, 0))
         self.ligne_actuelle, self.mot_tape, self.grille_labels = 0, [self.mot[0]], []
         for l in range(self.nb_essais_partie):
             ligne = []
             for c in range(len(self.mot)):
-                case = tk.Label(self.grid_frame, text="", font=FONT_MONO, width=2, height=1, fg=TXT1, bg=BG, borderwidth=1, relief="solid", highlightbackground=GRILLE, highlightthickness=1)
-                case.grid(row=l, column=c, padx=2, pady=2); ligne.append(case)
+                case = Tuile(self.grid_frame, taille)
+                case.grid(row=l, column=c, padx=4, pady=4); ligne.append(case)
             self.grille_labels.append(ligne)
-        self.creer_clavier(); actions = tk.Frame(self.game_zone, bg=BG); actions.pack(pady=20)
-        BoutonPro(actions, "VALIDER", self.valider, width=130, color="#22c55e").pack(side="left", padx=10)
-        BoutonPro(actions, "EFFACER", self.effacer, width=130, color=BTN3).pack(side="left", padx=10)
-        BoutonPro(actions, "ABANDON", lambda: self.gestion_fin("PERDU"), width=130, color=ACCENT1).pack(side="left", padx=10)
-        self.overlay_fin = EcranFin(self, self.controller, self.initialiser_partie, lambda: self.controller.show_frame("PageAccueil"))
+        self.label_message = etiquette(self, "", "texte", 15, P["danger"], True); self.label_message.pack(pady=(8, 4))
+        self.clavier = Clavier(self, self.ajouter_lettre, self.effacer, self.valider, hauteur=self.hauteur_touche()); self.clavier.pack(pady=(0, 16))
+        lien = etiquette(self, "Abandonner", "texte", 14, P["texte2"], cursor="hand2"); lien.pack()
+        lien.bind("<Button-1>", lambda e: self.gestion_fin("PERDU") if not self.fini_local else None)
+        self.overlay_fin = EcranFin(self, self.initialiser_partie, self.controller.retour_accueil)
+        self.aide = fenetre_aide(self)
         self.timer_gen = getattr(self, "timer_gen", 0) + 1
-        self.debut_temps, self.timer_actif = time.time(), True; self.update_loop(self.timer_gen); self.winfo_toplevel().bind("<Key>", self.clavier_physique); self.maj_affichage()
+        self.debut_temps, self.timer_actif = time.time(), True; self.update_loop(self.timer_gen)
+        self.winfo_toplevel().bind("<Key>", self.clavier_physique); self.maj_affichage()
+
+    def hauteur_fenetre(self):
+        try: h = self.winfo_toplevel().winfo_height()
+        except Exception: h = 860
+        return 860 if h < 200 else h
+
+    def hauteur_touche(self):
+        return 50 if self.hauteur_fenetre() >= 760 else 40
+
+    def taille_tuile(self):
+        h = self.hauteur_fenetre()
+        dispo = h - 300 - 3 * (self.hauteur_touche() + 8)
+        return int(max(30, min(58, dispo / self.nb_essais_partie - 8, 560 / len(self.mot) - 8)))
+
+    def score_actuel(self, ecoule):
+        return max(0, self.score_initial - (ecoule * 2) - self.penalite_dict)
+
     def update_loop(self, gen):
         if self.timer_actif and gen == self.timer_gen:
-            ecoule = int(time.time() - self.debut_temps); self.label_timer.config(text=f"{ecoule // 60:02d}:{ecoule % 60:02d}")
-            self.label_score.config(text=f"SCORE: {max(0, self.score_initial - (ecoule * 2) - self.penalite_dict)}"); self.after(1000, lambda: self.update_loop(gen))
+            ecoule = int(time.time() - self.debut_temps)
+            self.s_temps.set(f"{ecoule // 60:02d}:{ecoule % 60:02d}")
+            self.s_score.set(nombre(self.score_actuel(ecoule))); self.after(1000, lambda: self.update_loop(gen))
+
     def valider(self):
         if len(self.mot_tape) != len(self.mot) or self.fini_local: return
         tentative = "".join(self.mot_tape)
         if tentative not in self.controller.banque_verif and tentative != self.mot:
             self.penalite_dict += 100
-            self.label_message.config(text="MOT INCONNU", fg=ACCENT1)
-            self.after(1000, lambda: self.label_message.config(text="") if not self.fini_local else None)
+            self.label_message.config(text="Mot inconnu  ·  −100 points")
+            self.after(1400, lambda: self.label_message.config(text="") if not self.fini_local else None)
             return
-        res, secret = [MUTED]*len(self.mot), list(self.mot)
+        res, secret = [MUTED] * len(self.mot), list(self.mot)
         for i in range(len(self.mot)):
             if self.mot_tape[i] == self.mot[i]: res[i], secret[i] = ACCENT1, None
         for i in range(len(self.mot)):
             if res[i] != ACCENT1 and self.mot_tape[i] in secret: res[i] = ACCENT2; secret[secret.index(self.mot_tape[i])] = None
         for i, char in enumerate(self.mot_tape):
-            cur = self.statut_lettres.get(char, BG)
+            cur = self.statut_lettres.get(char)
             if res[i] == ACCENT1: self.statut_lettres[char] = ACCENT1
             elif res[i] == ACCENT2 and cur != ACCENT1: self.statut_lettres[char] = ACCENT2
             elif res[i] == MUTED and cur not in [ACCENT1, ACCENT2]: self.statut_lettres[char] = MUTED
         self.maj_clavier(); self.historique_complet.append([(self.mot_tape[i], res[i]) for i in range(len(self.mot))])
-        for i, color in enumerate(res): self.grille_labels[self.ligne_actuelle][i].config(bg=color, fg=get_txt_color(color))
-        self.update_idletasks()
+        for i, color in enumerate(res): self.grille_labels[self.ligne_actuelle][i].config(bg=color)
+        for case in self.grille_labels[self.ligne_actuelle]: case.set_curseur(False)
         if tentative == self.mot: self.fini_local = True; self.gestion_fin("VICTOIRE")
         elif self.ligne_actuelle + 1 >= self.nb_essais_partie: self.fini_local = True; self.gestion_fin("PERDU")
-        else: self.ligne_actuelle += 1; self.mot_tape = [self.mot[0]]; self.maj_affichage()
+        else:
+            self.ligne_actuelle += 1; self.mot_tape = [self.mot[0]]
+            self.s_essai.set(str(self.ligne_actuelle + 1)); self.maj_affichage()
+
     def gestion_fin(self, statut):
-        self.timer_actif = False; self.winfo_toplevel().unbind("<Key>")
+        victoire = statut == "VICTOIRE"
+        ecoule = int(time.time() - self.debut_temps)
+        self.timer_actif = False; self.fini_local = True; self.winfo_toplevel().unbind("<Key>")
         if self.controller.config["mdj"]:
             self.controller.config["last_mdj"] = datetime.datetime.now().strftime("%Y-%m-%d")
             self.controller.sauver_parametres()
-        self.overlay_fin.afficher(statut == "VICTOIRE", self.mot, self.historique_complet, self.label_score.cget("text").split(": ")[1], self.label_timer.cget("text"), self.controller.config["mdj"])
-    def creer_clavier(self):
-        f = tk.Frame(self.game_zone, bg=BG); f.pack(pady=10)
-        for lettres in ["ABCDEFGHIJKLM", "NOPQRSTUVWXYZ"]:
-            row = tk.Frame(f, bg=BG); row.pack()
-            for c in lettres:
-                btn = tk.Button(row, text=c, width=3, bg=BG, fg=TXT1, font=("Helvetica", 10, "bold"), relief="raised", bd=2, command=lambda char=c: self.ajouter_lettre(char))
-                btn.pack(side="left", padx=2, pady=2); self.boutons_clavier[c] = btn
+            design.enregistrer_resultat_mdj(victoire)
+        essais = f"{self.ligne_actuelle + 1} / {self.nb_essais_partie}" if victoire else f"– / {self.nb_essais_partie}"
+        self.overlay_fin.afficher(victoire, self.mot, self.historique_complet, nombre(self.score_actuel(ecoule)),
+                                  f"{ecoule // 60:02d}:{ecoule % 60:02d}", essais, self.controller.config["mdj"])
+
     def maj_clavier(self):
-        for char, color in self.statut_lettres.items():
-            if char in self.boutons_clavier:
-                if color == MUTED:
-                    self.boutons_clavier[char].config(bg=color, fg="#6b7280", relief="flat", font=("Helvetica", 10, "bold overstrike"))
-                else:
-                    self.boutons_clavier[char].config(bg=color, fg=get_txt_color(color), relief="raised", font=("Helvetica", 10, "bold"))
+        for char, color in self.statut_lettres.items(): self.clavier.set_couleur(char, color)
+
     def clavier_physique(self, e):
         if not self.winfo_viewable() or self.fini_local: return
         c = e.char.upper()
-        if c in ALPHABET: self.ajouter_lettre(c)
+        if c and c in ALPHABET: self.ajouter_lettre(c)
         elif e.keysym == "BackSpace": self.effacer()
-        elif e.keysym == "Return": self.valider()
+        elif e.keysym in ("Return", "KP_Enter"): self.valider()
+
     def ajouter_lettre(self, c):
-        nb_cases = len(self.grille_labels[self.ligne_actuelle]) if self.ligne_actuelle < len(self.grille_labels) else len(self.mot)
-        if len(self.mot_tape) < nb_cases and not self.fini_local:
-            self.mot_tape.append(c)
-            self.maj_affichage()
+        if len(self.mot_tape) < len(self.mot) and not self.fini_local:
+            self.mot_tape.append(c); self.maj_affichage()
+
     def effacer(self):
         if self.fini_local: return
-        nb_cases = len(self.grille_labels[self.ligne_actuelle]) if self.ligne_actuelle < len(self.grille_labels) else len(self.mot)
-        if len(self.mot_tape) > nb_cases:
-            self.mot_tape = self.mot_tape[:nb_cases]
-        if len(self.mot_tape) > 1:
-            self.mot_tape.pop()
+        if len(self.mot_tape) > 1: self.mot_tape.pop()
         self.maj_affichage()
+
     def maj_affichage(self):
         if self.fini_local: return
-        for i, c in enumerate(self.mot_tape): 
-            coul = ACCENT1 if i == 0 else BG
-            self.grille_labels[self.ligne_actuelle][i].config(text=c, bg=coul, fg=get_txt_color(coul))
-        for i in range(len(self.mot_tape), len(self.mot)): self.grille_labels[self.ligne_actuelle][i].config(text="", bg=BG)
+        ligne = self.grille_labels[self.ligne_actuelle]
+        for i, case in enumerate(ligne):
+            if i < len(self.mot_tape):
+                case.config(text=self.mot_tape[i], bg=ACCENT1 if i == 0 else BG)
+            else:
+                case.config(text="", bg=BG)
+            case.set_curseur(i == len(self.mot_tape))
+
 
 class PageParametres(tk.Frame):
+    """Réglages de la partie solo (ouverts depuis l'icône engrenage de l'accueil)."""
     def __init__(self, parent, controller):
-        super().__init__(parent, bg=BG); self.controller = controller
-        c = tk.Frame(self, bg=BG); c.place(relx=0.5, rely=0.5, anchor="center")
-        tk.Label(c, text="PARAMÈTRES", font=("Verdana", 24, "bold"), fg=TXT1, bg=BG).pack(pady=20)
-        tk.Label(c, text="NOMBRE D'ESSAIS", fg=TXT1, bg=BG, font=FONT_UI).pack(pady=(10,0))
-        self.s_essais = SingleSlider(c, 4, 8, controller.config["nb_essais"]); self.s_essais.pack(pady=10)
-        self.s_len = RangeSlider(c, 6, 10, controller.config["nb_lettres_min"], controller.config["nb_lettres_max"]); self.s_len.pack(pady=10)
-        BoutonPro(c, "ENREGISTRER", self.save, color=BTN1).pack(pady=10); BoutonPro(c, text="RETOUR", command=lambda: controller.show_frame("PageAccueil"), color=BTN3).pack()
+        super().__init__(parent, bg=P["fond"]); self.controller = controller
+        self.config = charger_config_solo()
+        h = tk.Frame(self, bg=P["fond"]); h.pack(fill="x", padx=28, pady=(18, 0))
+        Icone(h, "retour", controller.creer_menu_accueil).pack(side="left")
+        corps = tk.Frame(self, bg=P["fond"]); corps.pack(padx=90, anchor="w")
+        etiquette(corps, "Paramètres", "titre", 46).pack(anchor="w", pady=(0, 6))
+        etiquette(corps, "Réglages des parties solo (le mot du jour se joue toujours en 7 essais).", "texte", 16, P["texte2"]).pack(anchor="w", pady=(0, 24))
+        p = Panneau(corps, padding=30, largeur=620); p.pack(anchor="w")
+        i = p.interieur
+        etiquette(i, "Nombre d'essais", "texte", 17, gras=True).pack(anchor="w")
+        self.c_essais = Chips(i, range(4, 9), self.config["nb_essais"]); self.c_essais.pack(anchor="w", pady=(10, 22))
+        etiquette(i, "Longueur minimale des mots", "texte", 17, gras=True).pack(anchor="w")
+        self.c_min = Chips(i, range(6, 11), self.config["nb_lettres_min"], self._min); self.c_min.pack(anchor="w", pady=(10, 22))
+        etiquette(i, "Longueur maximale des mots", "texte", 17, gras=True).pack(anchor="w")
+        self.c_max = Chips(i, range(6, 11), self.config["nb_lettres_max"], self._max); self.c_max.pack(anchor="w", pady=(10, 26))
+        self.btn = Bouton(i, "Enregistrer", self.save, largeur=560, hauteur=54, taille=17); self.btn.pack()
+
+    def _min(self, v):
+        if v > self.c_max.get(): self.c_max.set_valeur(v)
+    def _max(self, v):
+        if v < self.c_min.get(): self.c_min.set_valeur(v)
+
     def save(self):
-        mi, ma = self.s_len.get_values()
-        self.controller.config.update({"nb_essais": self.s_essais.get_value(), "nb_lettres_min": mi, "nb_lettres_max": ma})
-        self.controller.sauver_parametres()
-        self.controller.show_frame("PageAccueil")
-
-class SingleSlider(tk.Canvas):
-    def __init__(self, parent, min_val, max_val, init_val, width=350, height=80):
-        super().__init__(parent, width=width, height=height, bg=parent["bg"], highlightthickness=0)
-        self.min_val, self.max_val, self.v = min_val, max_val, init_val; self.margin, self.bw, self.h = 25, width - 50, height
-        self.create_line(self.margin, height/2, width-self.margin, height/2, fill=TXT1, width=4)
-        self.handle = self.create_oval(0, 0, 24, 24, fill=BTN1, outline="white"); self.txt_val = self.create_text(0, 0, fill=TXT1, font=FONT_UI); self.update_positions(); self.tag_bind(self.handle, "<B1-Motion>", self.move)
-    def update_positions(self):
-        ratio = (self.v - self.min_val) / (self.max_val - self.min_val); x = self.margin + ratio * self.bw
-        self.coords(self.handle, x-12, self.h/2-12, x+12, self.h/2+12); self.coords(self.txt_val, x, self.h - 15); self.itemconfig(self.txt_val, text=str(int(self.v)))
-    def move(self, event):
-        ratio = (event.x - self.margin) / self.bw; self.v = max(self.min_val, min(self.max_val, int(self.min_val + ratio * (self.max_val - self.min_val)))); self.update_positions()
-    def get_value(self): return int(self.v)
-
-class RangeSlider(tk.Canvas):
-    def __init__(self, parent, min_val, max_val, init_min, init_max, width=350, height=100):
-        super().__init__(parent, width=width, height=height, bg=parent["bg"], highlightthickness=0)
-        self.min_val, self.max_val, self.v_min, self.v_max = min_val, max_val, init_min, init_max; self.margin, self.bw, self.h = 25, width - 50, height
-        self.create_text(width/2, 10, text="TAILLE DU MOT", fill=TXT1, font=("Helvetica", 8, "bold"))
-        self.create_line(self.margin, height/2, width-self.margin, height/2, fill=TXT1, width=4)
-        self.h_min = self.create_oval(0, 0, 24, 24, fill=ACCENT2, outline="white"); self.h_max = self.create_oval(0, 0, 24, 24, fill=ACCENT1, outline="white")
-        self.txt = self.create_text(width/2, self.h - 15, fill=TXT1, font=("Arial", 9, "bold"))
-        self.update_positions(); self.tag_bind(self.h_min, "<B1-Motion>", lambda e: self.move(e, "min")); self.tag_bind(self.h_max, "<B1-Motion>", lambda e: self.move(e, "max"))
-    def update_positions(self):
-        y_mid = self.h / 2
-        for side, val, handle in [("min", self.v_min, self.h_min), ("max", self.v_max, self.h_max)]:
-            ratio = (val - self.min_val) / (self.max_val - self.min_val); x = self.margin + ratio * self.bw
-            self.coords(handle, x-12, y_mid-12, x+12, y_mid+12)
-        self.itemconfig(self.txt, text=f"{int(self.v_min)} à {int(self.v_max)} lettres")
-    def move(self, event, side):
-        ratio = (event.x - self.margin) / self.bw; new_v = max(self.min_val, min(self.max_val, int(self.min_val + ratio * (self.max_val - self.min_val))))
-        if side == "min" and new_v <= self.v_max: self.v_min = new_v
-        elif side == "max" and new_v >= self.v_min: self.v_max = new_v
-        self.update_positions()
-    def get_values(self): return int(self.v_min), int(self.v_max)
+        design.maj_config(nb_essais=self.c_essais.get(), nb_lettres_min=self.c_min.get(), nb_lettres_max=self.c_max.get())
+        self.controller.creer_menu_accueil()
