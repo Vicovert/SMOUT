@@ -1,9 +1,15 @@
 """Kit visuel « Plateau de nuit » de SMOUT 6 : polices, palette dérivée du thème et composants Tkinter."""
 import tkinter as tk
 import tkinter.font as tkfont
-import os, sys, ctypes, colorsys
+import os, sys, ctypes, colorsys, hashlib
 
-VERSION_APP = "6.0"
+VERSION_APP = "7.0"
+URL_WEB = "https://vicovert.github.io/SMOUT/"
+
+def mot_graine(liste_triee, graine, index=0):
+    """Mot choisi de façon déterministe : identique sur PC et sur le web (même calcul SHA-256)."""
+    h = hashlib.sha256(f"{graine}:{index}".encode("utf-8")).hexdigest()[:12]
+    return liste_triee[int(h, 16) % len(liste_triee)]
 
 # ---------------------------------------------------------------- utilitaires
 def resource_path(relative_path):

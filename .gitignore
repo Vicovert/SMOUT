@@ -10,3 +10,4 @@ __pycache__/
 # PyInstaller / Compilation outputs
 build/
 dist/
+_site/

@@ -85,6 +85,101 @@
           }
         }
       }
+    },
+    "v7": {
+      "index": {
+        ".read": "auth != null",
+        "$code": {
+          ".write": "auth != null && (!data.exists() || data.child('owner').val() === auth.uid || data.child('maj').val() < now - 20000)",
+          ".validate": "$code.matches(/^[0-9]{4}$/) && newData.hasChildren(['owner', 'maj', 'version'])",
+          "owner": {
+            ".validate": "newData.isString()"
+          },
+          "hote": {
+            ".validate": "newData.isString() && newData.val().length <= 30"
+          },
+          "nb": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 4"
+          },
+          "prive": {
+            ".validate": "newData.isBoolean()"
+          },
+          "visible": {
+            ".validate": "newData.isBoolean()"
+          },
+          "status": {
+            ".validate": "newData.isString()"
+          },
+          "version": {
+            ".validate": "newData.isString()"
+          },
+          "maj": {
+            ".validate": "newData.isNumber() && newData.val() <= now"
+          },
+          "$autre": {
+            ".validate": false
+          }
+        }
+      },
+      "secrets": {
+        "$code": {
+          ".write": "auth != null && $code.matches(/^[0-9]{4}$/) && (!root.child('v7/lobbies/' + $code).exists() || root.child('v7/lobbies/' + $code + '/settings/host_id').val() === auth.uid)",
+          ".validate": "newData.isString() && newData.val().length <= 64"
+        }
+      },
+      "lobbies": {
+        "$code": {
+          ".read": "auth != null && data.child('players/' + auth.uid).exists()",
+          ".write": "auth != null && $code.matches(/^[0-9]{4}$/) && ((!data.exists() && newData.child('settings/host_id').val() === auth.uid && newData.child('players/' + auth.uid).exists()) || data.child('settings/host_id').val() === auth.uid || (!newData.exists() && (!data.child('players').exists() || data.child('maj').val() < now - 120000)))",
+          "maj": {
+            ".write": "auth != null && data.parent().child('players/' + auth.uid).exists()",
+            ".validate": "newData.isNumber() && newData.val() <= now"
+          },
+          "settings": {
+            ".validate": "newData.hasChildren(['essais', 'min', 'max', 'rounds', 'host_id', 'timer', 'version'])",
+            "host_id": {
+              ".write": "auth != null && newData.val() === auth.uid && data.parent().parent().child('players/' + auth.uid).exists() && (!data.parent().parent().child('players/' + data.val()).exists() || data.parent().parent().child('players/' + data.val() + '/last_seen').val() < now - 15000)",
+              ".validate": "newData.isString()"
+            }
+          },
+          "players": {
+            "$uid": {
+              ".write": "auth != null && ((auth.uid === $uid && (data.exists() || !newData.exists() || (data.parent().parent().child('settings').exists() && (!root.child('v7/secrets/' + $code).exists() || newData.child('preuve').val() === root.child('v7/secrets/' + $code).val())))) || (!newData.exists() && data.child('last_seen').val() < now - 25000))",
+              ".validate": "newData.hasChildren(['name', 'score'])",
+              "name": {
+                ".validate": "newData.isString() && newData.val().length <= 30"
+              },
+              "score": {
+                ".validate": "newData.isNumber()"
+              },
+              "preuve": {
+                ".validate": "newData.isString() && newData.val().length <= 64"
+              }
+            }
+          },
+          "match_data": {
+            "$uid": {
+              ".write": "auth != null && auth.uid === $uid"
+            }
+          },
+          "fini_states": {
+            "$uid": {
+              ".write": "auth != null && auth.uid === $uid",
+              ".validate": "newData.isBoolean()"
+            }
+          },
+          "round_wins": {
+            "$round": {
+              "$uid": {
+                ".write": "auth != null && auth.uid === $uid"
+              }
+            }
+          },
+          "status": {
+            ".validate": "newData.isString()"
+          }
+        }
+      }
     }
   }
 }

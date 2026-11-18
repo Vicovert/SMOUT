@@ -114,8 +114,7 @@ class PageJeu(tk.Frame):
                 etiquette(c, msg + "Revenez demain pour un nouveau mot.", "texte", 18, P["texte2"]).pack(pady=(10, 28))
                 Bouton(c, "Retour à l'accueil", self.controller.retour_accueil, largeur=240, hauteur=52).pack()
                 return
-            mots_tries = sorted(mots); random.seed(auj.replace("-", ""))
-            self.mot = random.choice(mots_tries); random.seed(); self.nb_essais_partie = 7
+            self.mot = design.mot_graine(sorted(mots), "mdj:" + auj); self.nb_essais_partie = 7  # même mot sur PC et sur le web
             # la partie compte dès qu'elle commence (on ne peut plus la rejouer en fermant la fenêtre)
             conf["last_mdj"] = auj; self.controller.sauver_parametres()
         else:

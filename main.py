@@ -133,7 +133,7 @@ THEMES = {
         "btn1": "#8bac0f", "btn2": "#306230", "btn3": "#538058",
         "txt1": "#0f380f", "txt2": "#cadc9f", "txt3": "#306230", "type": "RÉTRO"
     },
-    "ARCADE": {
+    "ARCADE CLASSIQUE": {
         "bg": "#1f2937", "accent1": "#991b1b", "accent2": "#ef4444", "muted": "#111827",
         "btn1": "#3b82f6", "btn2": "#ef4444", "btn3": "#4b5563",
         "txt1": "#ffffff", "txt2": "#ffffff", "txt3": "#9ca3af", "type": "RÉTRO"
