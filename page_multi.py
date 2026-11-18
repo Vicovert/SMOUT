@@ -1,10 +1,46 @@
 import tkinter as tk
 from tkinter import messagebox as tkm
-import json, random, os, sys, time, requests, threading, webbrowser, queue, traceback
+import json, random, os, sys, time, requests, threading, webbrowser, queue, traceback, hashlib
 from pathlib import Path
 
 # --- CONFIGURATION DYNAMIQUE ---
 FIREBASE_URL = "https://smout-multi-default-rtdb.europe-west1.firebasedatabase.app/"
+FIREBASE_API_KEY = "AIzaSyCUliQiMhKmHZzxrMK6k35Gt0z7zBfZP3g"  # clé web publique (normal qu'elle soit dans le client)
+RACINE = "v5"            # toutes les données de cette version sont sous /v5 (les 4.x restent sur /lobbies)
+VERSION_JEU = "5.0"      # deux joueurs doivent avoir la même version (même liste de mots)
+
+def cle_salon(code, mot_de_passe):
+    """Adresse du salon dans la base : un salon protégé est rangé sous une clé impossible à deviner sans le mot de passe."""
+    if not mot_de_passe: return code
+    return f"{code}-" + hashlib.sha256(f"{code}:{mot_de_passe}".encode("utf-8")).hexdigest()[:24]
+
+class AuthFirebase:
+    """Connexion anonyme Firebase (jeton renouvelé automatiquement, sans compte à créer)."""
+    def __init__(self, session):
+        self.session, self.lock = session, threading.Lock()
+        self.uid = self.id_token = self.refresh_token = None
+        self.expire = 0
+
+    def _appliquer(self, id_token, refresh_token, uid, expires_in):
+        self.id_token, self.refresh_token, self.uid = id_token, refresh_token, uid
+        self.expire = time.time() + int(expires_in)
+
+    def jeton(self):
+        with self.lock:
+            if self.id_token and time.time() < self.expire - 120: return self.id_token
+            try:
+                if self.refresh_token:
+                    r = self.session.post(f"https://securetoken.googleapis.com/v1/token?key={FIREBASE_API_KEY}",
+                                          data={"grant_type": "refresh_token", "refresh_token": self.refresh_token}, timeout=5)
+                    if r.status_code == 200:
+                        d = r.json(); self._appliquer(d["id_token"], d["refresh_token"], d["user_id"], d["expires_in"])
+                        return self.id_token
+                r = self.session.post(f"https://identitytoolkit.googleapis.com/v1/accounts:signUp?key={FIREBASE_API_KEY}",
+                                      json={"returnSecureToken": True}, timeout=5)
+                if r.status_code == 200:
+                    d = r.json(); self._appliquer(d["idToken"], d["refreshToken"], d["localId"], d["expiresIn"])
+            except Exception: traceback.print_exc()
+            return self.id_token
 BG, ACCENT1, ACCENT2, MUTED = '#0a4160', '#ef4444', '#eab308', '#64748b'
 BTN1, BTN2, BTN3 = '#0ea5e9', '#ef4444', '#eab308'
 TXT1, TXT2, TXT3 = 'white', 'black', 'white'
@@ -43,6 +79,14 @@ def adjust_color(hex_color, factor):
         rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
         return '#{:02x}{:02x}{:02x}'.format(*[min(255, max(0, int(c * factor))) for c in rgb])
     except: return hex_color
+
+def en_codes(couleurs):
+    """Couleurs locales -> états neutres envoyés aux autres joueurs (B = bien placé, M = mal placé, A = absent)."""
+    return ["B" if c == ACCENT1 else "M" if c == ACCENT2 else "A" for c in couleurs]
+
+def couleur_code(code):
+    """État reçu -> couleur du thème de CE joueur."""
+    return {"B": ACCENT1, "M": ACCENT2, "A": MUTED}.get(code, MUTED)
 
 def draw_round_rect_static(canvas, x1, y1, x2, y2, r, **kwargs):
     p = [x1+r,y1, x1+r,y1, x2-r,y1, x2-r,y1, x2,y1, x2,y1+r, x2,y1+r, x2,y2-r, x2,y2-r, x2,y2, x2-r,y2, x2-r,y2, x1+r,y2, x1+r,y2, x1,y2, x1,y2-r, x1,y2-r, x1,y1+r, x1,y1+r, x1,y1]
@@ -214,11 +258,15 @@ class PageMulti(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg=BG); self.controller = controller
         self.session = requests.Session() 
-        self.player_id = str(random.randint(100000, 999999))
+        self.auth = AuthFirebase(self.session)
+        self.player_id = ""   # = identifiant Firebase, connu une fois connecté
+        self.code_affiche = ""  # code à 4 chiffres montré aux joueurs (lobby_code = adresse réelle du salon)
+        self.nb_joueurs, self.statut_salon = 1, "waiting"
+        threading.Thread(target=self.assurer_connexion, daemon=True).start()
         self.pseudo = self.charger_pseudo_local()
         self.lobby_code, self.is_host, self.current_score = "", False, 0
         self.server_time_offset = 0 # Pour ajuster l'horloge
-        self.settings_config = {"essais": 8, "min": 6, "max": 7, "round_num": 1, "timer": 180, "password": "", "visible": True}
+        self.settings_config = {"essais": 8, "min": 6, "max": 7, "round_num": 1, "timer": 180, "password": "", "visible": True, "game_mode": "CLASSIQUE"}
         self.charger_mots()
         # Left gold glow line
         self.left_glow = tk.Canvas(self, width=3, bg=BG, highlightthickness=0)
@@ -253,11 +301,27 @@ class PageMulti(tk.Frame):
         except queue.Empty: pass
         self.after(50, self.pomper_reponses)
 
+    def assurer_connexion(self):
+        """Renvoie True si on est connecté à Firebase (connexion anonyme)."""
+        if self.auth.jeton():
+            self.player_id = self.auth.uid
+            return True
+        return False
+
     def start_heartbeat(self):
         if self.heartbeat_active and self.lobby_code:
             # Correction : Utilisation du timestamp serveur Firebase
             self.fb_patch(f"lobbies/{self.lobby_code}/players/{self.player_id}", {"last_seen": {".sv": "timestamp"}, "name": self.pseudo, "score": self.current_score})
+            if self.is_host: self.maj_index()
         if self.heartbeat_active: self.after(5000, self.start_heartbeat)
+
+    def maj_index(self):
+        """Annonce le salon dans l'index (liste publique légère, sans mot de passe ni données de jeu)."""
+        if not self.code_affiche: return
+        sc = self.settings_config
+        self.fb_patch(f"index/{self.code_affiche}", {"owner": self.player_id, "hote": self.pseudo[:20], "nb": self.nb_joueurs,
+                      "prive": bool(sc.get("password")), "visible": bool(sc.get("visible", True)), "status": self.statut_salon,
+                      "version": VERSION_JEU, "maj": {".sv": "timestamp"}})
 
     def on_closing(self):
         self.heartbeat_active = False; self.quitter_lobby_logic(True); self.controller.winfo_toplevel().destroy()
@@ -265,18 +329,24 @@ class PageMulti(tk.Frame):
     def quitter_lobby_logic(self, exit_mode=False):
         if not self.lobby_code: return
         code_to_clean, self.lobby_code = self.lobby_code, ""
+        code_index, self.code_affiche = self.code_affiche, ""
         def do_clean():
             try:
-                url = f"{FIREBASE_URL}lobbies/{code_to_clean}.json"
-                data = self.session.get(url, timeout=2).json()
+                data = self._requete("get", f"lobbies/{code_to_clean}")
                 if data:
                     players = data.get("players", {})
+                    hote = data.get("settings", {}).get("host_id") == self.player_id
+                    if hote and len(players) > 1:  # on passe la main avant de partir
+                        nouvel = sorted(pid for pid in players if pid != self.player_id)[0]
+                        self._requete("patch", f"lobbies/{code_to_clean}/settings", {"host_id": nouvel})
+                        self._requete("patch", f"index/{code_index}", {"owner": nouvel})
                     if self.player_id in players:
-                        self.session.delete(f"{FIREBASE_URL}lobbies/{code_to_clean}/players/{self.player_id}.json", timeout=2)
+                        self._requete("delete", f"lobbies/{code_to_clean}/players/{self.player_id}")
                         del players[self.player_id]
-                    if not players: self.session.delete(url, timeout=2)
-                    elif self.is_host: self.session.patch(f"{FIREBASE_URL}lobbies/{code_to_clean}/settings.json", json={"host_id": list(players.keys())[0]}, timeout=2)
-            except: pass
+                    if not players:
+                        self._requete("delete", f"lobbies/{code_to_clean}")
+                        self._requete("delete", f"index/{code_index}")
+            except Exception: traceback.print_exc()
         t = threading.Thread(target=do_clean); t.start()
         if exit_mode: t.join(1.0)
 
@@ -335,29 +405,27 @@ class PageMulti(tk.Frame):
         elif name == "PageJeu": f.initialiser_partie()
         elif name == "PageScoreFinal": f.afficher_vainqueur()
 
-    def fb_get(self, path):
+    def _requete(self, method, path, data=None, timeout=2):
+        """Requête REST authentifiée sous /v5. Renvoie le JSON en cas de succès, sinon None."""
         try:
-            r = self.session.get(f"{FIREBASE_URL}{path}.json", timeout=1.5)
+            jeton = self.auth.jeton()
+            if not jeton: return None
+            u = f"{FIREBASE_URL}{RACINE}/{path}.json"
+            kw = {"params": {"auth": jeton}, "timeout": timeout}
+            if method in ("put", "patch"): kw["json"] = data
+            r = getattr(self.session, method)(u, **kw)
             if 'Date' in r.headers:
                 import email.utils
                 server_time = email.utils.parsedate_to_datetime(r.headers['Date']).timestamp()
                 self.server_time_offset = server_time - time.time()
+            if r.status_code != 200: return None  # ex. refus des règles de sécurité
             return r.json()
-        except: return None
-    
-    def fb_patch(self, path, data): threading.Thread(target=lambda: self._exec_req("patch", path, data), daemon=True).start()
-    def fb_put(self, path, data): threading.Thread(target=lambda: self._exec_req("put", path, data), daemon=True).start()
-    def fb_delete(self, path): threading.Thread(target=lambda: self._exec_req("delete", path), daemon=True).start()
+        except Exception: return None
 
-    def _exec_req(self, method, path, data=None):
-        try:
-            u = f"{FIREBASE_URL}{path}.json" if path.startswith("lobbies") else f"{FIREBASE_URL}lobbies/{path}.json"
-            r = getattr(self.session, method)(u, json=data, timeout=2)
-            if 'Date' in r.headers:
-                import email.utils
-                server_time = email.utils.parsedate_to_datetime(r.headers['Date']).timestamp()
-                self.server_time_offset = server_time - time.time()
-        except: pass
+    def fb_get(self, path): return self._requete("get", path, timeout=1.5)
+    def fb_patch(self, path, data): threading.Thread(target=lambda: self._requete("patch", path, data), daemon=True).start()
+    def fb_put(self, path, data): threading.Thread(target=lambda: self._requete("put", path, data), daemon=True).start()
+    def fb_delete(self, path): threading.Thread(target=lambda: self._requete("delete", path), daemon=True).start()
 
 class PageAccueil(tk.Frame):
     def __init__(self, parent, controller):
@@ -368,7 +436,7 @@ class PageAccueil(tk.Frame):
         self.sv_pseudo = tk.StringVar(value=self.controller.pseudo); self.sv_pseudo.trace_add("write", self.format_p)
         tk.Entry(c, textvariable=self.sv_pseudo, font=("Courier", 18, "bold"), justify="center", bg=KEY_BG, fg=get_txt_color(KEY_BG), width=15).pack(pady=(5, 20))
         BoutonPro(c, "CRÉER UN LOBBY", self.creer, color="#22c55e", width=250).pack(pady=8)
-        BoutonPro(c, "REJOINDRE UN LOBBY", lambda: self.controller.show_frame("PageCode"), color=BTN1, width=250).pack(pady=8)
+        BoutonPro(c, "REJOINDRE UN LOBBY", lambda: self.controller.show_frame("PageCode") if self.connecte() else None, color=BTN1, width=250).pack(pady=8)
         BoutonPro(c, "MENU", lambda: self.controller.controller.creer_menu_accueil(), color=BTN3, width=250).pack(pady=20)
     
     def format_p(self, *args):
@@ -376,7 +444,10 @@ class PageAccueil(tk.Frame):
         if self.sv_pseudo.get() != v: self.sv_pseudo.set(v)
         self.controller.sauver_pseudo_local(v)
         
-    def creer(self): (self.controller.show_frame("PageHostSetup") if self.sv_pseudo.get().strip() else None)
+    def connecte(self):
+        if self.controller.player_id or self.controller.assurer_connexion(): return True
+        tkm.showwarning("SMOUT", "Connexion au serveur impossible. Vérifie ta connexion internet."); return False
+    def creer(self): (self.controller.show_frame("PageHostSetup") if self.sv_pseudo.get().strip() and self.connecte() else None)
 
 class PageHostSetup(tk.Frame):
     def __init__(self, parent, controller):
@@ -425,39 +496,63 @@ class PageCode(tk.Frame):
         self.e.focus_set()
         for w in self.lf.winfo_children(): w.destroy()
         tk.Label(self.lf, text="Chargement...", fg=TXT1, bg=KEY_BG, font=("Helvetica", 9, "italic")).pack(pady=8)
-        self.controller.fb_get_async("lobbies", self.afficher_liste)
+        self.controller.fb_get_async("index", self.afficher_liste)
+
+    def maintenant_ms(self): return (time.time() + self.controller.server_time_offset) * 1000
+
     def afficher_liste(self, data):
         if not self.winfo_exists(): return
         for w in self.lf.winfo_children(): w.destroy()
         data = data or {}
-        for code, val in data.items():
-            s, p = val.get("settings", {}), val.get("players", {})
-            if s.get("visible") and val.get("status") == "waiting":
+        for code, val in sorted(data.items()):
+            if not isinstance(val, dict): continue
+            age = self.maintenant_ms() - (val.get("maj") or 0)
+            if age > 60000:  # salon abandonné : on nettoie l'index
+                self.controller.fb_delete(f"index/{code}"); continue
+            if val.get("visible") and val.get("status") == "waiting" and val.get("version") == VERSION_JEU and age < 30000:
                 f = tk.Frame(self.lf, bg=BG, pady=8, padx=10, highlightthickness=1, highlightbackground=BTN1); f.pack(fill="x", pady=2)
-                tk.Label(f, text=f"#{code} | Hôte: {p.get(s.get('host_id'), {}).get('name', 'ANONYME')} | {len(p)}/4" + (" 🔒" if s.get("password") else ""), fg=TXT1, bg=BG, font=("Helvetica", 9, "bold")).pack(side="left")
+                tk.Label(f, text=f"#{code} | Hôte: {val.get('hote', 'ANONYME')} | {val.get('nb', 1)}/4" + (" 🔒" if val.get("prive") else ""), fg=TXT1, bg=BG, font=("Helvetica", 9, "bold")).pack(side="left")
                 BoutonPro(f, "REJOINDRE", lambda c=code: self.tenter_join(c), width=130, height=30, color="#22c55e").pack(side="right")
+        if not self.lf.winfo_children():
+            tk.Label(self.lf, text="Aucun salon public pour le moment", fg=TXT1, bg=KEY_BG, font=("Helvetica", 9, "italic")).pack(pady=8)
+
     def tenter_join(self, code):
-        data = self.controller.fb_get(f"lobbies/{code}")
-        if not data: return
-        if len(data.get("players", {})) >= 4:
-            tkm.showwarning("SMOUT", "Ce salon est déjà complet (maximum 4 joueurs).")
-            return
-        self.t_c, self.t_p = code, data.get("settings", {}).get("password")
-        if self.t_p: self.pass_view.place(relx=0.5, rely=0.5, anchor="center"); self.e_pw.delete(0, tk.END); self.e_pw.focus_set()
-        else: self.rejoindre(code)
-    def check_pw(self): (self.rejoindre(self.t_c) if self.e_pw.get() == self.t_p else [self.pass_view.config(bg=ACCENT1), self.after(200, lambda: self.pass_view.config(bg=BG))])
+        if not self.controller.player_id and not self.controller.assurer_connexion():
+            tkm.showwarning("SMOUT", "Connexion au serveur impossible."); return
+        idx = self.controller.fb_get(f"index/{code}")
+        if not idx or self.maintenant_ms() - (idx.get("maj") or 0) > 30000:
+            tkm.showwarning("SMOUT", "Lobby introuvable"); return
+        if idx.get("version") != VERSION_JEU:
+            tkm.showwarning("SMOUT", f"Ce salon utilise une autre version du jeu ({idx.get('version', '?')}). Mets SMOUT à jour."); return
+        if idx.get("nb", 0) >= 4:
+            tkm.showwarning("SMOUT", "Ce salon est déjà complet (maximum 4 joueurs)."); return
+        self.t_c = code
+        if idx.get("prive"): self.pass_view.place(relx=0.5, rely=0.5, anchor="center"); self.e_pw.delete(0, tk.END); self.e_pw.focus_set()
+        else: self.rejoindre(code, "")
+
+    def check_pw(self):
+        mdp = self.e_pw.get().strip()
+        if not self.rejoindre(self.t_c, mdp, silencieux=True):
+            self.pass_view.config(bg=ACCENT1); self.after(200, lambda: self.pass_view.config(bg=BG))
+
     def valider(self):
         c = self.e.get().strip()
-        if c: (self.tenter_join(c) if self.controller.fb_get(f"lobbies/{c}") else tkm.showwarning("SMOUT", "Lobby introuvable"))
-    def rejoindre(self, code):
-        self.pass_view.place_forget(); self.controller.is_host = False; d = self.controller.fb_get(f"lobbies/{code}")
-        if d:
-            if len(d.get("players", {})) < 4:
-                self.controller.lobby_code, self.controller.current_score = code, 0
-                self.controller.fb_patch(f"lobbies/{code}/players/{self.controller.player_id}", {"name": self.controller.pseudo, "score": 0, "last_seen": {".sv": "timestamp"}})
-                self.controller.show_frame("PageLobby")
-            else:
-                tkm.showwarning("SMOUT", "Ce salon est déjà complet (maximum 4 joueurs).")
+        if c: self.tenter_join(c)
+
+    def rejoindre(self, code, mdp, silencieux=False):
+        cle = cle_salon(code, mdp)
+        d = self.controller.fb_get(f"lobbies/{cle}")  # mauvais mot de passe = adresse inexistante
+        if not d:
+            if not silencieux: tkm.showwarning("SMOUT", "Lobby introuvable")
+            return False
+        self.pass_view.place_forget(); self.controller.is_host = False
+        if len(d.get("players", {})) >= 4:
+            tkm.showwarning("SMOUT", "Ce salon est déjà complet (maximum 4 joueurs)."); return True
+        self.controller.lobby_code, self.controller.code_affiche, self.controller.current_score = cle, code, 0
+        self.controller.settings_config.update({"password": mdp, "visible": d.get("settings", {}).get("visible", True)})
+        self.controller.fb_patch(f"lobbies/{cle}/players/{self.controller.player_id}", {"name": self.controller.pseudo, "score": 0, "last_seen": {".sv": "timestamp"}})
+        self.controller.show_frame("PageLobby")
+        return True
 
 class PageLobby(tk.Frame):
     def __init__(self, parent, controller):
@@ -582,20 +677,25 @@ class PageLobby(tk.Frame):
         if self.controller.is_host and self.active_sync:
             mi, ma = self.s_len.get_values(); sc = self.controller.settings_config
             mode = sc.get("game_mode", "CLASSIQUE")
-            self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/settings", {"game_mode": mode, "rounds": self.s_rounds.get_value(), "essais": self.s_essais.get_value(), "min": mi, "max": ma, "timer": self.s_time.v, "host_id": self.controller.player_id, "password": sc["password"], "visible": sc["visible"]})
+            self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/settings", {"game_mode": mode, "rounds": self.s_rounds.get_value(), "essais": self.s_essais.get_value(), "min": mi, "max": ma, "timer": self.s_time.v, "host_id": self.controller.player_id, "visible": sc["visible"], "version": VERSION_JEU})
     
     def entrer_lobby(self):
         self.active_sync = True; self.btn_lancer.pack_forget(); self.controller.current_score = 0
         if self.controller.is_host and not self.controller.lobby_code:
+            sc = self.controller.settings_config
             code = str(random.randint(1000, 9999))
-            for _ in range(5):  # évite d'écraser un salon existant qui aurait le même code
-                if self.controller.fb_get(f"lobbies/{code}") is None: break
+            for _ in range(8):  # évite de reprendre le code d'un salon encore actif ou d'un ancien salon non nettoyé
+                idx = self.controller.fb_get(f"index/{code}")
+                libre = not idx or (time.time() + self.controller.server_time_offset) * 1000 - (idx.get("maj") or 0) > 30000
+                if libre and self.controller.fb_get(f"lobbies/{cle_salon(code, sc['password'])}") is None: break
                 code = str(random.randint(1000, 9999))
-            self.controller.lobby_code = code; sc = self.controller.settings_config
+            self.controller.code_affiche, self.controller.lobby_code = code, cle_salon(code, sc["password"])
+            self.controller.nb_joueurs, self.controller.statut_salon = 1, "waiting"
             mode = sc.get("game_mode", "CLASSIQUE")
-            self.controller.fb_put(f"lobbies/{self.controller.lobby_code}", {"status": "waiting", "settings": {"game_mode": mode, "rounds":3, "essais":8, "min":6, "max":7, "timer": 180, "host_id": self.controller.player_id, "password": sc["password"], "visible": sc["visible"]}, "players": {self.controller.player_id: {"name": self.controller.pseudo, "score": 0, "last_seen": {".sv": "timestamp"}}}})
+            self.controller.fb_put(f"lobbies/{self.controller.lobby_code}", {"status": "waiting", "settings": {"game_mode": mode, "rounds":3, "essais":8, "min":6, "max":7, "timer": 180, "host_id": self.controller.player_id, "visible": sc["visible"], "version": VERSION_JEU}, "players": {self.controller.player_id: {"name": self.controller.pseudo, "score": 0, "last_seen": {".sv": "timestamp"}}}})
+            self.controller.maj_index()
         self.lobby_gen = getattr(self, "lobby_gen", 0) + 1
-        self.lbl_code.config(text=self.controller.lobby_code); self.ecouter_lobby(self.lobby_gen)
+        self.lbl_code.config(text=self.controller.code_affiche); self.ecouter_lobby(self.lobby_gen)
     
     def ecouter_lobby(self, gen):
         if not self.active_sync or gen != self.lobby_gen: return
@@ -616,8 +716,11 @@ class PageLobby(tk.Frame):
             if not p: self.controller.fb_delete(f"lobbies/{self.controller.lobby_code}"); self.quitter(); return
             
             hid = s.get("host_id")
-            if hid not in p: hid = list(p.keys())[0]; self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/settings", {"host_id": hid})
-            self.controller.is_host = (hid == self.controller.player_id)
+            if hid not in p:
+                hid = sorted(p.keys())[0]  # même choix chez tous les joueurs
+                if hid == self.controller.player_id: self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/settings", {"host_id": hid})
+            self.controller.is_host = (s.get("host_id") == self.controller.player_id)
+            self.controller.nb_joueurs, self.controller.statut_salon = len(p), d.get("status", "waiting")
             
             if self.controller.is_host:
                 self.lbl_param_badge.config(text="⚙️ CONFIGURATION DU MATCH (HÔTE)", fg=ACCENT2)
@@ -667,17 +770,16 @@ class PageLobby(tk.Frame):
         sc = self.controller.settings_config
         mode = sc.get("game_mode", "CLASSIQUE")
         timer_val = self.s_time.v
-        target_w = rush_words[0] if mode == "RUSH" else random.choice(f_sorted)
-        
         new_settings = {
-            "game_mode": mode, "target_word": target_w, "rush_seed": rush_seed,
+            "game_mode": mode, "rush_seed": rush_seed, "version": VERSION_JEU,
             "rounds": self.s_rounds.get_value(), "current_round": 1,
             "essais": self.s_essais.get_value(), "min": mi, "max": ma,
             "timer": timer_val, "host_id": self.controller.player_id,
-            "password": sc.get("password", ""), "visible": sc.get("visible", True),
+            "visible": sc.get("visible", True),
             "start_time": time.time() + self.controller.server_time_offset
         }
         self.controller.settings_config.update(new_settings)
+        self.controller.statut_salon = "playing"; self.controller.maj_index()
         self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", {"status": "playing", "settings": new_settings, "match_data": None, "fini_states": None, "round_wins": None, "rush_recap": None})
 
 class PageJeu(tk.Frame):
@@ -789,7 +891,7 @@ class PageJeu(tk.Frame):
         if mode == "RUSH":
             self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}", {"rush_index": 0})
         
-        self.mot = conf.get("target_word") or (self.rush_words[0] if mode == "RUSH" else "SMOUT")
+        self.mot = self.rush_words[0]  # recalculé depuis la graine partagée (le mot n'est pas dans la base)
         self.round_actuel = conf.get("round_num", 1)
         self.start_time_round = conf.get("start_time", time.time())
         if int(self.round_actuel) == 1:
@@ -866,7 +968,8 @@ class PageJeu(tk.Frame):
         if self.boucle_valide(gen): self.after(200, lambda: self.ui_loop(gen))
 
     def traiter_match(self, d):
-        if d.get("status") == "waiting": return
+        if d.get("status") == "waiting":  # l'hôte a ramené tout le monde au salon
+            self.active_sync, self.timer_actif = False, False; self.winfo_toplevel().unbind("<Key>"); self.controller.show_frame("PageLobby"); return
         if d.get("status") == "finished": self.active_sync = False; self.winfo_toplevel().unbind("<Key>"); self.controller.show_frame("PageScoreFinal"); return
         s, p = d.get("settings", {}), d.get("players", {})
         
@@ -876,6 +979,12 @@ class PageJeu(tk.Frame):
             self.active_sync = False
             self.controller.settings_config.update(s)
             self.controller.settings_config["round_num"] = int(s["current_round"])
+            self.initialiser_partie(); return
+        if s.get("rush_seed") and s.get("rush_seed") != self.controller.settings_config.get("rush_seed"):
+            # un nouveau match a été lancé pendant qu'on était encore sur l'ancien
+            self.active_sync = False
+            self.controller.settings_config.update(s)
+            self.controller.settings_config["round_num"] = int(s.get("current_round", 1))
             self.initialiser_partie(); return
         
         hid = s.get("host_id")
@@ -888,7 +997,8 @@ class PageJeu(tk.Frame):
             if nouvel_hote == self.controller.player_id:
                 self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/settings", {"host_id": nouvel_hote})
             hid = nouvel_hote
-        self.controller.is_host = (hid == self.controller.player_id)
+        self.controller.is_host = (s.get("host_id") == self.controller.player_id)  # devient vrai dès que la base a validé la reprise
+        self.controller.nb_joueurs = len(p)
 
         mode = s.get("game_mode", "CLASSIQUE")
         self.controller.settings_config["game_mode"] = mode
@@ -966,7 +1076,8 @@ class PageJeu(tk.Frame):
                         if content and idx < len(grid):
                             if mode == "RUSH" and content.get("w_idx") != adv_idx:
                                 continue
-                            for c_idx, coul in enumerate(content.get("c", [])):
+                            for c_idx, code in enumerate(content.get("c", [])):
+                                coul = couleur_code(code)
                                 if c_idx < len(grid[idx]): grid[idx][c_idx].config(bg=coul, fg=get_txt_color(coul))
                             if show_letters:
                                 for c_idx, char in enumerate(content.get("l", [])):
@@ -978,7 +1089,8 @@ class PageJeu(tk.Frame):
                             if idx < len(grid) and content:
                                 if mode == "RUSH" and content.get("w_idx") != adv_idx:
                                     continue
-                                for c_idx, coul in enumerate(content.get("c", [])):
+                                for c_idx, code in enumerate(content.get("c", [])):
+                                    coul = couleur_code(code)
                                     if c_idx < len(grid[idx]): grid[idx][c_idx].config(bg=coul, fg=get_txt_color(coul))
                                 if show_letters:
                                     for c_idx, char in enumerate(content.get("l", [])):
@@ -1068,7 +1180,7 @@ class PageJeu(tk.Frame):
             self.maj_clavier()
             
             for i, c in enumerate(res): self.labels_moi[self.ligne][i+1].config(bg=c, fg=get_txt_color(c))
-            self.controller.fb_put(f"lobbies/{self.controller.lobby_code}/match_data/{self.controller.player_id}/{self.ligne}", {"c": [MUTED]+res, "l": ["?"]+self.tape})
+            self.controller.fb_put(f"lobbies/{self.controller.lobby_code}/match_data/{self.controller.player_id}/{self.ligne}", {"c": en_codes([MUTED]+res), "l": ["?"]+self.tape})
             
             if all(c == ACCENT1 for c in res):
                 self.labels_moi[self.ligne][0].config(text=self.mot[0], bg=ACCENT1, fg=get_txt_color(ACCENT1))
@@ -1095,7 +1207,7 @@ class PageJeu(tk.Frame):
                 elif res[i] == MUTED and cur not in [ACCENT1, ACCENT2]: self.statut_lettres[char] = MUTED
             self.maj_clavier()
             for i, c in enumerate(res): self.labels_moi[self.ligne][i].config(bg=c, fg=get_txt_color(c))
-            payload = {"c": res, "l": self.tape}
+            payload = {"c": en_codes(res), "l": self.tape}
             if mode == "RUSH":
                 payload["w_idx"] = self.rush_index
             if not (mode == "RUSH" and t == self.mot):
@@ -1230,9 +1342,7 @@ class PageJeu(tk.Frame):
             new_rush_seed = random.randint(1000, 999999)
             r_gen = random.Random(new_rush_seed)
             rush_words = [r_gen.choice(f_sorted) for _ in range(100)]
-            target_w = rush_words[0] if mode == "RUSH" else random.choice(f_sorted)
             s.update({
-                "target_word": target_w,
                 "rush_seed": new_rush_seed,
                 "current_round": int(s["current_round"]) + 1,
                 "start_time": time.time() + self.controller.server_time_offset
@@ -1240,6 +1350,7 @@ class PageJeu(tk.Frame):
             self.controller.settings_config.update(s)
             self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", {"settings": s, "status": "playing", "match_data": None, "fini_states": None})
         else:
+            self.controller.statut_salon = "finished"
             self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", {"status": "finished"})
     
     def clavier_physique(self, e):
@@ -1400,4 +1511,5 @@ class PageScoreFinal(tk.Frame):
                 p[pid]["rush_index"] = 0
             s = d.get("settings", {})
             s["rush_seed"] = random.randint(1000, 999999)
+            self.controller.statut_salon = "waiting"
             self.controller.fb_put(f"lobbies/{self.controller.lobby_code}", {"status": "waiting", "players": p, "settings": s, "match_data": None, "fini_states": None, "round_wins": None, "rush_recap": None})
