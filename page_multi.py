@@ -111,6 +111,7 @@ class PageMulti(tk.Frame):
         self.container.grid_rowconfigure(0, weight=1); self.container.grid_columnconfigure(0, weight=1)
         self.frames = {F.__name__: F(parent=self.container, controller=self) for F in (PageAccueil, PageHostSetup, PageLobby, PageJeu, PageScoreFinal)}
         for f in self.frames.values(): f.grid(row=0, column=0, sticky="nsew")
+        self.vu_ok, self.salon_perdu = 0, False
         self.reponses_reseau = queue.Queue(); self.pomper_reponses()
         self.show_frame("PageAccueil"); self.controller.winfo_toplevel().protocol("WM_DELETE_WINDOW", self.on_closing)
         self.heartbeat_active = True; self.start_heartbeat()
@@ -120,7 +121,27 @@ class PageMulti(tk.Frame):
         def worker(): self.reponses_reseau.put((callback, self.fb_get(path)))
         threading.Thread(target=worker, daemon=True).start()
 
+    def lire_salon(self):
+        """Lit le salon courant. Si on n'y figure plus pendant 10 s (exclu après une coupure, salon fermé), on le signale."""
+        code = self.lobby_code
+        if not code: return None
+        if not self.vu_ok: self.vu_ok = time.time()
+        d = self.fb_get(f"lobbies/{code}")
+        if code != self.lobby_code: return None
+        if d and self.player_id in (d.get("players") or {}): self.vu_ok = time.time(); return d
+        if time.time() - self.vu_ok > 10: self.salon_perdu = True
+        return d
+
+    def lire_salon_async(self, callback):
+        def worker(): self.reponses_reseau.put((callback, self.lire_salon()))
+        threading.Thread(target=worker, daemon=True).start()
+
     def pomper_reponses(self):
+        if self.salon_perdu:
+            self.salon_perdu, self.vu_ok, self.is_host = False, 0, False
+            self.lobby_code, self.code_affiche = "", ""
+            self.show_frame("PageAccueil")
+            tkm.showwarning("SMOUT", "Tu n'es plus dans ce salon (connexion perdue trop longtemps ou salon fermé).")
         try:
             while True:
                 callback, data = self.reponses_reseau.get_nowait()
@@ -159,6 +180,7 @@ class PageMulti(tk.Frame):
     def quitter_lobby_logic(self, exit_mode=False):
         if not self.lobby_code: return
         code_to_clean, self.lobby_code = self.lobby_code, ""
+        self.vu_ok = 0
         code_index, self.code_affiche = self.code_affiche, ""
         def do_clean():
             try:
@@ -181,6 +203,7 @@ class PageMulti(tk.Frame):
 
     def fb_ok(self, method, path, data=None, timeout=3):
         """Écriture/suppression synchrone : True si la base l'a acceptée."""
+        if not path or path.endswith("/") or "//" in path: return False
         try:
             jeton = self.auth.jeton()
             if not jeton: return False
@@ -227,6 +250,7 @@ class PageMulti(tk.Frame):
 
     def _requete(self, method, path, data=None, timeout=2):
         """Requête REST authentifiée sous /v7. Renvoie le JSON en cas de succès, sinon None."""
+        if not path or path.endswith("/") or "//" in path: return None  # salon déjà quitté : rien à lire
         try:
             jeton = self.auth.jeton()
             if not jeton: return None
@@ -558,7 +582,7 @@ class PageLobby(tk.Frame):
 
     def ecouter_lobby(self, gen):
         if not self.active_sync or gen != self.lobby_gen: return
-        self.controller.fb_get_async(f"lobbies/{self.controller.lobby_code}", lambda d: self.traiter_lobby(d, gen))
+        self.controller.lire_salon_async(lambda d: self.traiter_lobby(d, gen))
 
     def dessiner_joueur(self, c, index, nom=None, hote=False, deco=False, moi=False):
         c.delete("all"); w, h = 292, 62
@@ -736,7 +760,7 @@ class PageJeu(tk.Frame):
         [w.destroy() for w in self.moi_side.winfo_children() + self.adv_container.winfo_children() + self.zone_clavier.winfo_children()]
         self.lbl_msg.config(text=""); self.btn_def.pack_forget()
 
-        dm = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}")
+        dm = self.controller.lire_salon()
         if dm and "settings" in dm:
             self.controller.settings_config.update(dm["settings"])
         conf = self.controller.settings_config
@@ -800,7 +824,7 @@ class PageJeu(tk.Frame):
 
     def bg_sync(self, gen):
         while self.boucle_valide(gen):
-            d = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}")
+            d = self.controller.lire_salon()
             if d and gen == self.sync_gen: self.last_sync_data = d
             time.sleep(0.8)
 
@@ -1113,7 +1137,7 @@ class PageJeu(tk.Frame):
 
     def clic_suivant(self):
         self.btn_next.pack_forget()
-        d = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}")
+        d = self.controller.lire_salon()
         if not d: return
         s = d["settings"]
         mode = s.get("game_mode", "CLASSIQUE")
@@ -1236,7 +1260,7 @@ class PageScoreFinal(tk.Frame):
 
     def afficher_vainqueur(self):
         self.active_sync = True
-        d = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}")
+        d = self.controller.lire_salon()
         if not d: return
         p = d.get("players", {})
         if not p: return
@@ -1310,7 +1334,7 @@ class PageScoreFinal(tk.Frame):
 
     def ecouter_fin(self, gen):
         if not self.active_sync or gen != self.fin_gen: return
-        self.controller.fb_get_async(f"lobbies/{self.controller.lobby_code}", lambda d: self.traiter_fin(d, gen))
+        self.controller.lire_salon_async(lambda d: self.traiter_fin(d, gen))
 
     def traiter_fin(self, d, gen):
         if not self.active_sync or gen != self.fin_gen: return
@@ -1321,7 +1345,7 @@ class PageScoreFinal(tk.Frame):
             self.after(1000, lambda: self.ecouter_fin(gen))
 
     def retour_lobby_host(self):
-        d = self.controller.fb_get(f"lobbies/{self.controller.lobby_code}")
+        d = self.controller.lire_salon()
         if d:
             self.controller.current_score = 0; p = d.get("players", {})
             for pid in p:

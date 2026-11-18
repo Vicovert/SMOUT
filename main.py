@@ -412,6 +412,9 @@ class PageCustomTheme(tk.Frame):
 
     def save(self):
         name = self.nom_champ.get().strip().upper()
+        if name in THEMES and THEMES[name].get("type") != "PERSO":
+            from tkinter import messagebox
+            messagebox.showwarning("SMOUT", "Ce nom est déjà celui d'un thème intégré. Choisis-en un autre."); return
         if name:
             THEMES[name] = dict(self.current_custom)
             self.controller.save_custom_themes_to_config()
@@ -441,6 +444,7 @@ class MenuPrincipal(tk.Tk):
     # --- configuration ---
     def charger_themes_personnalises(self):
         for n, c in design.lire_config().get("custom_themes", {}).items():
+            if n in THEMES and THEMES[n].get("type") != "PERSO": n = n + " PERSO"  # ne jamais écraser un thème intégré
             c["type"] = "PERSO"; THEMES[n] = c
 
     def save_custom_themes_to_config(self):

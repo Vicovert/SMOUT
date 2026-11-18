@@ -153,7 +153,7 @@ const SVG = {
 const svg = (nom, taille) => `<svg viewBox="0 0 24 24"${taille ? ` style="width:${taille}px;height:${taille}px"` : ""}>${SVG[nom]}</svg>`;
 const icone = (nom, onclick, cadre = false, titre = "") => h("button.icone" + (cadre ? ".cadre" : ""), { onclick, html: svg(nom), "aria-label": titre || nom, title: titre });
 function bouton(texte, onclick, opts = {}) {
-  const b = h("button.btn" + (opts.variante ? "." + opts.variante : "") + (opts.grand ? ".grand" : ""), { onclick: e => { if (!b.disabled) onclick(e); }, style: { width: opts.largeur ? opts.largeur + "px" : null, height: opts.hauteur ? opts.hauteur + "px" : null, maxWidth: "94vw" } }, texte);
+  const b = h("button.btn" + (opts.variante ? "." + opts.variante : "") + (opts.grand ? ".grand" : ""), { onclick: e => { if (!b.disabled) onclick(e); }, style: { width: opts.largeur ? opts.largeur + "px" : null, height: opts.hauteur ? opts.hauteur + "px" : null, maxWidth: "100%" } }, texte);
   return b;
 }
 function tuile(taille, mini = false) {
@@ -182,8 +182,9 @@ function avatar(nom, taille = 44, index = 0, onclick = null) {
   return h("div.avatar", { onclick, style: { width: taille + "px", height: taille + "px", background: COULEURS_AVATAR[index % 6], cursor: onclick ? "pointer" : null, fontSize: Math.round(taille * 0.42) + "px" } }, (nom || "?").charAt(0).toUpperCase());
 }
 function stat(titre, valeur, couleur, taille = 44) {
-  const v = h("span.v", { style: { color: couleur || null, fontSize: taille + "px" } }, valeur);
-  const s = h("span.s", { style: { fontSize: Math.round(taille * 0.55) + "px" } });
+  // taille réduite sur les petits écrans (sinon la ligne Temps / Score / Essai déborde sur téléphone)
+  const v = h("span.v", { style: { color: couleur || null, fontSize: `min(${taille}px, ${(taille / 5.2).toFixed(2)}vw)` } }, valeur);
+  const s = h("span.s", { style: { fontSize: `min(${Math.round(taille * 0.55)}px, ${(taille * 0.55 / 5.2).toFixed(2)}vw)` } });
   const e = h("div.stat", {}, h("div.caps", {}, titre), h("div", {}, v, s));
   e.set = (val, coul, suff) => { v.textContent = val; if (coul) v.style.color = coul; if (suff !== undefined) s.textContent = suff; };
   return e;
@@ -252,7 +253,7 @@ const hauteurFenetre = () => Math.max(560, window.innerHeight);
 let themeActuel = D.theme_defaut;
 function chargerTheme() {
   const c = lireConfig();
-  for (const [n, t] of Object.entries(c.custom_themes || {})) THEMES[n] = Object.assign({}, t, { type: "PERSO" });
+  for (let [n, t] of Object.entries(c.custom_themes || {})) { if (THEMES[n] && THEMES[n].type !== "PERSO") n += " PERSO"; THEMES[n] = Object.assign({}, t, { type: "PERSO" }); }  // ne jamais écraser un thème intégré
   themeActuel = THEMES[c.theme] ? c.theme : D.theme_defaut;
   appliquerTheme(themeActuel);
 }
@@ -357,7 +358,7 @@ async function solo(mdj) {
     const v = h("div.voile", {}, h("div.centre", {},
       h("div.t2", { style: { fontSize: "17px" } }, "Le mot était"), tl,
       h("div.titre", { style: { fontSize: "52px", textAlign: "center" } }, victoire ? (mdj ? "Bravo, mot du jour trouvé !" : "Bravo, mot trouvé !") : "Perdu…"),
-      h("div.stats", { style: { margin: "26px 0", gap: "68px" } }, stat("Temps", mmss(ec), null, 34), stat("Score", victoire ? nombre(score(ec)) : "0", "var(--mal)", 34), stat("Essais", victoire ? `${S.ligne + 1} / ${essais}` : `– / ${essais}`, null, 34)),
+      h("div.stats", { style: { margin: "26px 0", gap: "min(68px, 7.5vw)" } }, stat("Temps", mmss(ec), null, 34), stat("Score", victoire ? nombre(score(ec)) : "0", "var(--mal)", 34), stat("Essais", victoire ? `${S.ligne + 1} / ${essais}` : `– / ${essais}`, null, 34)),
       hist,
       h("div.ligne", { style: { gap: "16px", flexWrap: "wrap", justifyContent: "center" } }, mdj ? null : bouton("Rejouer", () => solo(false), { largeur: 230, grand: true }), bouton("Retour à l'accueil", accueil, { largeur: 230, grand: true, variante: "discret" }))));
     document.body.append(v); nettoyageEcran.push(() => v.remove());
@@ -472,7 +473,8 @@ function createurTheme() {
       h("div.panneau.centre", { style: { width: "330px" } }, h("div.caps", {}, "Aperçu"), cv),
       h("div.panneau", {}, picker, h("div.t2", { style: { margin: "14px 0 4px", fontSize: "13px" } }, "Code hexadécimal"), hex, h("div.t2", { style: { margin: "14px 0 4px", fontSize: "13px" } }, "Nom du thème"), nom)),
     h("div.ligne", { style: { gap: "12px", marginTop: "24px" } },
-      bouton("Enregistrer", () => { const n = nom.value.trim().toUpperCase(); if (!n) return; THEMES[n] = Object.assign({}, cur);
+      bouton("Enregistrer", () => { const n = nom.value.trim().toUpperCase(); if (!n) return;
+        if (THEMES[n] && THEMES[n].type !== "PERSO") return alert("Ce nom est déjà celui d'un thème intégré. Choisis-en un autre."); THEMES[n] = Object.assign({}, cur);
         majConfig({ custom_themes: Object.fromEntries(Object.entries(THEMES).filter(([, t]) => t.type === "PERSO")) }); changerTheme(n); themes(n); }, { largeur: 200, hauteur: 50 }),
       bouton("Annuler", () => themes(), { largeur: 160, hauteur: 50, variante: "discret" }))));
   hex.value = cur[sel]; picker.set(cur[sel]); rafraichir();
@@ -519,6 +521,7 @@ const FB = {
   },
   appliquer(t, r, uid, exp) { this.jetonId = t; this.refresh = r; this.uid = uid; this.expire = Date.now() / 1000 + Number(exp); },
   async req(method, path, data, keepalive = false) {
+    if (!path || path.endsWith("/") || path.includes("//")) return { ok: false };  // salon déjà quitté : rien à lire
     try {
       const t = await this.jeton(); if (!t) return { ok: false };
       const avant = Date.now();
@@ -536,9 +539,23 @@ const SV = { ".sv": "timestamp" };
 
 /* ------------------------------------------------------------------ multijoueur : état commun (équivalent de PageMulti) */
 const M = {
-  lobby: "", estHote: false, score: 0, reglages: { essais: 6, min: 6, max: 10, rounds: 3, round_num: 1, timer: 180, password: "", visible: true, game_mode: "CLASSIQUE" },
+  lobby: "", estHote: false, score: 0, reglages: { essais: 8, min: 6, max: 7, rounds: 3, round_num: 1, timer: 180, password: "", visible: true, game_mode: "CLASSIQUE" },
   nbJoueurs: 1, statut: "waiting", dernierMot: "", gen: 0, battement: null,
   pseudo() { return pseudo(); },
+  vuOk: 0,
+  // Lecture du salon. Si on n'y figure plus (exclu après une mise en veille, salon fermé) pendant 10 s, retour au menu multijoueur.
+  async lireSalon() {
+    if (!this.lobby) return null;
+    const lobby = this.lobby, d = await FB.get(`lobbies/${lobby}`);
+    if (lobby !== this.lobby) return null;
+    if (d && d.players && d.players[FB.uid]) { this.vuOk = Date.now(); return d; }
+    if (this.vuOk && Date.now() - this.vuOk > 10000) {
+      this.lobby = ""; this.gen++; this.estHote = false; this.vuOk = 0;
+      ecran(); setTimeout(() => { alert("Tu n'es plus dans ce salon (connexion perdue trop longtemps ou salon fermé)."); multiAccueil(); }, 0);
+      return null;
+    }
+    return d;
+  },
   async demarrerBattement() {
     if (this.battement) return;
     const tic = async () => {
@@ -640,7 +657,7 @@ async function multiAccueil() {
     if (!(await FB.ok("PUT", `lobbies/${c}/players/${FB.uid}`, joueur))) { if (!silencieux) alert("Salon introuvable"); return false; }
     const d = await FB.get(`lobbies/${c}`) || {};
     if (Object.keys(d.players || {}).length > 4) { await FB.ok("DELETE", `lobbies/${c}/players/${FB.uid}`); alert("Ce salon est déjà complet (maximum 4 joueurs)."); return true; }
-    M.estHote = false; M.lobby = c; M.score = 0;
+    M.estHote = false; M.lobby = c; M.score = 0; M.vuOk = Date.now();
     Object.assign(M.reglages, { password: motDePasse, visible: (d.settings || {}).visible !== false });
     M.demarrerBattement(); salon();
     return true;
@@ -663,7 +680,7 @@ function creerSalon() {
       h("div", { style: { marginTop: "24px" } }, bouton("Créer le salon", valider, { grand: true, largeur: 632 }))))));
   setVis(true);
   async function valider() {
-    Object.assign(M.reglages, { password: caseMdp.valeur ? champ.value.trim() : "", visible: pub, game_mode: M.reglages.game_mode || "CLASSIQUE" });
+    Object.assign(M.reglages, { password: caseMdp.valeur ? champ.value.trim() : "", visible: pub, game_mode: "CLASSIQUE", rounds: 3, essais: 8, min: 6, max: 7, timer: 180 });
     if (!(await FB.jeton())) return alert("Connexion au serveur impossible.");
     const sc = M.reglages, uid = FB.uid;
     for (let i = 0; i < 10; i++) {
@@ -675,7 +692,7 @@ function creerSalon() {
       if (!(preuve ? await FB.ok("PUT", `secrets/${code}`, preuve) : await FB.ok("DELETE", `secrets/${code}`))) continue;
       const hote = { name: pseudo(), score: 0, last_seen: SV }; if (preuve) hote.preuve = preuve;
       if (await FB.ok("PUT", `lobbies/${code}`, { status: "waiting", maj: SV, settings: { game_mode: sc.game_mode, rounds: 3, essais: 8, min: 6, max: 7, timer: 180, host_id: uid, visible: sc.visible, version: VERSION_JEU }, players: { [uid]: hote } })) {
-        M.lobby = code; M.estHote = true; M.score = 0; M.nbJoueurs = 1; M.statut = "waiting"; M.majIndex(); M.demarrerBattement(); salon(); return;
+        M.lobby = code; M.estHote = true; M.score = 0; M.vuOk = Date.now(); M.nbJoueurs = 1; M.statut = "waiting"; M.majIndex(); M.demarrerBattement(); salon(); return;
       }
     }
     alert("Impossible de créer le salon. Vérifie ta connexion internet.");
@@ -693,8 +710,9 @@ function salon() {
   const slots = [0, 1, 2, 3].map(() => h("div.joueur"));
   const cartes = {};
   const gm = h("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: "10px" } }, MODES.map(([m, n, d]) => cartes[m] = choix(n, d, () => setMode(m))));
-  const cMin = chips([6, 7, 8, 9, 10], 6, v => { if (v > cMax.valeur) cMax.set(v); sync(); }), cMax = chips([6, 7, 8, 9, 10], 7, v => { if (v < cMin.valeur) cMin.set(v); sync(); });
-  const cRounds = chips([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 3, sync), sEssais = stepper(4, 10, 8, 1, sync), sTemps = stepper(15, 600, 180, 15, sync, mmss);
+  const R0 = M.reglages;  // réglages en cours (conservés après « Rejouer dans ce salon »)
+  const cMin = chips([6, 7, 8, 9, 10], R0.min ?? 6, v => { if (v > cMax.valeur) cMax.set(v); sync(); }), cMax = chips([6, 7, 8, 9, 10], R0.max ?? 7, v => { if (v < cMin.valeur) cMin.set(v); sync(); });
+  const cRounds = chips([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], R0.rounds ?? 3, sync), sEssais = stepper(4, 10, R0.essais ?? 8, 1, sync), sTemps = stepper(15, 600, R0.timer ?? 180, 15, sync, mmss);
   const lancer = bouton("Lancer la partie", lancerPartie, { grand: true, largeur: 9999 }); lancer.style.width = "100%"; lancer.disabled = true;
   const lab = t => h("div.t2.gras", { style: { fontSize: "15px", margin: "16px 0 8px" } }, t);
   ecran(barre, h("div", { style: { padding: "18px 4vw 30px" } },
@@ -728,7 +746,7 @@ function salon() {
   }
   async function boucle() {
     while (gen === M.gen && M.lobby) {
-      const d = await FB.get(`lobbies/${M.lobby}`);
+      const d = await M.lireSalon();
       if (gen !== M.gen) return;
       if (d) {
         const s = d.settings || {}, p = d.players || {};
@@ -772,7 +790,7 @@ function salon() {
 async function partie() {
   const gen = ++M.gen;
   await MOTS.pret;
-  const dm = await FB.get(`lobbies/${M.lobby}`);
+  const dm = await M.lireSalon();
   if (gen !== M.gen) return;
   if (dm && dm.settings) Object.assign(M.reglages, dm.settings);
   const conf = M.reglages, mode = conf.game_mode || "CLASSIQUE";
@@ -812,7 +830,7 @@ async function partie() {
   const zoom = d => { const z = Math.round(Math.max(0.6, Math.min(1.6, (lireConfig().user_zoom || 1) + d)) * 100) / 100; majConfig({ user_zoom: z }); zm.textContent = `${Math.round(z * 100)} %`; gMoi.cases.flat().forEach(t => t.taille(tailleMoi())); };
   ecran(h("div.entete", {}, icone("retour", quitterJeu, false, "Quitter"), info, h("div.ligne", {}, icone("moins", () => zoom(-0.1), false, "Réduire"), zm, icone("plus", () => zoom(0.1), false, "Agrandir"))),
     h("div.ligne", { style: { alignItems: "flex-start", flexWrap: "wrap", justifyContent: "center" } },
-      h("div.centre", { style: { flex: 1, minWidth: "320px" } }, h("div.stats", { style: { marginTop: "4px", gap: "68px" } }, sM, sT, sS), zoneMoi, h("div.ligne", { style: { gap: "8px", margin: "8px 0 4px" } }, msg, lienDef), suivant, h("div", { style: { margin: "4px 0 16px" } }, kb)),
+      h("div.centre", { style: { flex: 1, minWidth: "320px" } }, h("div.stats", { style: { marginTop: "4px", gap: "min(68px, 7.5vw)" } }, sM, sT, sS), zoneMoi, h("div.ligne", { style: { gap: "8px", margin: "8px 0 4px" } }, msg, lienDef), suivant, h("div", { style: { margin: "4px 0 16px" } }, kb)),
       advZone));
   info.textContent = `${NOM_MODE[mode] || mode} · ${G.mot.length} lettres`;
   document.onkeydown = e => {
@@ -897,7 +915,7 @@ async function partie() {
   }
   async function clicSuivant() {
     suivant.classList.add("cache");
-    const d = await FB.get(`lobbies/${M.lobby}`); if (!d) return;
+    const d = await M.lireSalon(); if (!d) return;
     const s = d.settings;
     if (mode === "RUSH") {
       const maxIdx = Math.max(0, G.rush, ...Object.values(d.players || {}).map(p => p.rush_index || 0));
@@ -973,7 +991,7 @@ async function partie() {
   }
   (async () => {
     while (gen === M.gen) {
-      const d = await FB.get(`lobbies/${M.lobby}`);
+      const d = await M.lireSalon();
       if (gen !== M.gen) return;
       if (d && !traiter(d)) return;
       await new Promise(r => setTimeout(r, 800));
@@ -992,7 +1010,7 @@ async function partie() {
 /* ---------- résultats */
 async function resultats() {
   const gen = ++M.gen;
-  const d = await FB.get(`lobbies/${M.lobby}`);
+  const d = await M.lireSalon();
   if (!d || gen !== M.gen) return;
   const p = d.players || {}; if (!Object.keys(p).length) return;
   const s = d.settings || {}, mode = s.game_mode || "CLASSIQUE";
@@ -1025,7 +1043,7 @@ async function resultats() {
         M.estHote ? bouton("Rejouer dans ce salon", rejouer, { largeur: 280, grand: true }) : (() => { const b = bouton("En attente de l'hôte…", () => {}, { largeur: 280, grand: true, variante: "discret" }); b.disabled = true; return b; })(),
         bouton("Retour à l'accueil", () => { M.quitter(); accueil(); }, { largeur: 240, grand: true, variante: "discret" }))));
   async function rejouer() {
-    const dd = await FB.get(`lobbies/${M.lobby}`); if (!dd) return;
+    const dd = await M.lireSalon(); if (!dd) return;
     M.score = 0; const pp = dd.players || {}; for (const pid in pp) { pp[pid].score = 0; pp[pid].rush_index = 0; }
     const ss = dd.settings || {}; ss.rush_seed = 1000 + Math.floor(Math.random() * 999000); M.statut = "waiting";
     FB.put(`lobbies/${M.lobby}`, { status: "waiting", maj: SV, players: pp, settings: ss, match_data: null, fini_states: null, round_wins: null, rush_recap: null });
@@ -1033,7 +1051,7 @@ async function resultats() {
   while (gen === M.gen) {
     await new Promise(r => setTimeout(r, 1000));
     if (gen !== M.gen) return;
-    const dd = await FB.get(`lobbies/${M.lobby}`);
+    const dd = await M.lireSalon();
     if (gen !== M.gen) return;
     if (dd && dd.status === "waiting") { M.score = 0; salon(); return; }
     if (dd && !recap.textContent) majRecap(dd);

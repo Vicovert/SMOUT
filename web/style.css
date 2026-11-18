@@ -48,7 +48,7 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 .btn[disabled] { cursor: default; opacity: .45; filter: none; }
 .btn.grand { height: 54px; font-size: 17px; }
 
-.panneau { background: var(--panneau); border-radius: 18px; padding: 24px; }
+.panneau { background: var(--panneau); border-radius: 18px; padding: 24px; max-width: 100%; }
 .icone { width: 40px; height: 40px; border-radius: 10px; border: 0; background: transparent; color: var(--texte2); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; flex: none; }
 .icone:hover { background: var(--panneau); color: var(--texte); }
 .icone.cadre { box-shadow: inset 0 0 0 1px var(--bordure); width: 46px; height: 46px; }
