@@ -76,9 +76,10 @@ def resource_path(relative_path):
 def get_txt_color(hex_color):
     return design.contraste(hex_color, "white", "#1a1a1a")
 
-def en_codes(couleurs):
-    """Couleurs locales -> états neutres envoyés aux autres joueurs (B = bien placé, M = mal placé, A = absent)."""
-    return ["B" if c == ACCENT1 else "M" if c == ACCENT2 else "A" for c in couleurs]
+def en_codes(etats):
+    """États ("bien"/"mal"/"absent") -> codes neutres envoyés aux autres joueurs (B = bien placé, M = mal placé, A = absent).
+    On ne déduit jamais l'état d'une couleur : un thème perso peut avoir deux couleurs identiques."""
+    return [{"bien": "B", "mal": "M"}.get(e, "A") for e in etats]
 
 def couleur_code(code):
     """État reçu -> couleur du thème de CE joueur."""
@@ -998,16 +999,16 @@ class PageJeu(tk.Frame):
             is_valid = (t_suffix == target_suffix) or any((chr(code) + t_suffix) in self.controller.banque_verif for code in range(65, 91))
             if not is_valid:
                 self.message_temp("Mot inconnu", P["danger"]); return
-            res, secret = [MUTED]*len(target_suffix), list(self.mot)
+            res, secret = ["absent"]*len(target_suffix), list(self.mot)
             for i in range(len(target_suffix)):
-                if self.tape[i] == target_suffix[i]: res[i], secret[i+1] = ACCENT1, None
+                if self.tape[i] == target_suffix[i]: res[i], secret[i+1] = "bien", None
             for i in range(len(target_suffix)):
-                if res[i] != ACCENT1 and self.tape[i] in secret: res[i] = ACCENT2; secret[secret.index(self.tape[i])] = None
+                if res[i] != "bien" and self.tape[i] in secret: res[i] = "mal"; secret[secret.index(self.tape[i])] = None
             self.maj_statuts(self.tape, res)
-            for i, c in enumerate(res): self.labels_moi[self.ligne][i+1].config(bg=c)
-            self.controller.fb_put(f"lobbies/{self.controller.lobby_code}/match_data/{self.controller.player_id}/{self.ligne}", {"c": en_codes([MUTED]+res), "l": ["?"]+self.tape})
+            for i, e in enumerate(res): self.labels_moi[self.ligne][i+1].config(bg=P[e])
+            self.controller.fb_put(f"lobbies/{self.controller.lobby_code}/match_data/{self.controller.player_id}/{self.ligne}", {"c": en_codes(["absent"]+res), "l": ["?"]+self.tape})
             for case in self.labels_moi[self.ligne]: case.set_curseur(False)
-            if all(c == ACCENT1 for c in res):
+            if all(e == "bien" for e in res):
                 self.labels_moi[self.ligne][0].config(text=self.mot[0], bg=ACCENT1)
                 self.finir_round(True)
             elif self.ligne >= self.controller.settings_config["essais"]-1:
@@ -1018,13 +1019,9 @@ class PageJeu(tk.Frame):
             t = "".join(self.tape)
             if t not in self.controller.banque_verif and t != self.mot:
                 self.message_temp("Mot inconnu", P["danger"]); return
-            res, secret = [MUTED]*len(self.mot), list(self.mot)
-            for i in range(len(self.mot)):
-                if self.tape[i] == self.mot[i]: res[i], secret[i] = ACCENT1, None
-            for i in range(len(self.mot)):
-                if res[i] != ACCENT1 and self.tape[i] in secret: res[i] = ACCENT2; secret[secret.index(self.tape[i])] = None
+            res = design.evaluer(self.tape, self.mot)
             self.maj_statuts(self.tape, res)
-            for i, c in enumerate(res): self.labels_moi[self.ligne][i].config(bg=c)
+            for i, e in enumerate(res): self.labels_moi[self.ligne][i].config(bg=P[e])
             for case in self.labels_moi[self.ligne]: case.set_curseur(False)
             payload = {"c": en_codes(res), "l": self.tape}
             if mode == "RUSH":
@@ -1063,9 +1060,9 @@ class PageJeu(tk.Frame):
     def maj_statuts(self, lettres, res):
         for i, char in enumerate(lettres):
             cur = self.statut_lettres.get(char)
-            if res[i] == ACCENT1: self.statut_lettres[char] = ACCENT1
-            elif res[i] == ACCENT2 and cur != ACCENT1: self.statut_lettres[char] = ACCENT2
-            elif res[i] == MUTED and cur not in [ACCENT1, ACCENT2]: self.statut_lettres[char] = MUTED
+            if res[i] == "bien": self.statut_lettres[char] = "bien"
+            elif res[i] == "mal" and cur != "bien": self.statut_lettres[char] = "mal"
+            elif res[i] == "absent" and cur not in ("bien", "mal"): self.statut_lettres[char] = "absent"
         self.maj_clavier()
 
     def reinitialiser_grille_rush(self):
@@ -1226,7 +1223,7 @@ class PageJeu(tk.Frame):
         return rows
 
     def maj_clavier(self):
-        for char, color in self.statut_lettres.items(): self.clavier.set_couleur(char, color)
+        for char, etat in self.statut_lettres.items(): self.clavier.set_couleur(char, P[etat] if etat else None)
 
 
 class PageScoreFinal(tk.Frame):

@@ -11,3 +11,6 @@ __pycache__/
 build/
 dist/
 _site/
+
+# Banc de test
+tests/web/node_modules

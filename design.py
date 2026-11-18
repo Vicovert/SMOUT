@@ -3,7 +3,7 @@ import tkinter as tk
 import tkinter.font as tkfont
 import os, sys, ctypes, colorsys, hashlib
 
-VERSION_APP = "7.1"
+VERSION_APP = "7.2"
 URL_WEB = "https://vicovert.github.io/SMOUT/"
 
 def mot_graine(liste_triee, graine, index=0):
@@ -138,7 +138,10 @@ def calculer_palette(t):
     p["sombre"] = sombre
     return p
 
+PALETTE_DALTONIEN = ("#F5793A", "#85C0F9")  # orange = bien placée, bleu = mal placée (lisible par tous les daltonismes courants)
+
 def appliquer_theme(t):
+    if lire_config().get("daltonien"): t = dict(t, accent1=PALETTE_DALTONIEN[0], accent2=PALETTE_DALTONIEN[1])
     P.clear(); P.update(calculer_palette(t))
     return P
 
@@ -228,7 +231,7 @@ class Bouton(tk.Canvas):
         super().__init__(parent, width=largeur, height=hauteur, bg=fond_parent(parent), highlightthickness=0, cursor="hand2")
         self.texte, self.commande, self.largeur, self.hauteur = texte, commande, largeur, hauteur
         self.variante, self.taille, self.couleur, self.actif, self.survol = variante, taille, couleur, True, False
-        self.bind("<Enter>", lambda e: self._set_survol(True)); self.bind("<Leave>", lambda e: self._set_survol(False))
+        self.bind("<Enter>", lambda e=None: self._set_survol(True)); self.bind("<Leave>", lambda e=None: self._set_survol(False))
         self.bind("<ButtonRelease-1>", self._clic)
         self._dessiner()
 
@@ -292,8 +295,8 @@ class CarteMenu(tk.Canvas):
         super().__init__(parent, width=largeur, height=hauteur, bg=fond_parent(parent), highlightthickness=0, cursor="hand2")
         self.titre, self.sous, self.commande, self.badge, self.l, self.h = titre, sous_titre, commande, badge, largeur, hauteur
         self.survol = False
-        self.bind("<Enter>", lambda e: self._s(True)); self.bind("<Leave>", lambda e: self._s(False))
-        self.bind("<ButtonRelease-1>", lambda e: self.commande())
+        self.bind("<Enter>", lambda e=None: self._s(True)); self.bind("<Leave>", lambda e=None: self._s(False))
+        self.bind("<ButtonRelease-1>", lambda e=None: self.commande())
         self._dessiner()
     def _s(self, v): self.survol = v; self._dessiner()
     def set_badge(self, b): self.badge = b; self._dessiner()
@@ -314,8 +317,8 @@ class Icone(tk.Canvas):
     def __init__(self, parent, nom, commande, taille=40, cadre=False):
         super().__init__(parent, width=taille, height=taille, bg=fond_parent(parent), highlightthickness=0, cursor="hand2")
         self.nom, self.commande, self.t, self.cadre, self.survol, self.actif = nom, commande, taille, cadre, False, True
-        self.bind("<Enter>", lambda e: self._s(True)); self.bind("<Leave>", lambda e: self._s(False))
-        self.bind("<ButtonRelease-1>", lambda e: self.commande() if self.actif else None)
+        self.bind("<Enter>", lambda e=None: self._s(True)); self.bind("<Leave>", lambda e=None: self._s(False))
+        self.bind("<ButtonRelease-1>", lambda e=None: self.commande() if self.actif else None)
         self._dessiner()
     def _s(self, v): self.survol = v; self._dessiner()
     def activer(self, s): self.actif = s; self.config(cursor="hand2" if s else ""); self._dessiner()
@@ -348,6 +351,10 @@ class Icone(tk.Canvas):
         elif self.nom == "rafraichir":
             self.create_arc(m - 10*k, m - 10*k, m + 10*k, m + 10*k, start=40, extent=290, style="arc", outline=c, width=w)
             self.create_line(m + 9*k, m - 11*k, m + 9*k, m - 4*k, m + 2*k, m - 4*k, fill=c, width=w, capstyle="round", joinstyle="round")
+        elif self.nom == "stats":
+            for i, hh in enumerate((7, 13, 10)):
+                x = m + (i - 1) * 7 * k
+                self.create_line(x, m + 9 * k, x, m + 9 * k - hh * 1.4 * k, fill=c, width=w * 1.6, capstyle="round")
         elif self.nom in ("plus", "moins"):
             self.create_line(m - 8*k, m, m + 8*k, m, fill=c, width=w * 1.2, capstyle="round")
             if self.nom == "plus": self.create_line(m, m - 8*k, m, m + 8*k, fill=c, width=w * 1.2, capstyle="round")
@@ -421,7 +428,7 @@ class CarteChoix(tk.Canvas):
         super().__init__(parent, width=largeur, height=hauteur, bg=fond_parent(parent), highlightthickness=0, cursor="hand2")
         self.titre, self.desc, self.commande, self.l, self.h = titre, description, commande, largeur, hauteur
         self.selection, self.actif = False, True
-        self.bind("<ButtonRelease-1>", lambda e: self.commande() if self.actif else None)
+        self.bind("<ButtonRelease-1>", lambda e=None: self.commande() if self.actif else None)
         self._dessiner()
     def set_selection(self, s): self.selection = s; self._dessiner()
     def activer(self, s): self.actif = s; self.config(cursor="hand2" if s else ""); self._dessiner()
@@ -678,7 +685,7 @@ class CarteSalon(tk.Canvas):
     def __init__(self, parent, titre, sous_titre, droite, commande, largeur=740, hauteur=84):
         super().__init__(parent, width=largeur, height=hauteur, bg=fond_parent(parent), highlightthickness=0, cursor="hand2")
         self.args, self.survol = (titre, sous_titre, droite, largeur, hauteur), False
-        self.bind("<Enter>", lambda e: self._s(True)); self.bind("<Leave>", lambda e: self._s(False))
+        self.bind("<Enter>", lambda e=None: self._s(True)); self.bind("<Leave>", lambda e=None: self._s(False))
         self.bind("<ButtonRelease-1>", lambda e: commande())
         self._dessiner()
     def _s(self, v): self.survol = v; self._dessiner()
@@ -689,3 +696,83 @@ class CarteSalon(tk.Canvas):
         self.create_text(26, h / 2 - 12, text=titre, anchor="w", fill=P["texte"], font=police("texte", 18, True))
         self.create_text(26, h / 2 + 14, text=sous, anchor="w", fill=P["texte2"], font=police("texte", 15))
         self.create_text(l - 26, h / 2, text=droite, anchor="e", fill=P["texte2"], font=police("chiffres", 20))
+
+
+# ---------------------------------------------------------------- mode difficile (identique à smout.js)
+def verifier_difficile(tape, historique):
+    """Mode difficile : chaque lettre bien placée doit rester à sa place et chaque lettre découverte doit être réutilisée.
+    historique = [(mot_propose, [etats "bien"/"mal"/"absent"])]. Renvoie un message d'erreur ou None."""
+    for mot, etats in historique:
+        for i, e in enumerate(etats):
+            if e == "bien" and tape[i] != mot[i]:
+                return f"Mode difficile : la {i + 1}{'re' if i == 0 else 'e'} lettre doit être un {mot[i]}"
+        besoin = {}
+        for i, e in enumerate(etats):
+            if e in ("bien", "mal"): besoin[mot[i]] = besoin.get(mot[i], 0) + 1
+        for ch, n in sorted(besoin.items()):
+            if list(tape).count(ch) < n: return f"Mode difficile : le mot doit contenir {'un' if n == 1 else str(n) + ' ×'} {ch}"
+    return None
+
+def evaluer(tape, mot):
+    """États de chaque lettre : "bien", "mal" ou "absent"."""
+    res, secret = ["absent"] * len(mot), list(mot)
+    for i in range(len(mot)):
+        if tape[i] == mot[i]: res[i], secret[i] = "bien", None
+    for i in range(len(mot)):
+        if res[i] != "bien" and tape[i] in secret: res[i] = "mal"; secret[secret.index(tape[i])] = None
+    return res
+
+# ---------------------------------------------------------------- défi entre amis (identique à smout.js)
+ALPHABET_DEFI = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # sans I, L, O, 0, 1 (trop faciles à confondre)
+ESSAIS_DEFI = 6
+
+def nouveau_code_defi():
+    import secrets
+    return "".join(secrets.choice(ALPHABET_DEFI) for _ in range(6))
+
+def normaliser_code_defi(c):
+    c = "".join(ch for ch in (c or "").upper() if ch in ALPHABET_DEFI)
+    return c if len(c) == 6 else ""
+
+def mot_defi(liste, code):
+    return mot_graine(sorted(liste), "defi:" + code)
+
+def lien_defi(code): return f"{URL_WEB}?defi={code}"
+
+EMOJI = {"bien": "🟥", "mal": "🟡", "absent": "🟦"}
+def texte_partage(titre, etats_lignes, essais_txt, score_txt, lien=""):
+    lignes = [f"SMOUT · {titre} · {essais_txt} · {score_txt} pts"] + ["".join(EMOJI[e] for e in l) for l in etats_lignes]
+    if lien: lignes.append(lien)
+    return "\n".join(lignes)
+
+# ---------------------------------------------------------------- statistiques (enregistrées sur l'appareil)
+def stats_vides():
+    return {"parties": 0, "victoires": 0, "repartition": {}, "serie": 0, "meilleure_serie": 0, "meilleur_score": 0}
+
+def lire_stats():
+    st = lire_config().get("stats") or {}
+    for k in ("solo", "mdj", "defi"): st[k] = dict(stats_vides(), **(st.get(k) or {}))
+    st["marathon"] = dict({"parties": 0, "record": 0, "record_score": 0, "mots": 0}, **(st.get("marathon") or {}))
+    st.setdefault("historique", [])
+    return st
+
+def enregistrer_partie(genre, victoire, essais=0, score=0, mot="", detail=""):
+    """genre : solo, mdj, defi (une partie) ; pour le marathon, utiliser enregistrer_marathon."""
+    st = lire_stats(); s = st[genre]
+    s["parties"] += 1
+    if victoire:
+        s["victoires"] += 1; s["serie"] += 1
+        s["repartition"][str(essais)] = s["repartition"].get(str(essais), 0) + 1
+        s["meilleur_score"] = max(s["meilleur_score"], int(score))
+    else: s["serie"] = 0
+    s["meilleure_serie"] = max(s["meilleure_serie"], s["serie"])
+    st["historique"] = ([{"d": datetime.date.today().isoformat(), "g": genre, "m": mot, "v": bool(victoire), "e": essais, "s": int(score), "x": detail}] + st["historique"])[:30]
+    maj_config(stats=st); return st
+
+def enregistrer_marathon(nb_mots, score, dernier_mot=""):
+    st = lire_stats(); m = st["marathon"]
+    m["parties"] += 1; m["mots"] += nb_mots
+    nouveau = nb_mots > m["record"] or (nb_mots == m["record"] and score > m["record_score"])
+    if nouveau: m["record"], m["record_score"] = nb_mots, int(score)
+    st["historique"] = ([{"d": datetime.date.today().isoformat(), "g": "marathon", "m": dernier_mot, "v": nb_mots > 0, "e": nb_mots, "s": int(score), "x": ""}] + st["historique"])[:30]
+    maj_config(stats=st); return nouveau

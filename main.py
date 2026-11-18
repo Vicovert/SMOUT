@@ -3,7 +3,7 @@ import os, sys, json, colorsys
 import design
 from design import P, police, etiquette, Bouton, Panneau, Icone, Avatar, Logo, CarteMenu, Defilant, Champ, Superposition, arrondi, calculer_palette, melanger, contraste
 design.charger_polices()  # avant la création de la fenêtre
-from page_solo import PageSolo, PageParametres, apply_theme_solo
+from page_solo import PageSolo, PageParametres, PageDefi, PageStats, apply_theme_solo
 from page_multi import PageMulti, apply_theme_multi
 
 THEME_PAR_DEFAUT = "PLATEAU DE NUIT"
@@ -477,15 +477,20 @@ class MenuPrincipal(tk.Tk):
         haut = tk.Frame(page, bg=P["fond"]); haut.pack(fill="x", padx=28, pady=(22, 0))
         self.avatar = Avatar(haut, self.pseudo(), 46, self.changer_pseudo); self.avatar.pack(side="right", padx=(10, 0))
         Icone(haut, "reglages", self.ouvrir_parametres).pack(side="right", padx=8)
+        Icone(haut, "stats", self.ouvrir_stats).pack(side="right", padx=8)
         Icone(haut, "palette", self.show_skins).pack(side="right", padx=8)
         centre = tk.Frame(page, bg=P["fond"]); centre.place(relx=0.5, rely=0.5, anchor="center")
         Logo(centre, 88, 14).pack()
-        etiquette(centre, "Trouvez le mot caché.", "texte", 19, P["texte2"]).pack(pady=(14, 56))
-        CarteMenu(centre, "Solo", "À votre rythme", lambda: self.ouvrir_solo(False)).pack(pady=8)
-        CarteMenu(centre, "Multijoueur", "Salons publics ou entre amis", self.ouvrir_multi).pack(pady=8)
+        etiquette(centre, "Trouvez le mot caché.", "texte", 19, P["texte2"]).pack(pady=(12, 30))
+        h = 84 if self.winfo_height() < 200 or self.winfo_height() >= 820 else 72
+        CarteMenu(centre, "Solo", "À votre rythme", lambda: self.ouvrir_solo(False), hauteur=h).pack(pady=6)
         serie, joue = design.serie_mot_du_jour()
         badge = (f"Série {serie}" if serie else "") + (" · Joué ✓" if joue else "") if (serie or joue) else None
-        CarteMenu(centre, "Mot du jour", "Un mot, une partie par jour", lambda: self.ouvrir_solo(True), badge=badge.strip(" ·") if badge else None).pack(pady=8)
+        CarteMenu(centre, "Mot du jour", "Un mot, une partie par jour", lambda: self.ouvrir_solo(True), badge=badge.strip(" ·") if badge else None, hauteur=h).pack(pady=6)
+        rec = design.lire_stats()["marathon"]["record"]
+        CarteMenu(centre, "Marathon", "Enchaînez les mots jusqu'à l'erreur", self.ouvrir_marathon, badge=f"Record {rec}" if rec else None, hauteur=h).pack(pady=6)
+        CarteMenu(centre, "Défi entre amis", "Le même mot pour tous, avec un code", self.ouvrir_defi, hauteur=h).pack(pady=6)
+        CarteMenu(centre, "Multijoueur", "Salons publics ou entre amis", self.ouvrir_multi, hauteur=h).pack(pady=6)
         etiquette(page, f"SMOUT v{design.VERSION_APP}", "texte", 14, P["texte2"]).pack(side="bottom", pady=22)
 
     def changer_pseudo(self):
@@ -518,6 +523,18 @@ class MenuPrincipal(tk.Tk):
 
     def ouvrir_solo(self, mdj=False):
         self.vider(); PageSolo(parent=self.container, controller=self, mdj=mdj).pack(fill="both", expand=True)
+
+    def ouvrir_marathon(self):
+        self.vider(); PageSolo(parent=self.container, controller=self, mode="marathon").pack(fill="both", expand=True)
+
+    def ouvrir_defi(self):
+        self.vider(); PageDefi(self.container, self).pack(fill="both", expand=True)
+
+    def ouvrir_defi_jeu(self, code):
+        self.vider(); PageSolo(parent=self.container, controller=self, mode="defi", code=code).pack(fill="both", expand=True)
+
+    def ouvrir_stats(self):
+        self.vider(); PageStats(self.container, self).pack(fill="both", expand=True)
 
     def ouvrir_multi(self):
         self.vider(); PageMulti(parent=self.container, controller=self).pack(fill="both", expand=True)

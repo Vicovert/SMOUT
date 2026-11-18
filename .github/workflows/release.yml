@@ -6,7 +6,41 @@ on:
       - main
 
 jobs:
+  tests:
+    name: Tests (PC, web et parties croisées)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Dépendances
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb python3-tk
+          pip install requests
+          cd tests/web && npm install --no-audit --no-fund
+      - name: Banc de test (relancé une fois en cas d'échec ponctuel)
+        env:
+          PY: python
+          CHROME: /usr/bin/google-chrome
+        run: tests/lancer_tests.sh || (echo "Nouvel essai…" && tests/lancer_tests.sh)
+      - name: Journaux en cas d'échec
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: journaux-tests
+          path: |
+            /tmp/t*.txt
+            /tmp/sc/
+            /tmp/fb_refus.log
+
   build:
+    needs: tests
     name: Build for ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:

@@ -62,8 +62,10 @@ function calculerPalette(t) {
   return p;
 }
 let P = {};
+const PALETTE_DALTONIEN = ["#F5793A", "#85C0F9"];  // orange = bien placée, bleu = mal placée (identique à design.py)
 function appliquerTheme(nom) {
-  P = calculerPalette(THEMES[nom]);
+  let t = THEMES[nom]; if (lireConfig().daltonien) t = Object.assign({}, t, { accent1: PALETTE_DALTONIEN[0], accent2: PALETTE_DALTONIEN[1] });
+  P = calculerPalette(t);
   const r = document.documentElement.style;
   for (const [k, v] of Object.entries(P)) if (typeof v === "string") r.setProperty("--" + k.replace(/_/g, "-"), v);
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", P.fond);
@@ -93,7 +95,7 @@ function enregistrerResultatMdj(victoire) {
 }
 function configSolo() {
   const c = lireConfig();
-  return { nb_essais: c.nb_essais ?? 6, nb_lettres_min: c.nb_lettres_min ?? 6, nb_lettres_max: c.nb_lettres_max ?? 10, last_mdj: c.last_mdj || "" };
+  return { nb_essais: c.nb_essais ?? 6, nb_lettres_min: c.nb_lettres_min ?? 6, nb_lettres_max: c.nb_lettres_max ?? 10, last_mdj: c.last_mdj || "", difficile: !!c.difficile };
 }
 
 /* ------------------------------------------------------------------ mots */
@@ -149,6 +151,7 @@ const SVG = {
   plus: '<path d="M12 5v14M5 12h14"/>', moins: '<path d="M5 12h14"/>',
   chevron: '<path d="M9 6l6 6-6 6"/>', check: '<path d="M5 12l5 5 9-10"/>',
   couronne: '<path d="M3 18h18l-2-10-5 5-2-7-2 7-5-5z"/>',
+  stats: '<path d="M6 20v-7M12 20V6M18 20v-10"/>',
 };
 const svg = (nom, taille) => `<svg viewBox="0 0 24 24"${taille ? ` style="width:${taille}px;height:${taille}px"` : ""}>${SVG[nom]}</svg>`;
 const icone = (nom, onclick, cadre = false, titre = "") => h("button.icone" + (cadre ? ".cadre" : ""), { onclick, html: svg(nom), "aria-label": titre || nom, title: titre });
@@ -261,18 +264,22 @@ function changerTheme(nom, sauver = true) { themeActuel = nom; appliquerTheme(no
 const pseudo = () => lireConfig().pseudo || "ANONYME";
 
 function accueil() {
+  history.replaceState(null, "", location.pathname);  // retire ?defi=… de l'adresse
   const [serie, joue] = serieMotDuJour();
   const badge = (serie || joue) ? [serie ? `Série ${serie}` : "", joue ? "Joué ✓" : ""].filter(Boolean).join(" · ") : null;
+  const rec = lireStats().marathon.record;
   const carte = (t, s, f, b) => h("button.carte-menu", { onclick: f }, h("div", {}, h("div.t", {}, t), h("div.s", {}, s)), b ? h("div.d", {}, b) : h("span.chevron", { html: svg("chevron", 22) }));
   ecran(
     h("div.ligne", { style: { justifyContent: "flex-end", gap: "16px", padding: "22px 28px 0" } },
-      icone("palette", themes, false, "Thèmes"), icone("reglages", parametres, false, "Paramètres"), avatar(pseudo(), 46, 0, changerPseudo)),
-    h("div.centre", { style: { flex: 1, justifyContent: "center", gap: "16px", padding: "20px 0" } },
+      icone("palette", themes, false, "Thèmes"), icone("stats", statistiques, false, "Statistiques"), icone("reglages", parametres, false, "Paramètres"), avatar(pseudo(), 46, 0, changerPseudo)),
+    h("div.centre", { style: { flex: 1, justifyContent: "center", gap: "12px", padding: "16px 0" } },
       logo(Math.min(88, Math.floor((window.innerWidth - 80) / 5.8)), 14),
-      h("div.t2", { style: { fontSize: "19px", margin: "0 0 40px" } }, "Trouvez le mot caché."),
-      carte("Solo", "À votre rythme", () => solo(false)),
-      carte("Multijoueur", "Salons publics ou entre amis", multiAccueil),
-      carte("Mot du jour", "Un mot, une partie par jour", () => solo(true), badge)),
+      h("div.t2", { style: { fontSize: "19px", margin: "0 0 22px" } }, "Trouvez le mot caché."),
+      carte("Solo", "À votre rythme", () => solo("libre")),
+      carte("Mot du jour", "Un mot, une partie par jour", () => solo("mdj"), badge),
+      carte("Marathon", "Enchaînez les mots jusqu'à l'erreur", () => solo("marathon"), rec ? `Record ${rec}` : null),
+      carte("Défi entre amis", "Le même mot pour tous, avec un code", () => pageDefi()),
+      carte("Multijoueur", "Salons publics ou entre amis", multiAccueil)),
     h("div.t2", { style: { textAlign: "center", padding: "0 0 22px", fontSize: "14px" } }, `SMOUT v${VERSION_APP} · version en ligne`));
 }
 function changerPseudo() {
@@ -286,11 +293,17 @@ function changerPseudo() {
   o.montrer(); ch.focus();
 }
 
-/* ------------------------------------------------------------------ solo */
-async function solo(mdj) {
+/* ------------------------------------------------------------------ solo (modes : libre, mdj, marathon, defi) */
+const TITRES = { libre: "Solo", mdj: "Mot du jour", marathon: "Marathon", defi: "Défi" };
+let marathon = null;
+async function solo(mode = "libre", code = "") {
+  if (mode === true) mode = "mdj"; if (mode === false) mode = "libre";
   await MOTS.pret;
+  if (mode === "marathon" && !marathon) marathon = { mots: 0, score: 0, temps: 0 };
+  if (mode !== "marathon") marathon = null;
   const conf = configSolo(); const auj = aujourdhui();
-  if (mdj && conf.last_mdj === auj) {
+  const difficile = !!conf.difficile && mode !== "mdj";
+  if (mode === "mdj" && conf.last_mdj === auj) {
     const [serie] = serieMotDuJour();
     ecran(entete("Mot du jour", accueil), h("div.centre", { style: { flex: 1, justifyContent: "center", gap: "10px" } },
       h("div.titre", { style: { fontSize: "44px", textAlign: "center" } }, "Déjà joué aujourd'hui"),
@@ -299,12 +312,13 @@ async function solo(mdj) {
     return;
   }
   let mot, essais;
-  if (mdj) { mot = await motGraine(trier(MOTS.liste), "mdj:" + auj); essais = 7; majConfig({ last_mdj: auj }); }
+  if (mode === "mdj") { mot = await motGraine(trier(MOTS.liste), "mdj:" + auj); essais = 7; majConfig({ last_mdj: auj }); }
+  else if (mode === "defi") { mot = await motDefi(code); essais = ESSAIS_DEFI; }
   else {
     const f = MOTS.liste.filter(m => m.length >= conf.nb_lettres_min && m.length <= conf.nb_lettres_max);
     const l = f.length ? f : MOTS.liste; mot = l[Math.floor(Math.random() * l.length)]; essais = conf.nb_essais;
   }
-  const S = { mot, essais, ligne: 0, tape: [mot[0]], penalite: 0, historique: [], fini: false, statut: {}, debut: Date.now() };
+  const S = { mot, essais, ligne: 0, tape: [mot[0]], penalite: 0, historique: [], lignes: [], fini: false, statut: {}, debut: Date.now() };
   const scoreInitial = mot.length * 100 * (13 - essais);
   const score = ec => Math.max(0, scoreInitial - ec * 2 - S.penalite);
   const kh = hauteurFenetre() >= 760 ? 50 : 40;
@@ -312,12 +326,14 @@ async function solo(mdj) {
   let aide = null;
   const sT = stat("Temps", "00:00"), sS = stat("Score", "0", "var(--mal)"), sE = stat("Essai", "1");
   sE.set("1", null, ` / ${essais}`);
+  const sTot = mode === "marathon" ? stat("Total", nombre(marathon.score), "var(--bien)") : null;
   const g = grille(essais, mot.length, taille);
-  const msg = h("div.msg", { style: { color: "var(--danger)", margin: "8px 0 4px" } });
+  const msg = h("div.msg", { style: { color: "var(--danger)", margin: "8px 0 4px", textAlign: "center" } });
   const kb = clavier(ajouter, effacer, valider, kh);
   const abandon = h("button.lien", { onclick: () => !S.fini && fin(false) }, "Abandonner");
-  ecran(entete((mdj ? "Mot du jour" : "Solo") + ` · ${mot.length} lettres`, quitter, icone("aide", () => aide.montrer(), false, "Aide")),
-    h("div.centre", { style: { gap: "0" } }, h("div.stats", { style: { marginTop: "10px" } }, sT, sS, sE), h("div", { style: { marginTop: "18px" } }, g), msg, kb, h("div", { style: { margin: "14px 0 20px" } }, abandon)));
+  const titre = TITRES[mode] + (mode === "defi" ? ` ${code}` : "") + (mode === "marathon" ? ` · mot ${marathon.mots + 1}` : "") + ` · ${mot.length} lettres` + (difficile ? " · difficile" : "");
+  ecran(entete(titre, quitter, icone("aide", () => aide.montrer(), false, "Aide")),
+    h("div.centre", { style: { gap: "0" } }, h("div.stats", { style: { marginTop: "10px" } }, sT, sS, sE, sTot), h("div", { style: { marginTop: "18px" } }, g), msg, kb, h("div", { style: { margin: "14px 0 20px" } }, abandon)));
   aide = fenetreAide();  // après ecran() : sinon le nettoyage de l'écran la supprimerait
   const minuteur = setInterval(() => { if (S.fini) return; const ec = Math.floor((Date.now() - S.debut) / 1000); sT.set(mmss(ec)); sS.set(nombre(score(ec))); }, 1000);
   nettoyageEcran.push(() => clearInterval(minuteur));
@@ -328,23 +344,22 @@ async function solo(mdj) {
     if (c && ALPHABET.includes(c)) ajouter(c); else if (e.key === "Backspace") effacer(); else if (e.key === "Enter") valider(); else return;
     e.preventDefault();
   };
-  function quitter() { S.fini = true; accueil(); }
+  function quitter() { S.fini = true; marathon = null; accueil(); }
   function maj() {
     if (S.fini) return;
     g.cases[S.ligne].forEach((t, i) => t.maj(i < S.tape.length ? S.tape[i] : "", i === 0 ? "bien" : "", i === S.tape.length));
   }
+  function message(t, coul, duree = 1600) { msg.textContent = t; msg.style.color = coul || "var(--danger)"; setTimeout(() => { if (!S.fini && msg.textContent === t) msg.textContent = ""; }, duree); }
   function ajouter(c) { if (S.tape.length < mot.length && !S.fini) { S.tape.push(c); maj(); } }
   function effacer() { if (S.fini) return; if (S.tape.length > 1) S.tape.pop(); maj(); }
   function valider() {
     if (S.tape.length !== mot.length || S.fini) return;
     const t = S.tape.join("");
-    if (!MOTS.banque.has(t) && t !== mot) {
-      S.penalite += 100; msg.textContent = "Mot inconnu  ·  −100 points";
-      setTimeout(() => { if (!S.fini) msg.textContent = ""; }, 1400); return;
-    }
+    if (!MOTS.banque.has(t) && t !== mot) { S.penalite += 100; return message("Mot inconnu  ·  −100 points"); }
+    if (difficile) { const err = verifierDifficile(S.tape, S.lignes); if (err) return message(err, null, 2200); }
     const res = evaluer(S.tape, mot);
     majStatuts(S.statut, S.tape, res); for (const ch of ALPHABET) kb.setCouleur(ch, S.statut[ch]);
-    S.historique.push(res);
+    S.historique.push(res); S.lignes.push([t, res]);
     g.cases[S.ligne].forEach((c, i) => c.maj(S.tape[i], res[i], false));
     if (t === mot) fin(true);
     else if (S.ligne + 1 >= essais) fin(false);
@@ -352,19 +367,151 @@ async function solo(mdj) {
   }
   function fin(victoire) {
     S.fini = true; const ec = Math.floor((Date.now() - S.debut) / 1000);
-    if (mdj) { majConfig({ last_mdj: aujourdhui() }); enregistrerResultatMdj(victoire); }
-    const tl = h("div.ligne", { style: { gap: "8px", margin: "10px 0 26px" } }, [...mot].map(ch => { const t = tuile(56); t.maj(ch, victoire ? "bien" : "absent"); return t; }));
-    const hist = h("div.col", { style: { gap: "4px", marginBottom: "26px", alignItems: "center" } }, S.historique.map(l => h("div.ligne", { style: { gap: "4px" } }, l.map(e => { const t = tuile(22, true); t.maj("", e); return t; }))));
+    const sc = victoire ? score(ec) : 0, nEssais = S.ligne + 1;
+    let titreFin, stats, rejouer = () => solo(mode), partage = null, note = null, codeAff = null;
+    if (mode === "marathon") {
+      marathon.temps += ec;
+      if (victoire) {
+        marathon.mots++; marathon.score += sc; sTot.set(nombre(marathon.score));
+        message(`Trouvé ! +${nombre(sc)} pts · mot suivant…`, "var(--succes)", 5000);
+        setTimeout(() => { if (marathon && document.body.contains(msg)) solo("marathon"); }, 1300); return;
+      }
+      const m = marathon, ancien = lireStats().marathon.record, record = enregistrerMarathon(m.mots, m.score, mot);
+      const r = Math.max(ancien, m.mots);
+      note = record && m.mots ? "Nouveau record !" : `Record : ${r} mot${r > 1 ? "s" : ""}`;
+      titreFin = "Marathon terminé"; stats = [["Mots trouvés", String(m.mots)], ["Score total", nombre(m.score), "var(--mal)"], ["Temps", mmss(m.temps)]];
+      partage = `SMOUT · Marathon · ${m.mots} mot${m.mots > 1 ? "s" : ""} · ${nombre(m.score)} pts` + (difficile ? " · difficile" : "") + `\n${D.url_web}`;
+      rejouer = () => { marathon = null; solo("marathon"); }; marathon = null;
+    } else {
+      if (mode === "mdj") { majConfig({ last_mdj: aujourdhui() }); enregistrerResultatMdj(victoire); }
+      const essaisTxt = victoire ? `${nEssais} / ${essais}` : `– / ${essais}`;
+      enregistrerPartie({ libre: "solo", mdj: "mdj", defi: "defi" }[mode], victoire, nEssais, sc, mot, code);
+      if (mode === "defi") { const j = lireConfig().defis_joues || {}; j[code] = { v: victoire, e: nEssais, s: sc, l: S.historique }; majConfig({ defis_joues: Object.fromEntries(Object.entries(j).slice(-50)) }); }
+      if (mode === "mdj" || mode === "defi") {
+        const d = new Date(); const t = (mode === "mdj" ? `Mot du jour ${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}` : `Défi ${code}`) + (difficile ? " (difficile)" : "");
+        partage = textePartage(t, S.historique, essaisTxt.replace(/ /g, ""), nombre(sc), mode === "defi" ? lienDefi(code) : D.url_web);
+      }
+      titreFin = victoire ? (mode === "mdj" ? "Bravo, mot du jour trouvé !" : mode === "defi" ? "Défi réussi !" : "Bravo, mot trouvé !") : "Perdu…";
+      stats = [["Temps", mmss(ec)], ["Score", nombre(sc), "var(--mal)"], ["Essais", essaisTxt]];
+      if (mode === "mdj") rejouer = null;
+      if (mode === "defi") { codeAff = code; rejouer = () => solo("defi", nouveauCodeDefi()); }
+    }
+    const tt = Math.max(26, Math.min(56, Math.floor((Math.min(window.innerWidth, 700) - 30) / mot.length) - 8));
+    const tl = h("div.ligne", { style: { gap: "8px", margin: "10px 0 20px" } }, [...mot].map(ch => { const t = tuile(tt); t.maj(ch, victoire ? "bien" : "absent"); return t; }));
+    const hist = h("div.col", { style: { gap: "4px", marginBottom: "20px", alignItems: "center" } }, S.historique.slice(-8).map(l => h("div.ligne", { style: { gap: "4px" } }, l.map(e => { const t = tuile(22, true); t.maj("", e); return t; }))));
+    const msgCopie = h("div.gras", { style: { color: "var(--succes)", minHeight: "22px", fontSize: "14px", marginBottom: "6px", textAlign: "center" } });
     const v = h("div.voile", {}, h("div.centre", {},
       h("div.t2", { style: { fontSize: "17px" } }, "Le mot était"), tl,
-      h("div.titre", { style: { fontSize: "52px", textAlign: "center" } }, victoire ? (mdj ? "Bravo, mot du jour trouvé !" : "Bravo, mot trouvé !") : "Perdu…"),
-      h("div.stats", { style: { margin: "26px 0", gap: "min(68px, 7.5vw)" } }, stat("Temps", mmss(ec), null, 34), stat("Score", victoire ? nombre(score(ec)) : "0", "var(--mal)", 34), stat("Essais", victoire ? `${S.ligne + 1} / ${essais}` : `– / ${essais}`, null, 34)),
-      hist,
-      h("div.ligne", { style: { gap: "16px", flexWrap: "wrap", justifyContent: "center" } }, mdj ? null : bouton("Rejouer", () => solo(false), { largeur: 230, grand: true }), bouton("Retour à l'accueil", accueil, { largeur: 230, grand: true, variante: "discret" }))));
+      h("div.titre", { style: { fontSize: "min(52px, 10vw)", textAlign: "center" } }, titreFin),
+      note ? h("div.t2", { style: { fontSize: "17px", marginTop: "6px" } }, note) : null,
+      h("div.stats", { style: { margin: "22px 0", gap: "min(68px, 7.5vw)" } }, stats.map(([a, b, c]) => stat(a, b, c, 34))),
+      codeAff ? h("div.col", { style: { alignItems: "center", marginBottom: "16px" } }, h("div.caps", {}, "Code du défi"), h("div.chiffres", { style: { fontSize: "34px", color: "var(--mal)" } }, codeAff), h("div.t2", { style: { fontSize: "13px" } }, lienDefi(codeAff))) : null,
+      hist, msgCopie,
+      h("div.ligne", { style: { gap: "16px", flexWrap: "wrap", justifyContent: "center" } },
+        rejouer ? bouton("Rejouer", rejouer, { largeur: 210, grand: true }) : null,
+        partage ? bouton("Partager le résultat", () => partager(partage, msgCopie), { largeur: 250, grand: true, variante: "secondaire" }) : null,
+        bouton("Retour à l'accueil", accueil, { largeur: 230, grand: true, variante: "discret" }))));
     document.body.append(v); nettoyageEcran.push(() => v.remove());
   }
   maj();
 }
+async function partager(texte, cible) {
+  try { if (navigator.share && matchMedia("(pointer: coarse)").matches) { await navigator.share({ text: texte }); return; } } catch (e) { if (e.name === "AbortError") return; }
+  try { await navigator.clipboard.writeText(texte); cible.textContent = "Résultat copié ✓ — colle-le à tes amis"; }
+  catch (e) { cible.style.whiteSpace = "pre-line"; cible.textContent = texte; }
+}
+
+/* ------------------------------------------------------------------ mode difficile, défis, statistiques (identiques à design.py) */
+function verifierDifficile(tape, lignes) {
+  for (const [motP, etats] of lignes) {
+    for (let i = 0; i < etats.length; i++) if (etats[i] === "bien" && tape[i] !== motP[i]) return `Mode difficile : la ${i + 1}${i === 0 ? "re" : "e"} lettre doit être un ${motP[i]}`;
+    const besoin = {};
+    etats.forEach((e, i) => { if (e === "bien" || e === "mal") besoin[motP[i]] = (besoin[motP[i]] || 0) + 1; });
+    for (const ch of Object.keys(besoin).sort()) { const n = besoin[ch]; if (tape.filter(x => x === ch).length < n) return `Mode difficile : le mot doit contenir ${n === 1 ? "un" : n + " ×"} ${ch}`; }
+  }
+  return null;
+}
+const ALPHABET_DEFI = "ABCDEFGHJKMNPQRSTUVWXYZ23456789", ESSAIS_DEFI = 6;
+function nouveauCodeDefi() { const a = new Uint32Array(6); crypto.getRandomValues(a); return [...a].map(x => ALPHABET_DEFI[x % ALPHABET_DEFI.length]).join(""); }
+function normaliserCodeDefi(c) { c = [...(c || "").toUpperCase()].filter(ch => ALPHABET_DEFI.includes(ch)).join(""); return c.length === 6 ? c : ""; }
+const motDefi = code => motGraine(trier(MOTS.liste), "defi:" + code);
+const lienDefi = code => `${D.url_web}?defi=${code}`;
+const EMOJI = { bien: "🟥", mal: "🟡", absent: "🟦" };
+const textePartage = (titre, lignes, essais, score, lien = "") => [`SMOUT · ${titre} · ${essais} · ${score} pts`, ...lignes.map(l => l.map(e => EMOJI[e]).join("")), lien].filter(Boolean).join("\n");
+const statsVides = () => ({ parties: 0, victoires: 0, repartition: {}, serie: 0, meilleure_serie: 0, meilleur_score: 0 });
+function lireStats() {
+  const st = lireConfig().stats || {};
+  for (const k of ["solo", "mdj", "defi"]) st[k] = Object.assign(statsVides(), st[k] || {});
+  st.marathon = Object.assign({ parties: 0, record: 0, record_score: 0, mots: 0 }, st.marathon || {});
+  st.historique = st.historique || []; return st;
+}
+function enregistrerPartie(genre, victoire, essais = 0, score = 0, mot = "", detail = "") {
+  const st = lireStats(), s = st[genre];
+  s.parties++;
+  if (victoire) { s.victoires++; s.serie++; s.repartition[essais] = (s.repartition[essais] || 0) + 1; s.meilleur_score = Math.max(s.meilleur_score, Math.trunc(score)); } else s.serie = 0;
+  s.meilleure_serie = Math.max(s.meilleure_serie, s.serie);
+  st.historique = [{ d: aujourdhui(), g: genre, m: mot, v: !!victoire, e: essais, s: Math.trunc(score), x: detail }, ...st.historique].slice(0, 30);
+  majConfig({ stats: st }); return st;
+}
+function enregistrerMarathon(nb, score, dernier = "") {
+  const st = lireStats(), m = st.marathon;
+  m.parties++; m.mots += nb;
+  const nouveau = nb > m.record || (nb === m.record && score > m.record_score);
+  if (nouveau) { m.record = nb; m.record_score = Math.trunc(score); }
+  st.historique = [{ d: aujourdhui(), g: "marathon", m: dernier, v: nb > 0, e: nb, s: Math.trunc(score), x: "" }, ...st.historique].slice(0, 30);
+  majConfig({ stats: st }); return nouveau;
+}
+
+/* ------------------------------------------------------------------ écran Défi entre amis */
+function pageDefi(codeInitial = "") {
+  const champ = h("input.champ.mono", { placeholder: "CODE", maxlength: 6, style: { width: "220px", height: "56px", fontSize: "22px" }, value: codeInitial });
+  champ.addEventListener("input", () => { const v = champ.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6); if (v !== champ.value) champ.value = v; });
+  const msg = h("div.gras", { style: { color: "var(--danger)", minHeight: "22px", marginTop: "12px", fontSize: "15px" } });
+  const jouer = () => {
+    const code = normaliserCodeDefi(champ.value);
+    if (!code) { msg.textContent = "Le code contient 6 caractères (lettres et chiffres)."; return; }
+    const deja = (lireConfig().defis_joues || {})[code];
+    if (deja) { msg.style.color = "var(--texte2)"; msg.textContent = `Tu as déjà joué ce défi (${deja.v ? `${deja.e}/${ESSAIS_DEFI} · ${nombre(deja.s)} pts` : "perdu"}).`; return; }
+    solo("defi", code);
+  };
+  champ.addEventListener("keydown", e => e.key === "Enter" && jouer());
+  ecran(entete("", accueil), h("div.centre", {}, h("div", { style: { width: "min(700px, 94vw)" } },
+    h("div.titre", { style: { fontSize: "46px", margin: "6px 0 4px" } }, "Défi entre amis"),
+    h("div.t2", { style: { fontSize: "16px", marginBottom: "24px" } }, `Tout le monde joue le même mot, en ${ESSAIS_DEFI} essais, quand il veut. Comparez vos scores !`),
+    h("div.panneau", { style: { padding: "30px" } },
+      h("div.gras", { style: { fontSize: "18px" } }, "Lancer un défi"),
+      h("div.t2", { style: { fontSize: "15px", margin: "4px 0 12px" } }, "Un code est créé : envoie-le (ou le lien) à tes amis après ta partie."),
+      bouton("Créer un défi", () => solo("defi", nouveauCodeDefi()), { largeur: 300, hauteur: 54 }),
+      h("div", { style: { height: "1px", background: "var(--bordure)", margin: "24px 0" } }),
+      h("div.gras", { style: { fontSize: "18px", marginBottom: "12px" } }, "Relever le défi d'un ami"),
+      h("div.ligne", { style: { gap: "12px", flexWrap: "wrap" } }, champ, bouton("Jouer", jouer, { variante: "tuile-b", largeur: 150, hauteur: 56 })), msg))));
+}
+
+/* ------------------------------------------------------------------ statistiques */
+function statistiques() {
+  const st = lireStats();
+  const carte = (nom, s) => {
+    const taux = s.parties ? Math.round(100 * s.victoires / s.parties) : 0, mx = Math.max(1, ...Object.values(s.repartition));
+    const barres = [1, 2, 3, 4, 5, 6, 7, 8].filter(n => n <= 7 || s.repartition[n]).map(n => { const v = s.repartition[n] || 0;
+      return h("div.ligne", { style: { gap: "8px", margin: "2px 0" } }, h("span.chiffres.t2", { style: { width: "14px", fontSize: "13px" } }, String(n)),
+        h("div", { style: { width: `calc(18px + ${Math.round(70 * v / mx)}%)`, background: v && v === mx ? "var(--bien)" : "var(--tuile)", color: v && v === mx ? "var(--sur-bien)" : "var(--texte)", borderRadius: "5px", fontSize: "11px", textAlign: "right", padding: "1px 6px", fontFamily: "var(--f-chiffres)" } }, String(v))); });
+    return h("div.panneau", { style: { padding: "20px", flex: "1 1 280px" } }, h("div.gras", { style: { fontSize: "18px" } }, nom),
+      h("div.ligne", { style: { gap: "14px", margin: "8px 0 10px" } }, stat("Parties", String(s.parties), null, 22), stat("Réussite", `${taux} %`, null, 22), stat("Série", String(s.serie), null, 22), stat("Max", String(s.meilleure_serie), null, 22)), ...barres);
+  };
+  const m = st.marathon;
+  const hist = st.historique.slice(0, 8).map(x => { const g = { solo: "Solo", mdj: "Mot du jour", defi: "Défi", marathon: "Marathon" }[x.g] || x.g;
+    const res = x.g === "marathon" ? `${x.e} mot${x.e > 1 ? "s" : ""}` : x.v ? `${x.e} essai${x.e > 1 ? "s" : ""}` : "perdu";
+    return h("div.r", { style: { color: x.v ? "var(--texte)" : "var(--texte2)" } }, h("span.chiffres", {}, `${x.d.slice(8, 10)}/${x.d.slice(5, 7)}`), h("span", {}, g), h("span.chiffres", {}, x.m), h("span", {}, res), h("span.chiffres", { style: { textAlign: "right" } }, `${nombre(x.s)} pts`)); });
+  ecran(entete("", accueil), h("div", { style: { padding: "0 4vw 30px" } },
+    h("div.titre", { style: { fontSize: "46px", margin: "0 0 18px" } }, "Statistiques"),
+    h("div.ligne", { style: { gap: "16px", flexWrap: "wrap", alignItems: "stretch" } }, carte("Solo", st.solo), carte("Mot du jour", st.mdj), carte("Défis", st.defi)),
+    h("div.ligne", { style: { gap: "16px", flexWrap: "wrap", alignItems: "flex-start", marginTop: "16px" } },
+      h("div.panneau", { style: { padding: "20px", flex: "1 1 280px" } }, h("div.gras", { style: { fontSize: "18px" } }, "Marathon"),
+        h("div.ligne", { style: { gap: "14px", marginTop: "8px" } }, stat("Record", String(m.record), null, 22), stat("Meilleur score", nombre(m.record_score), null, 22), stat("Parties", String(m.parties), null, 22))),
+      h("div.panneau", { style: { padding: "20px", flex: "2 1 400px" } }, h("div.gras", { style: { fontSize: "18px", marginBottom: "8px" } }, "Dernières parties"),
+        hist.length ? h("div.historique", {}, ...hist) : h("div.t2", {}, "Aucune partie pour le moment.")))));
+}
+
 function evaluer(tape, mot) {
   const res = Array(mot.length).fill("absent"), secret = [...mot];
   for (let i = 0; i < mot.length; i++) if (tape[i] === mot[i]) { res[i] = "bien"; secret[i] = null; }
@@ -382,15 +529,19 @@ function majStatuts(statut, lettres, res) {
 
 /* ------------------------------------------------------------------ paramètres */
 function parametres() {
-  const c = configSolo();
+  const c = configSolo(), cf = lireConfig();
   const cE = chips([4, 5, 6, 7, 8], c.nb_essais), cMin = chips([6, 7, 8, 9, 10], c.nb_lettres_min, v => { if (v > cMax.valeur) cMax.set(v); }),
     cMax = chips([6, 7, 8, 9, 10], c.nb_lettres_max, v => { if (v < cMin.valeur) cMin.set(v); });
+  const cDiff = caseACocher("Mode difficile (lettres trouvées obligatoires)", !!c.difficile), cDalt = caseACocher("Mode daltonien (orange et bleu)", !!cf.daltonien);
   const lab = t => h("div.gras", { style: { fontSize: "17px", margin: "0 0 10px" } }, t);
   ecran(entete("", accueil), h("div", { style: { padding: "0 6vw" } },
     h("div.titre", { style: { fontSize: "46px", margin: "0 0 6px" } }, "Paramètres"),
-    h("div.t2", { style: { fontSize: "16px", marginBottom: "24px" } }, "Réglages des parties solo (le mot du jour se joue toujours en 7 essais)."),
+    h("div.t2", { style: { fontSize: "16px", marginBottom: "24px" } }, "Réglages des parties solo et marathon (le mot du jour se joue toujours en 7 essais, le défi en 6)."),
     h("div.panneau", { style: { padding: "30px", maxWidth: "620px" } }, lab("Nombre d'essais"), cE, h("div", { style: { height: "22px" } }), lab("Longueur minimale des mots"), cMin, h("div", { style: { height: "22px" } }), lab("Longueur maximale des mots"), cMax,
-      h("div", { style: { height: "26px" } }), bouton("Enregistrer", () => { majConfig({ nb_essais: cE.valeur, nb_lettres_min: cMin.valeur, nb_lettres_max: cMax.valeur }); accueil(); }, { grand: true, largeur: 560 }))));
+      h("div", { style: { height: "22px" } }), cDiff, h("div", { style: { height: "10px" } }), cDalt,
+      h("div", { style: { height: "26px" } }), bouton("Enregistrer", () => {
+        majConfig({ nb_essais: cE.valeur, nb_lettres_min: cMin.valeur, nb_lettres_max: cMax.valeur, difficile: cDiff.valeur, daltonien: cDalt.valeur });
+        appliquerTheme(themeActuel); accueil(); }, { grand: true, largeur: 560 }))));
 }
 
 /* ------------------------------------------------------------------ thèmes */
@@ -628,6 +779,7 @@ async function multiAccueil() {
   async function charger() {
     liste.innerHTML = ""; liste.append(h("div.t2", { style: { padding: "10px 0", fontSize: "15px" } }, "Chargement…"));
     await MOTS.pret;
+    if (!(await FB.jeton())) { liste.innerHTML = ""; liste.append(h("div.t2", { style: { padding: "10px 0", fontSize: "16px" } }, "Pas de connexion au serveur : le multijoueur a besoin d'internet. Le solo, le marathon, le défi et le mot du jour restent jouables.")); return; }
     const data = await FB.get("index") || {};
     liste.innerHTML = ""; let n = 0;
     for (const [c, v] of Object.entries(data).sort()) {
@@ -1060,4 +1212,7 @@ async function resultats() {
 
 /* ------------------------------------------------------------------ démarrage */
 chargerTheme();
-accueil();
+{
+  const defi = normaliserCodeDefi(new URLSearchParams(location.search).get("defi") || "");
+  if (defi) pageDefi(defi); else accueil();
+}

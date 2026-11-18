@@ -1,9 +1,11 @@
 name: Version web (GitHub Pages)
 
+# Le site n'est mis à jour qu'après une release réussie (donc après le passage des tests)
 on:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows: ["Auto Release with Executables"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -17,12 +19,15 @@ concurrency:
 
 jobs:
   deploy:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deploiement.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
