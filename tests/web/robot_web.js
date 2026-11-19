@@ -91,7 +91,7 @@ async function clicTexte(sel, txt) { return ev((s, t) => { const e = [...documen
         if (S.essais) { const cur = await ev(() => +document.querySelectorAll(".stepper .v")[0].textContent); for (let i = 0; i < Math.abs(cur - S.essais); i++) await ev(s => document.querySelectorAll(".stepper")[0].querySelectorAll(".icone")[s > 0 ? 0 : 1].click(), cur - S.essais); }
       }
       await sleep(1500);
-      if (!(await clicTexte("button", "Lancer la partie"))) { log("ÉCHEC lancer"); return fin(false); }
+      if (!(await clicTexte("button.lancer", "Lancer"))) { log("ÉCHEC lancer"); return fin(false); }
       log("partie lancée", partie);
     }
     let debut = 1;

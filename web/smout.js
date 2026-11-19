@@ -19,7 +19,14 @@ const MODES = [
   ["CHAINE", "Chaîne", "Les mots s'enchaînent"],
   ["COOP", "Coopératif", "Une grille pour tous"],
 ];
-const RUSHS = ["RUSH", "CHAINE"];  // modes « un maximum de mots avant la fin du temps »
+const RUSHS = ["RUSH", "CHAINE"];
+// chaque mode a sa couleur (identique à COULEURS_MODES de page_multi.py) et une règle en une phrase
+const COULEURS_MODES = { CLASSIQUE: "#F5B83D", BLAST: "#FF6B6B", PRECISION: "#4CC9F0", MYSTERE: "#A78BFA", RUSH: "#FF8FC7", ELIMINATION: "#FF9F43", CHAINE: "#2DD4BF", COOP: "#7ED957" };
+const REGLES_MODES = {
+  CLASSIQUE: "Chacun cherche le mot : 1 point par mot trouvé.", BLAST: "Les plus rapides marquent le plus de points à chaque manche.",
+  PRECISION: "Moins tu utilises d'essais, plus tu marques.", MYSTERE: "Même la première lettre est cachée.",
+  RUSH: "Un maximum de mots avant la fin du temps.", ELIMINATION: "Qui ne trouve pas, ou le plus lent, est éliminé. Le dernier gagne.",
+  CHAINE: "Chaque mot commence par la dernière lettre du précédent.", COOP: "Une seule grille pour l'équipe, essais partagés." };  // modes « un maximum de mots avant la fin du temps »
 const NOM_MODE = Object.fromEntries(MODES.map(m => [m[0], m[1]]));
 const COULEURS_AVATAR = ["#F5B83D", "#8FB3FF", "#7ED6A8", "#F2A1C5", "#C4A7FF", "#FFB38A"];
 
@@ -187,6 +194,7 @@ const SVG = {
   chevron: '<path d="M9 6l6 6-6 6"/>', check: '<path d="M5 12l5 5 9-10"/>',
   couronne: '<path d="M3 18h18l-2-10-5 5-2-7-2 7-5-5z"/>',
   stats: '<path d="M6 20v-7M12 20V6M18 20v-10"/>',
+  crayon: '<path d="M4 20h4L19 9l-4-4L4 16z M14 6l4 4"/>',
 };
 const svg = (nom, taille) => `<svg viewBox="0 0 24 24"${taille ? ` style="width:${taille}px;height:${taille}px"` : ""}>${SVG[nom]}</svg>`;
 const icone = (nom, onclick, cadre = false, titre = "") => h("button.icone" + (cadre ? ".cadre" : ""), { onclick, html: svg(nom), "aria-label": titre || nom, title: titre });
@@ -299,28 +307,37 @@ function changerTheme(nom, sauver = true) { themeActuel = nom; appliquerTheme(no
 const pseudo = () => lireConfig().pseudo || "ANONYME";
 
 function accueil() {
-  history.replaceState(null, "", location.pathname);  // retire ?defi=… de l'adresse
   const [serie, joue] = serieMotDuJour();
   const badge = (serie || joue) ? [serie ? `Série ${serie}` : "", joue ? "Joué ✓" : ""].filter(Boolean).join(" · ") : null;
-  const rec = lireStats().marathon.record;
   const carte = (t, s, f, b) => h("button.carte-menu", { onclick: f }, h("div", {}, h("div.t", {}, t), h("div.s", {}, s)), b ? h("div.d", {}, b) : h("span.chevron", { html: svg("chevron", 22) }));
   ecran(
     h("div.ligne", { style: { justifyContent: "flex-end", gap: "16px", padding: "22px 28px 0" } },
-      icone("palette", themes, false, "Thèmes"), icone("stats", statistiques, false, "Statistiques"), icone("reglages", parametres, false, "Paramètres"), avatar(pseudo(), 46, 0, changerPseudo)),
+      icone("palette", () => themes(), true, "Thèmes"), icone("stats", () => statistiques(), true, "Statistiques"), avatar(pseudo(), 46, 0, () => changerPseudo())),
     h("div.centre", { style: { flex: 1, justifyContent: "center", gap: "12px", padding: "16px 0" } },
       logo(Math.min(88, Math.floor((window.innerWidth - 80) / 5.8)), 14),
       h("div.t2", { style: { fontSize: "19px", margin: "0 0 22px" } }, "Trouvez le mot caché."),
-      carte("Solo", "À votre rythme", () => solo("libre")),
+      carte("Solo", "Normal, marathon, réglages", menuSolo),
       carte("Mot du jour", "Un mot, une partie par jour", () => solo("mdj"), badge),
-      carte("Marathon", "Enchaînez les mots jusqu'à l'erreur", () => solo("marathon"), rec ? `Record ${rec}` : null),
-      carte("Défi entre amis", "Le même mot pour tous, avec un code", () => pageDefi()),
       carte("Multijoueur", "Salons publics ou entre amis", multiAccueil)),
     h("div.t2", { style: { textAlign: "center", padding: "0 0 22px", fontSize: "14px" } }, `SMOUT v${VERSION_APP} · version en ligne`));
 }
-function changerPseudo() {
+/* page intermédiaire du solo */
+function menuSolo() {
+  const rec = lireStats().marathon.record;
+  const carte = (t, s, f, b) => h("button.carte-menu", { onclick: f }, h("div", {}, h("div.t", {}, t), h("div.s", {}, s)), b ? h("div.d", {}, b) : h("span.chevron", { html: svg("chevron", 22) }));
+  ecran(entete("", accueil),
+    h("div.centre", { style: { flex: 1, justifyContent: "center", gap: "12px", padding: "0 0 40px" } },
+      h("div.titre", { style: { fontSize: "46px", textAlign: "center" } }, "Solo"),
+      h("div.t2", { style: { fontSize: "18px", margin: "0 0 22px", textAlign: "center" } }, "À votre rythme"),
+      carte("Partie normale", "Un mot, à votre rythme", () => solo("libre")),
+      carte("Marathon", "Enchaînez les mots jusqu'à l'erreur", () => solo("marathon"), rec ? `Record ${rec}` : null),
+      carte("Paramètres", "Essais, longueur des mots, difficile", parametres)));
+}
+function changerPseudo(apres) {
+  if (typeof apres !== "function") apres = accueil;  // appelée aussi comme gestionnaire de clic
   const ch = h("input.champ.mono", { maxlength: 15, style: { width: "400px", maxWidth: "80vw" }, value: lireConfig().pseudo || "" });
   ch.addEventListener("input", () => { const v = ch.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 15); if (v !== ch.value) ch.value = v; });
-  const ok = () => { if (ch.value) { majConfig({ pseudo: ch.value }); accueil(); } else o.cacher(); };
+  const ok = () => { if (ch.value) { majConfig({ pseudo: ch.value }); apres(); } else o.cacher(); };
   ch.addEventListener("keydown", e => e.key === "Enter" && ok());
   const o = superposition(h("div.col", {}, h("div.titre", { style: { fontSize: "28px" } }, "Ton pseudo"),
     h("div.t2", { style: { margin: "4px 0 16px" } }, "Il s'affiche pour les autres joueurs en multijoueur."), ch,
@@ -328,10 +345,10 @@ function changerPseudo() {
   o.montrer(); ch.focus();
 }
 
-/* ------------------------------------------------------------------ solo (modes : libre, mdj, marathon, defi) */
-const TITRES = { libre: "Solo", mdj: "Mot du jour", marathon: "Marathon", defi: "Défi" };
+/* ------------------------------------------------------------------ solo (modes : libre, mdj, marathon) */
+const TITRES = { libre: "Solo", mdj: "Mot du jour", marathon: "Marathon" };
 let marathon = null;
-async function solo(mode = "libre", code = "") {
+async function solo(mode = "libre") {
   if (mode === true) mode = "mdj"; if (mode === false) mode = "libre";
   await MOTS.pret;
   if (mode === "marathon" && !marathon) marathon = { mots: 0, score: 0, temps: 0 };
@@ -348,7 +365,6 @@ async function solo(mode = "libre", code = "") {
   }
   let mot, essais;
   if (mode === "mdj") { mot = await motGraine(trier(MOTS.liste), "mdj:" + auj); essais = 7; majConfig({ last_mdj: auj }); }
-  else if (mode === "defi") { mot = await motDefi(code); essais = ESSAIS_DEFI; }
   else {
     const f = MOTS.liste.filter(m => m.length >= conf.nb_lettres_min && m.length <= conf.nb_lettres_max);
     const l = f.length ? f : MOTS.liste; mot = l[Math.floor(Math.random() * l.length)]; essais = conf.nb_essais;
@@ -366,7 +382,7 @@ async function solo(mode = "libre", code = "") {
   const msg = h("div.msg", { style: { color: "var(--danger)", margin: "8px 0 4px", textAlign: "center" } });
   const kb = clavier(ajouter, effacer, valider, kh);
   const abandon = h("button.lien", { onclick: () => !S.fini && fin(false) }, "Abandonner");
-  const titre = TITRES[mode] + (mode === "defi" ? ` ${code}` : "") + (mode === "marathon" ? ` · mot ${marathon.mots + 1}` : "") + ` · ${mot.length} lettres` + (difficile ? " · difficile" : "");
+  const titre = TITRES[mode] + (mode === "marathon" ? ` · mot ${marathon.mots + 1}` : "") + ` · ${mot.length} lettres` + (difficile ? " · difficile" : "");
   ecran(entete(titre, quitter, icone("aide", () => aide.montrer(), false, "Aide")),
     h("div.centre", { style: { gap: "0" } }, h("div.stats", { style: { marginTop: "10px" } }, sT, sS, sE, sTot), h("div", { style: { marginTop: "18px" } }, g), msg, kb, h("div", { style: { margin: "14px 0 20px" } }, abandon)));
   aide = fenetreAide();  // après ecran() : sinon le nettoyage de l'écran la supprimerait
@@ -379,7 +395,7 @@ async function solo(mode = "libre", code = "") {
     if (c && ALPHABET.includes(c)) ajouter(c); else if (e.key === "Backspace") effacer(); else if (e.key === "Enter") valider(); else return;
     e.preventDefault();
   };
-  function quitter() { S.fini = true; marathon = null; accueil(); }
+  function quitter() { S.fini = true; marathon = null; if (mode === "mdj") accueil(); else menuSolo(); }
   function maj() {
     if (S.fini) return;
     g.cases[S.ligne].forEach((t, i) => t.maj(i < S.tape.length ? S.tape[i] : "", i === 0 ? "bien" : "", i === S.tape.length));
@@ -403,7 +419,7 @@ async function solo(mode = "libre", code = "") {
   function fin(victoire) {
     S.fini = true; const ec = Math.floor((Date.now() - S.debut) / 1000);
     const sc = victoire ? score(ec) : 0, nEssais = S.ligne + 1;
-    let titreFin, stats, rejouer = () => solo(mode), partage = null, note = null, codeAff = null;
+    let titreFin, stats, rejouer = () => solo(mode), partage = null, note = null;
     if (mode === "marathon") {
       marathon.temps += ec;
       if (victoire) {
@@ -420,16 +436,14 @@ async function solo(mode = "libre", code = "") {
     } else {
       if (mode === "mdj") { majConfig({ last_mdj: aujourdhui() }); enregistrerResultatMdj(victoire); }
       const essaisTxt = victoire ? `${nEssais} / ${essais}` : `– / ${essais}`;
-      enregistrerPartie({ libre: "solo", mdj: "mdj", defi: "defi" }[mode], victoire, nEssais, sc, mot, code);
-      if (mode === "defi") { const j = lireConfig().defis_joues || {}; j[code] = { v: victoire, e: nEssais, s: sc, l: S.historique }; majConfig({ defis_joues: Object.fromEntries(Object.entries(j).slice(-50)) }); }
-      if (mode === "mdj" || mode === "defi") {
-        const d = new Date(); const t = (mode === "mdj" ? `Mot du jour ${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}` : `Défi ${code}`) + (difficile ? " (difficile)" : "");
-        partage = textePartage(t, S.historique, essaisTxt.replace(/ /g, ""), nombre(sc), mode === "defi" ? lienDefi(code) : D.url_web);
+      enregistrerPartie({ libre: "solo", mdj: "mdj" }[mode], victoire, nEssais, sc, mot);
+      if (mode === "mdj") {
+        const d = new Date(); const t = `Mot du jour ${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}` + (difficile ? " (difficile)" : "");
+        partage = textePartage(t, S.historique, essaisTxt.replace(/ /g, ""), nombre(sc), D.url_web);
       }
-      titreFin = victoire ? (mode === "mdj" ? "Bravo, mot du jour trouvé !" : mode === "defi" ? "Défi réussi !" : "Bravo, mot trouvé !") : "Perdu…";
+      titreFin = victoire ? (mode === "mdj" ? "Bravo, mot du jour trouvé !" : "Bravo, mot trouvé !") : "Perdu…";
       stats = [["Temps", mmss(ec)], ["Score", nombre(sc), "var(--mal)"], ["Essais", essaisTxt]];
       if (mode === "mdj") rejouer = null;
-      if (mode === "defi") { codeAff = code; rejouer = () => solo("defi", nouveauCodeDefi()); }
     }
     const tt = Math.max(26, Math.min(56, Math.floor((Math.min(window.innerWidth, 700) - 30) / mot.length) - 8));
     const tl = h("div.ligne", { style: { gap: "8px", margin: "10px 0 20px" } }, [...mot].map(ch => { const t = tuile(tt); t.maj(ch, victoire ? "bien" : "absent"); return t; }));
@@ -440,12 +454,11 @@ async function solo(mode = "libre", code = "") {
       h("div.titre", { style: { fontSize: "min(52px, 10vw)", textAlign: "center" } }, titreFin),
       note ? h("div.t2", { style: { fontSize: "17px", marginTop: "6px" } }, note) : null,
       h("div.stats", { style: { margin: "22px 0", gap: "min(68px, 7.5vw)" } }, stats.map(([a, b, c]) => stat(a, b, c, 34))),
-      codeAff ? h("div.col", { style: { alignItems: "center", marginBottom: "16px" } }, h("div.caps", {}, "Code du défi"), h("div.chiffres", { style: { fontSize: "34px", color: "var(--mal)" } }, codeAff), h("div.t2", { style: { fontSize: "13px" } }, lienDefi(codeAff))) : null,
       hist, msgCopie,
       h("div.ligne", { style: { gap: "16px", flexWrap: "wrap", justifyContent: "center" } },
         rejouer ? bouton("Rejouer", rejouer, { largeur: 210, grand: true }) : null,
         partage ? bouton("Partager le résultat", () => partager(partage, msgCopie), { largeur: 250, grand: true, variante: "secondaire" }) : null,
-        bouton("Retour à l'accueil", accueil, { largeur: 230, grand: true, variante: "discret" }))));
+        bouton("Retour", mode === "mdj" ? accueil : menuSolo, { largeur: 230, grand: true, variante: "discret" }))));
     document.body.append(v); nettoyageEcran.push(() => v.remove());
   }
   maj();
@@ -466,17 +479,12 @@ function verifierDifficile(tape, lignes) {
   }
   return null;
 }
-const ALPHABET_DEFI = "ABCDEFGHJKMNPQRSTUVWXYZ23456789", ESSAIS_DEFI = 6;
-function nouveauCodeDefi() { const a = new Uint32Array(6); crypto.getRandomValues(a); return [...a].map(x => ALPHABET_DEFI[x % ALPHABET_DEFI.length]).join(""); }
-function normaliserCodeDefi(c) { c = [...(c || "").toUpperCase()].filter(ch => ALPHABET_DEFI.includes(ch)).join(""); return c.length === 6 ? c : ""; }
-const motDefi = code => motGraine(trier(MOTS.liste), "defi:" + code);
-const lienDefi = code => `${D.url_web}?defi=${code}`;
 const EMOJI = { bien: "🟥", mal: "🟡", absent: "🟦" };
 const textePartage = (titre, lignes, essais, score, lien = "") => [`SMOUT · ${titre} · ${essais} · ${score} pts`, ...lignes.map(l => l.map(e => EMOJI[e]).join("")), lien].filter(Boolean).join("\n");
 const statsVides = () => ({ parties: 0, victoires: 0, repartition: {}, serie: 0, meilleure_serie: 0, meilleur_score: 0 });
 function lireStats() {
   const st = lireConfig().stats || {};
-  for (const k of ["solo", "mdj", "defi"]) st[k] = Object.assign(statsVides(), st[k] || {});
+  for (const k of ["solo", "mdj"]) st[k] = Object.assign(statsVides(), st[k] || {});
   st.marathon = Object.assign({ parties: 0, record: 0, record_score: 0, mots: 0 }, st.marathon || {});
   st.historique = st.historique || []; return st;
 }
@@ -497,31 +505,6 @@ function enregistrerMarathon(nb, score, dernier = "") {
   majConfig({ stats: st }); return nouveau;
 }
 
-/* ------------------------------------------------------------------ écran Défi entre amis */
-function pageDefi(codeInitial = "") {
-  const champ = h("input.champ.mono", { placeholder: "CODE", maxlength: 6, style: { width: "220px", height: "56px", fontSize: "22px" }, value: codeInitial });
-  champ.addEventListener("input", () => { const v = champ.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6); if (v !== champ.value) champ.value = v; });
-  const msg = h("div.gras", { style: { color: "var(--danger)", minHeight: "22px", marginTop: "12px", fontSize: "15px" } });
-  const jouer = () => {
-    const code = normaliserCodeDefi(champ.value);
-    if (!code) { msg.textContent = "Le code contient 6 caractères (lettres et chiffres)."; return; }
-    const deja = (lireConfig().defis_joues || {})[code];
-    if (deja) { msg.style.color = "var(--texte2)"; msg.textContent = `Tu as déjà joué ce défi (${deja.v ? `${deja.e}/${ESSAIS_DEFI} · ${nombre(deja.s)} pts` : "perdu"}).`; return; }
-    solo("defi", code);
-  };
-  champ.addEventListener("keydown", e => e.key === "Enter" && jouer());
-  ecran(entete("", accueil), h("div.centre", {}, h("div", { style: { width: "min(700px, 94vw)" } },
-    h("div.titre", { style: { fontSize: "46px", margin: "6px 0 4px" } }, "Défi entre amis"),
-    h("div.t2", { style: { fontSize: "16px", marginBottom: "24px" } }, `Tout le monde joue le même mot, en ${ESSAIS_DEFI} essais, quand il veut. Comparez vos scores !`),
-    h("div.panneau", { style: { padding: "30px" } },
-      h("div.gras", { style: { fontSize: "18px" } }, "Lancer un défi"),
-      h("div.t2", { style: { fontSize: "15px", margin: "4px 0 12px" } }, "Un code est créé : envoie-le (ou le lien) à tes amis après ta partie."),
-      bouton("Créer un défi", () => solo("defi", nouveauCodeDefi()), { largeur: 300, hauteur: 54 }),
-      h("div", { style: { height: "1px", background: "var(--bordure)", margin: "24px 0" } }),
-      h("div.gras", { style: { fontSize: "18px", marginBottom: "12px" } }, "Relever le défi d'un ami"),
-      h("div.ligne", { style: { gap: "12px", flexWrap: "wrap" } }, champ, bouton("Jouer", jouer, { variante: "tuile-b", largeur: 150, hauteur: 56 })), msg))));
-}
-
 /* ------------------------------------------------------------------ statistiques */
 function statistiques() {
   const st = lireStats();
@@ -539,7 +522,7 @@ function statistiques() {
     return h("div.r", { style: { color: x.v ? "var(--texte)" : "var(--texte2)" } }, h("span.chiffres", {}, `${x.d.slice(8, 10)}/${x.d.slice(5, 7)}`), h("span", {}, g), h("span.chiffres", {}, x.m), h("span", {}, res), h("span.chiffres", { style: { textAlign: "right" } }, `${nombre(x.s)} pts`)); });
   ecran(entete("", accueil), h("div", { style: { padding: "0 4vw 30px" } },
     h("div.titre", { style: { fontSize: "46px", margin: "0 0 18px" } }, "Statistiques"),
-    h("div.ligne", { style: { gap: "16px", flexWrap: "wrap", alignItems: "stretch" } }, carte("Solo", st.solo), carte("Mot du jour", st.mdj), carte("Défis", st.defi)),
+    h("div.ligne", { style: { gap: "16px", flexWrap: "wrap", alignItems: "stretch" } }, carte("Solo", st.solo), carte("Mot du jour", st.mdj)),
     h("div.ligne", { style: { gap: "16px", flexWrap: "wrap", alignItems: "flex-start", marginTop: "16px" } },
       h("div.panneau", { style: { padding: "20px", flex: "1 1 280px" } }, h("div.gras", { style: { fontSize: "18px" } }, "Marathon"),
         h("div.ligne", { style: { gap: "14px", marginTop: "8px" } }, stat("Record", String(m.record), null, 22), stat("Meilleur score", nombre(m.record_score), null, 22), stat("Parties", String(m.parties), null, 22))),
@@ -569,14 +552,14 @@ function parametres() {
     cMax = chips([6, 7, 8, 9, 10], c.nb_lettres_max, v => { if (v < cMin.valeur) cMin.set(v); });
   const cDiff = caseACocher("Mode difficile (lettres trouvées obligatoires)", !!c.difficile), cDalt = caseACocher("Mode daltonien (orange et bleu)", !!cf.daltonien);
   const lab = t => h("div.gras", { style: { fontSize: "17px", margin: "0 0 10px" } }, t);
-  ecran(entete("", accueil), h("div", { style: { padding: "0 6vw" } },
+  ecran(entete("", menuSolo), h("div", { style: { padding: "0 6vw" } },
     h("div.titre", { style: { fontSize: "46px", margin: "0 0 6px" } }, "Paramètres"),
-    h("div.t2", { style: { fontSize: "16px", marginBottom: "24px" } }, "Réglages des parties solo et marathon (le mot du jour se joue toujours en 7 essais, le défi en 6)."),
+    h("div.t2", { style: { fontSize: "16px", marginBottom: "24px" } }, "Réglages des parties normales et du marathon (le mot du jour se joue toujours en 7 essais)."),
     h("div.panneau", { style: { padding: "30px", maxWidth: "620px" } }, lab("Nombre d'essais"), cE, h("div", { style: { height: "22px" } }), lab("Longueur minimale des mots"), cMin, h("div", { style: { height: "22px" } }), lab("Longueur maximale des mots"), cMax,
       h("div", { style: { height: "22px" } }), cDiff, h("div", { style: { height: "10px" } }), cDalt,
       h("div", { style: { height: "26px" } }), bouton("Enregistrer", () => {
         majConfig({ nb_essais: cE.valeur, nb_lettres_min: cMin.valeur, nb_lettres_max: cMax.valeur, difficile: cDiff.valeur, daltonien: cDalt.valeur });
-        appliquerTheme(themeActuel); accueil(); }, { grand: true, largeur: 560 }))));
+        appliquerTheme(themeActuel); menuSolo(); }, { grand: true, largeur: 560 }))));
 }
 
 /* ------------------------------------------------------------------ thèmes */
@@ -602,7 +585,8 @@ function dessinerApercu(cv, p, x0, y0, taille, ecart) {
     if (ch) { ctx.fillStyle = fg; ctx.font = `700 ${taille * 0.5}px ${getComputedStyle(document.body).getPropertyValue("--f-chiffres")}`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(ch, x + taille / 2, y + taille / 2 + 1); }
   }
 }
-function themes(choix = themeActuel) {
+function themes(choix) {
+  if (typeof choix !== "string" || !THEMES[choix]) choix = themeActuel;  // appelée aussi comme gestionnaire de clic
   const t = THEMES[choix], p = calculerPalette(t);
   const cv = h("canvas", { width: 294, height: 330, style: { borderRadius: "14px", margin: "14px 0 18px" } });
   const ctx = cv.getContext("2d"); ctx.fillStyle = p.fond; ctx.beginPath(); ctx.roundRect(0, 0, 294, 330, 14); ctx.fill();
@@ -790,9 +774,10 @@ function barreHaut(onRetour, droite = "") {
 /* ---------- liste des salons */
 async function multiAccueil() {
   M.gen++;
-  const champPseudo = h("input.champ.mono", { style: { width: "260px", height: "44px" }, maxlength: 15, value: pseudo() === "ANONYME" ? "" : pseudo() });
-  champPseudo.addEventListener("input", () => { const v = champPseudo.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 15); if (v !== champPseudo.value) champPseudo.value = v; if (v) majConfig({ pseudo: v }); champPseudo.style.borderColor = ""; });
-  const code = h("input.champ.mono", { placeholder: "CODE", inputmode: "numeric", style: { width: "300px", height: "56px", fontSize: "22px" }, maxlength: 4 });
+  const aPseudo = () => pseudo() && pseudo() !== "ANONYME";
+  const puce = h("button.puce-pseudo", { onclick: () => changerPseudo(multiAccueil), title: "Changer de pseudo" },
+    aPseudo() ? avatar(pseudo(), 30, 0) : null, h("span", {}, aPseudo() ? capitaliser(pseudo()) : "Choisir un pseudo"), h("span.crayon", { html: svg("crayon", 16) }));
+  const code = h("input.champ.mono", { placeholder: "CODE", inputmode: "numeric", style: { flex: 1, minWidth: "0", height: "52px", fontSize: "22px" }, maxlength: 4 });
   code.addEventListener("input", () => { code.value = code.value.replace(/\D/g, "").slice(0, 4); });
   code.addEventListener("keydown", e => e.key === "Enter" && code.value && tenterRejoindre(code.value));
   const liste = h("div", { style: { width: "min(748px, 94vw)" } });
@@ -800,8 +785,8 @@ async function multiAccueil() {
   function afficherReprise() {
     zoneReprise.innerHTML = ""; const pe = lireConfig().partie_en_cours;
     if (!pe || Date.now() / 1000 - (pe.t || 0) > 900) return;
-    zoneReprise.append(h("div.panneau.ligne", { style: { marginTop: "16px", padding: "16px 20px", gap: "10px", flexWrap: "wrap", boxShadow: "inset 0 0 0 1.5px var(--mal)" } },
-      h("div.gras", { style: { fontSize: "17px", flex: 1, minWidth: "200px" } }, `Partie interrompue dans le salon ${pe.code}`),
+    zoneReprise.append(h("div.panneau.ligne", { style: { marginBottom: "18px", padding: "14px 18px", gap: "10px", flexWrap: "wrap", boxShadow: "inset 0 0 0 1.5px var(--mal)" } },
+      h("div.gras", { style: { fontSize: "16px", flex: 1, minWidth: "190px" } }, `Partie interrompue · salon ${pe.code}`),
       bouton("Reprendre", () => reprendre(pe), { largeur: 150, hauteur: 44 }), bouton("Ignorer", () => { M.oublier(); afficherReprise(); }, { variante: "discret", largeur: 110, hauteur: 44 })));
   }
   async function reprendre(pe) {
@@ -817,7 +802,7 @@ async function multiAccueil() {
     for (const [c] of cands) if (await rejoindre(c, "", true)) return;
     creerSalon(true);
   }
-  const pseudoOk = () => { if (champPseudo.value.trim()) return true; champPseudo.focus(); champPseudo.style.borderColor = "var(--danger)"; return false; };
+  const pseudoOk = () => { if (aPseudo()) return true; changerPseudo(multiAccueil); return false; };
   // mot de passe
   const mdp = h("input.champ", { type: "password", style: { width: "400px", maxWidth: "80vw" } });
   const erreurMdp = h("div.gras", { style: { color: "var(--danger)", minHeight: "22px", marginTop: "8px", fontSize: "14px" } });
@@ -827,20 +812,22 @@ async function multiAccueil() {
   let vueMdp = null;
   mdp.addEventListener("keydown", e => e.key === "Enter" && verifierMdp());
   async function verifierMdp() { if (!(await rejoindre(codeCible, mdp.value.trim(), true))) erreurMdp.textContent = "Mot de passe incorrect"; }
-  ecran(h("div.entete", {}, icone("retour", accueil, false, "Retour")),
-    h("div.centre", {}, h("div", { style: { width: "min(748px, 94vw)" } },
-      h("div.titre", { style: { fontSize: "46px", margin: "14px 0 6px" } }, "Multijoueur"),
-      h("div.ligne", { style: { gap: "12px", marginBottom: "22px" } }, h("span.t2", { style: { fontSize: "16px" } }, "Ton pseudo"), champPseudo),
-      h("div.ligne", { style: { gap: "14px", flexWrap: "wrap" } }, bouton("Créer un salon", () => pseudoOk() && creerSalon(), { largeur: 270, hauteur: 56 }), code, bouton("Rejoindre", () => code.value && tenterRejoindre(code.value), { variante: "tuile-b", largeur: 150, hauteur: 56 })),
-      h("div.ligne", { style: { gap: "14px", flexWrap: "wrap", marginTop: "14px" } }, bouton("Partie rapide", partieRapide, { variante: "secondaire", largeur: 270, hauteur: 48 }), h("span.t2", { style: { fontSize: "14px" } }, "Rejoint le salon public le plus rempli, ou en crée un.")),
+  const tuileAction = (cls, t, st, f) => h("button.action." + cls, { onclick: f }, h("div.t", {}, t), h("div.s", {}, st));
+  ecran(h("div.entete", {}, icone("retour", accueil, false, "Retour"), h("div.milieu", { style: { color: "var(--texte)", fontWeight: 600, fontSize: "18px" } }, "Multijoueur"), puce),
+    h("div.centre", {}, h("div", { style: { width: "min(748px, 94vw)", paddingTop: "18px" } },
       zoneReprise,
-      h("div.ligne", { style: { margin: "34px 0 10px" } }, h("div.caps", {}, "Salons publics"), h("div", { style: { marginLeft: "auto" } }, icone("rafraichir", charger, false, "Actualiser"))),
+      h("div.actions", {},
+        tuileAction("a-rapide", "Partie rapide", "Joue tout de suite avec d'autres joueurs", partieRapide),
+        tuileAction("a-creer", "Créer un salon", "Choisis le mode et invite tes amis", () => pseudoOk() && creerSalon())),
+      h("div.ligne.rejoindre", {}, h("span.gras", {}, "Rejoindre avec un code"), code,
+        bouton("Rejoindre", () => code.value && tenterRejoindre(code.value), { variante: "tuile-b", largeur: 130, hauteur: 52 })),
+      h("div.ligne", { style: { margin: "30px 0 10px" } }, h("div.caps", {}, "Salons publics"), h("div", { style: { marginLeft: "auto" } }, icone("rafraichir", charger, false, "Actualiser"))),
       liste)));
   vueMdp = superposition(contenuMdp, 460);  // après ecran()
   async function charger() {
     liste.innerHTML = ""; liste.append(h("div.t2", { style: { padding: "10px 0", fontSize: "15px" } }, "Chargement…"));
     await MOTS.pret;
-    if (!(await FB.jeton())) { liste.innerHTML = ""; liste.append(h("div.t2", { style: { padding: "10px 0", fontSize: "16px" } }, "Pas de connexion au serveur : le multijoueur a besoin d'internet. Le solo, le marathon, le défi et le mot du jour restent jouables.")); return; }
+    if (!(await FB.jeton())) { liste.innerHTML = ""; liste.append(h("div.t2", { style: { padding: "10px 0", fontSize: "16px" } }, "Pas de connexion au serveur : le multijoueur a besoin d'internet. Le solo, le marathon et le mot du jour restent jouables.")); return; }
     const data = await FB.get("index") || {};
     liste.innerHTML = ""; let n = 0;
     for (const [c, v] of Object.entries(data).sort()) {
@@ -923,23 +910,38 @@ function salon() {
     icone("copier", () => { navigator.clipboard?.writeText(M.lobby); lblCode.textContent = "Code copié ✓"; setTimeout(() => lblCode.textContent = "Code du salon", 1500); }, true, "Copier le code"));
   const slots = [0, 1, 2, 3].map(() => h("div.joueur"));
   const cartes = {};
-  const gm = h("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(140px, 42vw), 1fr))", gap: "10px" } }, MODES.map(([m, n, d]) => cartes[m] = choix(n, d, () => setMode(m))));
+  const gm = h("div.grille-modes", {}, MODES.map(([m, n, d]) => { const c = cartes[m] = choix(n, d, () => setMode(m)); c.classList.add("mode"); c.style.setProperty("--mc", COULEURS_MODES[m]); return c; }));
+  // bandeau du mode choisi : nom, règle, résumé des réglages (lisible aussi par les joueurs qui ne sont pas l'hôte)
+  const bNom = h("div.n"), bRegle = h("div.r"), bResume = h("div.resume");
+  const bandeau = h("div.bandeau-mode", {}, h("div.caps", {}, "Mode de jeu"), bNom, bRegle, bResume);
   const R0 = M.reglages;  // réglages en cours (conservés après « Rejouer dans ce salon »)
   const cMin = chips([6, 7, 8, 9, 10], R0.min ?? 6, v => { if (v > cMax.valeur) cMax.set(v); sync(); }), cMax = chips([6, 7, 8, 9, 10], R0.max ?? 7, v => { if (v < cMin.valeur) cMin.set(v); sync(); });
   const cRounds = chips([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], R0.rounds ?? 3, sync), sEssais = stepper(4, 10, R0.essais ?? 8, 1, sync), sTemps = stepper(15, 600, R0.timer ?? 180, 15, sync, mmss);
   const lancer = bouton("Lancer la partie", lancerPartie, { grand: true, largeur: 9999 }); lancer.style.width = "100%"; lancer.disabled = true;
-  const lab = t => h("div.t2.gras", { style: { fontSize: "15px", margin: "16px 0 8px" } }, t);
+  const lab = t => h("div.t2.gras", { style: { fontSize: "14px", margin: "18px 0 8px", textTransform: "uppercase", letterSpacing: ".06em" } }, t);
+  const reglage = (t, w) => h("div.reglage", {}, h("div.t2.gras", {}, t), w);
+  const zoneHote = h("div", {}, lab("Choisir le mode"), gm, lab("Réglages"),
+    h("div.reglages", {}, reglage("Lettres", h("div.ligne", { style: { gap: "6px", flexWrap: "wrap" } }, cMin, h("span.t2", {}, "à"), cMax)), reglage("Manches", cRounds),
+      h("div.ligne", { style: { gap: "28px", flexWrap: "wrap" } }, reglage("Essais", sEssais), reglage("Temps par manche", sTemps))));
+  const noteInvite = h("div.t2", { style: { fontSize: "14px", marginTop: "14px" } }, "L'hôte choisit le mode et les réglages.");
+  const panneauPartie = h("div.panneau.salon-partie", { style: { flex: 1, minWidth: "min(300px, 100%)", padding: "22px" } }, bandeau, zoneHote, noteInvite, h("div", { style: { marginTop: "22px" } }, lancer));
   ecran(barre, h("div", { style: { padding: "18px 4vw 30px" } },
     h("div.ligne", { style: { flexWrap: "wrap", gap: "16px", alignItems: "flex-start" } }, h("div", {}, titre, statut), h("div", { style: { marginLeft: "auto" } }, boite)),
-    h("div.ligne", { style: { marginTop: "20px", gap: "24px", alignItems: "flex-start", flexWrap: "wrap" } },
-      h("div.panneau", { style: { width: "340px", maxWidth: "94vw" } }, h("div.gras", { style: { fontSize: "18px", marginBottom: "4px" } }, "Joueurs"), slots),
-      h("div.panneau", { style: { flex: 1, minWidth: "300px", padding: "26px" } }, h("div.gras", { style: { fontSize: "18px" } }, "Paramètres de la partie"),
-        lab("Mode"), gm, lab("Longueur des mots"), h("div.ligne", { style: { gap: "8px", flexWrap: "wrap" } }, h("span.t2", {}, "de"), cMin, h("span.t2", {}, "à"), cMax),
-        lab("Nombre de manches"), cRounds,
-        h("div.ligne", { style: { gap: "40px", flexWrap: "wrap" } }, h("div", {}, lab("Essais"), sEssais), h("div", {}, lab("Temps par manche"), sTemps)),
-        h("div", { style: { marginTop: "22px" } }, lancer)))));
+    h("div.ligne", { style: { marginTop: "20px", gap: "20px", alignItems: "flex-start", flexWrap: "wrap" } },
+      h("div.panneau", { style: { width: "320px", maxWidth: "100%" } }, h("div.gras", { style: { fontSize: "18px", marginBottom: "4px" } }, "Joueurs"), slots),
+      panneauPartie)));
   majModes();
-  function majModes() { for (const [m, c] of Object.entries(cartes)) c.sel(m === modeActif); }
+  function majModes() {
+    for (const [m, c] of Object.entries(cartes)) c.sel(m === modeActif);
+    const coul = COULEURS_MODES[modeActif] || COULEURS_MODES.CLASSIQUE;
+    panneauPartie.style.setProperty("--mc", coul);
+    bNom.textContent = NOM_MODE[modeActif] || modeActif; bRegle.textContent = REGLES_MODES[modeActif] || "";
+    const v = valeurs(), rush = RUSHS.includes(modeActif);
+    bResume.innerHTML = "";
+    bResume.append(...[rush ? `${mmss(v.timer)} de jeu` : `${v.rounds} manche${v.rounds > 1 ? "s" : ""}${modeActif === "ELIMINATION" ? " max" : ""}`, rush ? null : `${mmss(v.timer)} par manche`,
+      rush ? null : `${v.essais} essais`, v.min === v.max ? `${v.min} lettres` : `${v.min} à ${v.max} lettres`].filter(Boolean).map(x => h("span", {}, x)));
+    if (M.estHote) lancer.textContent = M.nbJoueurs > 1 ? `Lancer · ${NOM_MODE[modeActif]}` : "Il faut au moins 2 joueurs";
+  }
   function valeurs() { return { rounds: cRounds.valeur, essais: sEssais.valeur, min: cMin.valeur, max: cMax.valeur, timer: sTemps.valeur }; }
   function sync() {
     if (!M.estHote || gen !== M.gen) return;
@@ -952,8 +954,9 @@ function salon() {
     const [t, r] = { MYSTERE: [180, 3], RUSH: [120, 1], BLAST: [60, 3], PRECISION: [180, 3], CLASSIQUE: [180, 3], ELIMINATION: [90, 10], CHAINE: [150, 1], COOP: [180, 3] }[m];
     sTemps.set(t); cRounds.set(r); majModes(); sync();
   }
+  [cMin, cMax, cRounds, sEssais, sTemps].forEach(w => { const s0 = w.set; w.set = v => { s0(v); majModes(); }; });  // le bandeau suit les réglages
   function dessinerJoueur(slot, i, nom, hote, deco, moi) {
-    slot.className = "joueur" + (nom ? " plein" : ""); slot.innerHTML = "";
+    slot.className = "joueur" + (nom ? " plein" : ""); slot.innerHTML = ""; slot.style.setProperty("--jc", COULEURS_AVATAR[i % 6]);
     if (!nom) { slot.append(h("div.avatar", { style: { width: "36px", height: "36px", background: "var(--vide)" } }), h("span.n", { style: { color: "var(--texte-absent)" } }, "Place libre")); return; }
     slot.append(...[avatar(nom, 36, i), h("span.n", {}, capitaliser(nom) + (moi ? " (vous)" : "")),
       deco ? h("span.r", { style: { color: "var(--danger)", fontWeight: 400 } }, "Déconnecté") : hote ? h("span.r.ligne", { style: { color: "var(--mal)", gap: "6px" }, html: `<svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linejoin:round">${SVG.couronne}</svg>Hôte` }) : null].filter(Boolean));
@@ -984,7 +987,8 @@ function salon() {
         const n = pids.length;
         statut.textContent = `En attente des joueurs · ${n} sur 4` + (M.reglages.visible ? "" : "  ·  salon privé");
         [cRounds, sEssais, cMin, cMax, sTemps].forEach(w => w.activer(M.estHote)); Object.values(cartes).forEach(c => c.disabled = !M.estHote);
-        if (M.estHote) { lancer.className = "btn grand"; lancer.textContent = n > 1 ? "Lancer la partie" : "Il faut au moins 2 joueurs"; lancer.disabled = n < 2; }
+        zoneHote.classList.toggle("cache", !M.estHote); noteInvite.classList.toggle("cache", M.estHote);
+        if (M.estHote) { lancer.className = "btn grand lancer"; lancer.disabled = n < 2; majModes(); }
         else { lancer.className = "btn grand discret"; lancer.textContent = "En attente du lancement par l'hôte…"; lancer.disabled = true; }
       }
       await new Promise(r => setTimeout(r, 800));
@@ -1335,6 +1339,5 @@ async function resultats() {
 /* ------------------------------------------------------------------ démarrage */
 chargerTheme();
 {
-  const defi = normaliserCodeDefi(new URLSearchParams(location.search).get("defi") || "");
-  if (defi) pageDefi(defi); else accueil();
+  accueil();
 }

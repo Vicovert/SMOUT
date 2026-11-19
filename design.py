@@ -3,7 +3,7 @@ import tkinter as tk
 import tkinter.font as tkfont
 import os, sys, ctypes, colorsys, hashlib
 
-VERSION_APP = "8.0"
+VERSION_APP = "8.1"
 URL_WEB = "https://vicovert.github.io/SMOUT/"
 
 def mot_graine(liste_triee, graine, index=0):
@@ -260,6 +260,7 @@ class Bouton(tk.Canvas):
         if self.actif and 0 <= e.x <= self.winfo_width() and 0 <= e.y <= self.winfo_height(): self.commande()
     def set_text(self, t): self.texte = t; self._dessiner()
     def set_variante(self, v): self.variante = v; self._dessiner()
+    def set_couleur(self, c): self.couleur = c; self._dessiner()
     def activer(self, s): self.actif = s; self.config(cursor="hand2" if s else ""); self._dessiner()
 
 
@@ -393,7 +394,7 @@ class Chips(tk.Frame):
     """Rangée de pastilles à choix unique (6, 7, 8... / 3, 5, 7...)."""
     def __init__(self, parent, valeurs, valeur, callback=None, largeur=52, hauteur=44, libelles=None):
         super().__init__(parent, bg=fond_parent(parent))
-        self.valeurs, self.valeur, self.callback, self.actif = list(valeurs), valeur, callback, True
+        self.valeurs, self.valeur, self.callback, self.actif, self.couleur = list(valeurs), valeur, callback, True, None
         self.libelles = libelles or [str(v) for v in self.valeurs]
         self.cases = []
         for i, v in enumerate(self.valeurs):
@@ -406,6 +407,8 @@ class Chips(tk.Frame):
         self.valeur = v; self._dessiner()
         if self.callback: self.callback(v)
     def set_valeur(self, v): self.valeur = v; self._dessiner()
+    def set_couleur(self, c):  # couleur de la pastille choisie (ex. couleur du mode de jeu)
+        if c != self.couleur: self.couleur = c; self._dessiner()
     def get(self): return self.valeur
     def activer(self, s):
         self.actif = s
@@ -414,9 +417,9 @@ class Chips(tk.Frame):
     def _dessiner(self):
         for v, c, w, h, lib in self.cases:
             c.delete("all"); sel = v == self.valeur
-            fill = P["mal"] if sel else fond_parent(self)
+            fill = (self.couleur or P["mal"]) if sel else fond_parent(self)
             out = "" if sel else P["bordure"]
-            fg = P["sur_mal"] if sel else P["texte"]
+            fg = (contraste(self.couleur) if self.couleur else P["sur_mal"]) if sel else P["texte"]
             if not self.actif: fill = melanger(fill, fond_parent(self), 0.45) if sel else fill; fg = melanger(fg, fond_parent(self), 0.35)
             arrondi(c, 1, 1, w - 1, h - 1, 10, fill=fill, outline=out, width=1.2 if out else 0)
             c.create_text(w / 2, h / 2, text=lib, fill=fg, font=police("chiffres", 17))
@@ -424,9 +427,9 @@ class Chips(tk.Frame):
 
 class CarteChoix(tk.Canvas):
     """Carte de mode de jeu (titre + description), sélectionnée = couleur d'accent."""
-    def __init__(self, parent, titre, description, commande, largeur=300, hauteur=78):
+    def __init__(self, parent, titre, description, commande, largeur=300, hauteur=78, couleur=None):
         super().__init__(parent, width=largeur, height=hauteur, bg=fond_parent(parent), highlightthickness=0, cursor="hand2")
-        self.titre, self.desc, self.commande, self.l, self.h = titre, description, commande, largeur, hauteur
+        self.titre, self.desc, self.commande, self.l, self.h, self.couleur = titre, description, commande, largeur, hauteur, couleur
         self.selection, self.actif = False, True
         self.bind("<ButtonRelease-1>", lambda e=None: self.commande() if self.actif else None)
         self._dessiner()
@@ -434,11 +437,12 @@ class CarteChoix(tk.Canvas):
     def activer(self, s): self.actif = s; self.config(cursor="hand2" if s else ""); self._dessiner()
     def _dessiner(self):
         self.delete("all")
-        sel = self.selection
-        fill = P["mal"] if sel else fond_parent(self); out = "" if sel else P["bordure"]
-        fg1 = P["sur_mal"] if sel else P["texte"]; fg2 = melanger(fg1, fill, 0.2) if sel else P["texte2"]
+        sel, mc = self.selection, self.couleur
+        fill = (mc or P["mal"]) if sel else fond_parent(self); out = "" if sel else P["bordure"]
+        fg1 = (contraste(mc) if mc else P["sur_mal"]) if sel else (mc or P["texte"]); fg2 = melanger(fg1, fill, 0.2) if sel else P["texte2"]
         if not self.actif and not sel: fg1 = melanger(fg1, fill, 0.35)
         arrondi(self, 1, 1, self.l - 1, self.h - 1, 12, fill=fill, outline=out, width=1.2 if out else 0)
+        if mc and not sel: arrondi(self, 5, 10, 9, self.h - 10, 2, fill=mc, outline="")  # liseré de couleur du mode
         compact = self.l < 200  # grille de 4 cartes par rangée
         x = 14 if compact else 20
         self.create_text(x, self.h * 0.36, text=self.titre, anchor="w", fill=fg1, font=police("texte", 15 if compact else 17, True))
@@ -724,23 +728,6 @@ def evaluer(tape, mot):
         if res[i] != "bien" and tape[i] in secret: res[i] = "mal"; secret[secret.index(tape[i])] = None
     return res
 
-# ---------------------------------------------------------------- défi entre amis (identique à smout.js)
-ALPHABET_DEFI = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # sans I, L, O, 0, 1 (trop faciles à confondre)
-ESSAIS_DEFI = 6
-
-def nouveau_code_defi():
-    import secrets
-    return "".join(secrets.choice(ALPHABET_DEFI) for _ in range(6))
-
-def normaliser_code_defi(c):
-    c = "".join(ch for ch in (c or "").upper() if ch in ALPHABET_DEFI)
-    return c if len(c) == 6 else ""
-
-def mot_defi(liste, code):
-    return mot_graine(sorted(liste), "defi:" + code)
-
-def lien_defi(code): return f"{URL_WEB}?defi={code}"
-
 EMOJI = {"bien": "🟥", "mal": "🟡", "absent": "🟦"}
 def texte_partage(titre, etats_lignes, essais_txt, score_txt, lien=""):
     lignes = [f"SMOUT · {titre} · {essais_txt} · {score_txt} pts"] + ["".join(EMOJI[e] for e in l) for l in etats_lignes]
@@ -753,13 +740,13 @@ def stats_vides():
 
 def lire_stats():
     st = lire_config().get("stats") or {}
-    for k in ("solo", "mdj", "defi"): st[k] = dict(stats_vides(), **(st.get(k) or {}))
+    for k in ("solo", "mdj"): st[k] = dict(stats_vides(), **(st.get(k) or {}))
     st["marathon"] = dict({"parties": 0, "record": 0, "record_score": 0, "mots": 0}, **(st.get("marathon") or {}))
     st.setdefault("historique", [])
     return st
 
 def enregistrer_partie(genre, victoire, essais=0, score=0, mot="", detail=""):
-    """genre : solo, mdj, defi (une partie) ; pour le marathon, utiliser enregistrer_marathon."""
+    """genre : solo, mdj (une partie) ; pour le marathon, utiliser enregistrer_marathon."""
     st = lire_stats(); s = st[genre]
     s["parties"] += 1
     if victoire:
@@ -790,3 +777,20 @@ def mots_chaine(liste_triee, graine, n=100):
     for i in range(1, n):
         mots.append(mot_graine(par_lettre.get(mots[-1][-1]) or jouables, graine, i))
     return mots
+
+
+class TuileAction(tk.Canvas):
+    """Grande tuile d'action colorée (ex. « Partie rapide », « Créer un salon »)."""
+    def __init__(self, parent, titre, sous_titre, commande, fond, texte, largeur=360, hauteur=112):
+        super().__init__(parent, width=largeur, height=hauteur, bg=fond_parent(parent), highlightthickness=0, cursor="hand2")
+        self.args = (titre, sous_titre, fond, texte, largeur, hauteur); self.commande, self.survol = commande, False
+        self.bind("<Enter>", lambda e=None: self._s(True)); self.bind("<Leave>", lambda e=None: self._s(False))
+        self.bind("<ButtonRelease-1>", lambda e=None: self.commande())
+        self._dessiner()
+    def _s(self, v): self.survol = v; self._dessiner()
+    def _dessiner(self):
+        titre, st, fond, texte, l, h = self.args
+        self.delete("all")
+        arrondi(self, 1, 1, l - 1, h - 1, 18, fill=eclaircir(fond, 1.08) if self.survol else fond, outline="")
+        self.create_text(22, h - 52, text=titre, anchor="w", fill=texte, font=police("titre", 24))
+        self.create_text(22, h - 24, text=st, anchor="w", fill=melanger(texte, fond, 0.15), font=police("texte", 13))

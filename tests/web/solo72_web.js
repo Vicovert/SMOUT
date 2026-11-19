@@ -1,4 +1,4 @@
-// Tests web 7.2 : marathon, difficile, défi (même mot que le PC), statistiques, daltonien, lien ?defi=, téléphone.
+// Tests web 7.2 : accueil allégé, page Solo, marathon, difficile, statistiques, daltonien, téléphone.
 const puppeteer = require("puppeteer-core");
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const res = []; const ok = (nom, c, info = "") => { res.push(!!c); console.log((c ? "OK    " : "ÉCHEC ") + nom + (info ? "  — " + info : "")); };
@@ -16,7 +16,13 @@ const res = []; const ok = (nom, c, info = "") => { res.push(!!c); console.log((
     return window.__mot; });
   const taper = async (p, mot) => { await p.keyboard.type(mot.slice(1).toLowerCase(), { delay: 3 }); await p.keyboard.press("Enter"); await sleep(150); };
   let p = await page(1200, 860);
-  ok("accueil : 5 cartes + icône statistiques", await p.evaluate(() => document.querySelectorAll(".carte-menu").length === 5 && !!document.querySelector('[title="Statistiques"], [aria-label="Statistiques"]') || document.querySelectorAll(".carte-menu").length === 5));
+  ok("accueil : 3 cartes (Solo, Mot du jour, Multijoueur), ni Marathon ni Défi", await p.evaluate(() => { const t = [...document.querySelectorAll(".carte-menu .t")].map(x => x.textContent); return t.join("|") === "Solo|Mot du jour|Multijoueur"; }));
+  await p.evaluate(() => document.querySelector(".carte-menu").click()); await sleep(200);
+  ok("Solo → page intermédiaire Partie normale / Marathon / Paramètres", await p.evaluate(() => [...document.querySelectorAll(".carte-menu .t")].map(x => x.textContent).join("|") === "Partie normale|Marathon|Paramètres"));
+  await p.screenshot({ path: "/tmp/w_menu_solo.png" });
+  await p.evaluate(() => [...document.querySelectorAll(".carte-menu")].find(x => x.textContent.includes("Paramètres")).click()); await sleep(200);
+  ok("Paramètres accessible depuis le solo", (await texte(p)).includes("Nombre d'essais"));
+  await p.evaluate(() => accueil());
   // marathon : mots forcés via Math.random = 0 → premier mot de la liste filtrée
   const premier = await p.evaluate(() => { const c = configSolo(); return MOTS.liste.filter(m => m.length >= c.nb_lettres_min && m.length <= c.nb_lettres_max)[0]; });
   await p.evaluate(() => { Math.random = () => 0; solo("marathon"); }); await sleep(400);
@@ -25,7 +31,7 @@ const res = []; const ok = (nom, c, info = "") => { res.push(!!c); console.log((
   await p.evaluate(() => [...document.querySelectorAll("button.lien")].find(x => x.textContent === "Abandonner").click()); await sleep(300);
   const st = await p.evaluate(() => lireStats().marathon);
   ok("marathon terminé → record 3", st.record === 3 && (await texte(p)).includes("Marathon terminé") && (await texte(p)).includes("Nouveau record"), JSON.stringify(st));
-  await p.evaluate(() => accueil()); ok("badge Record 3", (await texte(p)).includes("Record 3"));
+  await p.evaluate(() => menuSolo()); ok("badge Record 3 dans la page Solo", (await texte(p)).includes("Record 3"));
   // difficile
   await p.evaluate(() => majConfig({ difficile: true }));
   await p.evaluate(() => solo("libre")); await sleep(300);
@@ -39,24 +45,10 @@ const res = []; const ok = (nom, c, info = "") => { res.push(!!c); console.log((
   ok("difficile : essai qui ignore une lettre bien placée refusé", (await texte(p)).includes("Mode difficile"), (await texte(p)).match(/Mode difficile[^\n]*/)?.[0]);
   ok("règle difficile identique au PC", await p.evaluate(() => verifierDifficile([..."MANGER"], [["MOUTON", evaluer([..."MOUTON"], "MAISON")]])) === "Mode difficile : la 5e lettre doit être un O");
   await p.evaluate(() => majConfig({ difficile: false }));
-  // défi
-  ok("défi : même mot que le PC (K7Q2WM → VOLCANISER)", (await p.evaluate(() => motDefi("K7Q2WM"))) === "VOLCANISER");
-  await p.evaluate(() => pageDefi()); await sleep(200);
-  await p.type('input[placeholder="CODE"]', "abc"); await p.keyboard.press("Enter"); await sleep(100);
-  ok("code défi invalide refusé", (await texte(p)).includes("6 caractères"));
-  await p.evaluate(() => { document.querySelector('input[placeholder="CODE"]').value = ""; }); await p.type('input[placeholder="CODE"]', "k7q2wm"); await p.keyboard.press("Enter"); await sleep(400);
-  ok("défi lancé (6 essais, code dans le titre)", (await texte(p)).includes("Défi K7Q2WM") && await p.evaluate(() => document.querySelector(".grille").cases.length === 6));
-  await taper(p, "VOLCANISER"); await sleep(400);
-  const t = await texte(p);
-  ok("fin de défi : code + lien + Partager", t.includes("Défi réussi") && t.includes("?defi=K7Q2WM") && t.includes("Partager le résultat"));
-  await p.evaluate(() => pageDefi("K7Q2WM")); await sleep(100); await p.keyboard.press("Tab");
-  await p.evaluate(() => [...document.querySelectorAll("button")].find(x => x.textContent === "Jouer").click()); await sleep(100);
-  ok("défi déjà joué signalé", (await texte(p)).includes("déjà joué ce défi"));
-  ok("texte de partage identique au PC", await p.evaluate(() => textePartage("Défi K7Q2WM", [["bien", "mal", "absent"]], "1/6", "7 000", lienDefi("K7Q2WM"))) === "SMOUT · Défi K7Q2WM · 1/6 · 7 000 pts\n🟥🟡🟦\nhttps://vicovert.github.io/SMOUT/?defi=K7Q2WM");
   // stats
   await p.evaluate(() => statistiques()); await sleep(200);
   const ts = await texte(p);
-  ok("écran statistiques", ts.includes("Statistiques") && ts.includes("Marathon") && ts.includes("Dernières parties") && ts.includes("VOLCANISER"));
+  ok("écran statistiques", ts.includes("Statistiques") && ts.includes("Marathon") && ts.includes("Dernières parties") && ts.includes(premier));
   await p.screenshot({ path: "/tmp/w_stats.png" });
   // daltonien
   await p.evaluate(() => parametres()); await sleep(100);
@@ -65,16 +57,20 @@ const res = []; const ok = (nom, c, info = "") => { res.push(!!c); console.log((
   await p.reload({ waitUntil: "networkidle0" });
   ok("daltonien conservé après rechargement", await p.evaluate(() => P.bien.toUpperCase() === "#F5793A"));
   await p.close();
-  // lien ?defi=
-  p = await page(390, 844, (process.env.SMOUT_SITE || "http://127.0.0.1:8000/") + "?defi=k7q2wm");
-  ok("lien ?defi= ouvre le défi pré-rempli", await p.evaluate(() => document.querySelector('input[placeholder="CODE"]')?.value === "K7Q2WM"));
-  await p.evaluate(() => [...document.querySelectorAll("button")].find(x => x.textContent === "Jouer").click()); await sleep(400);
-  ok("le défi démarre depuis le lien", (await texte(p)).includes("Défi K7Q2WM"));
-  await p.evaluate(() => accueil()); ok("l'adresse est nettoyée en revenant à l'accueil", await p.evaluate(() => !location.search));
+  p = await page(390, 844);
+  // thèmes sur téléphone : le bouton de l'accueil ouvre la liste complète et un thème s'applique
+  await p.evaluate(() => accueil()); await sleep(200);
+  await p.tap('[title="Thèmes"]'); await sleep(400);
+  ok("téléphone : bouton Thèmes ouvre la liste (30 thèmes)", await p.evaluate(() => document.querySelectorAll(".carte-theme").length >= 30), String(await p.evaluate(() => document.querySelectorAll(".carte-theme").length)));
+  await p.evaluate(() => [...document.querySelectorAll(".carte-theme")].find(x => x.textContent.includes("Ocean")).click()); await sleep(200);
+  await p.evaluate(() => [...document.querySelectorAll("button")].find(x => x.textContent === "Appliquer ce thème").click()); await sleep(200);
+  ok("téléphone : thème appliqué et mémorisé", await p.evaluate(() => themeActuel === "OCEAN" || lireConfig().theme === "OCEAN" || /ocean/i.test(lireConfig().theme)), await p.evaluate(() => lireConfig().theme));
+  await p.evaluate(() => accueil()); await sleep(100);
+  await p.tap(".avatar"); await sleep(200); ok("téléphone : l'avatar ouvre le pseudo", (await texte(p)).includes("Ton pseudo"));
   // téléphone : nouveaux écrans
   for (const [l, hh] of [[360, 640], [390, 844]]) {
     await p.setViewport({ width: l, height: hh, isMobile: true, hasTouch: true });
-    for (const [n, f] of Object.entries({ accueil: () => accueil(), marathon: () => solo("marathon"), defi: () => pageDefi(), stats: () => statistiques(), parametres: () => parametres() })) {
+    for (const [n, f] of Object.entries({ accueil: () => accueil(), menusolo: () => menuSolo(), marathon: () => solo("marathon"), stats: () => statistiques(), parametres: () => parametres() })) {
       await p.evaluate(f); await sleep(400);
       const d = await p.evaluate(() => { const w = document.documentElement.clientWidth; return [...document.querySelectorAll("body *")].filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && (r.right > w + 1 || r.left < -1); }).slice(0, 3).map(e => e.className + ":" + Math.round(e.getBoundingClientRect().right)); });
       ok(`${l}×${hh} ${n} : rien ne dépasse`, !d.length, d.join(" "));

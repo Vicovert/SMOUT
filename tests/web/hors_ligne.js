@@ -14,7 +14,7 @@ const res = []; const ok = (n, c, i = "") => { res.push(!!c); console.log((c ? "
   ok("fichiers mis en cache", enCache >= 15, String(enCache));
   await p.setOfflineMode(true);
   await p.reload({ waitUntil: "load" }); await sleep(800);
-  ok("hors ligne : l'accueil s'affiche", await p.evaluate(() => document.querySelectorAll(".carte-menu").length === 5));
+  ok("hors ligne : l'accueil s'affiche", await p.evaluate(() => document.querySelectorAll(".carte-menu").length === 3));
   await p.evaluate(() => solo("libre")); await sleep(500);
   ok("hors ligne : partie solo jouable", await p.evaluate(() => !!document.querySelector(".clavier") && MOTS.liste.length > 20000));
   await p.evaluate(() => solo("mdj")); await sleep(400);

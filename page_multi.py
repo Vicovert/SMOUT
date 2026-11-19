@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import messagebox as tkm
 import json, random, os, sys, time, requests, threading, webbrowser, queue, traceback, hashlib
 import design
+import tkinter.font as tkfont
 
 # --- CONFIGURATION DYNAMIQUE ---
 FIREBASE_URL = "https://smout-multi-default-rtdb.europe-west1.firebasedatabase.app/"
@@ -52,7 +53,7 @@ class AuthFirebase:
 # ===================================================================== thème
 import design
 from design import (P, police, etiquette, espacer, Tuile, Bouton, Panneau, Icone, Avatar, Clavier, Stat, Chips, CarteChoix,
-                    Champ, Interrupteur, Superposition, Stepper, CarteSalon, Defilant, arrondi, melanger, fenetre_aide)
+                    Champ, TuileAction, Interrupteur, Superposition, Stepper, CarteSalon, Defilant, arrondi, melanger, fenetre_aide)
 
 BG = ACCENT1 = ACCENT2 = MUTED = KEY_BG = TXT1 = None
 ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -69,6 +70,14 @@ MODES = [
 ]
 NOM_MODE = {m: n for m, n, _ in MODES}
 RUSHS = ("RUSH", "CHAINE")  # modes « un maximum de mots avant la fin du temps »
+# chaque mode a sa couleur (identique à COULEURS_MODES de smout.js) et une règle en une phrase
+COULEURS_MODES = {"CLASSIQUE": "#F5B83D", "BLAST": "#FF6B6B", "PRECISION": "#4CC9F0", "MYSTERE": "#A78BFA", "RUSH": "#FF8FC7", "ELIMINATION": "#FF9F43", "CHAINE": "#2DD4BF", "COOP": "#7ED957"}
+REGLES_MODES = {
+    "CLASSIQUE": "Chacun cherche le mot : 1 point par mot trouvé.", "BLAST": "Les plus rapides marquent le plus de points à chaque manche.",
+    "PRECISION": "Moins tu utilises d'essais, plus tu marques.", "MYSTERE": "Même la première lettre est cachée.",
+    "RUSH": "Un maximum de mots avant la fin du temps.", "ELIMINATION": "Qui ne trouve pas, ou le plus lent, est éliminé. Le dernier gagne.",
+    "CHAINE": "Chaque mot commence par la dernière lettre du précédent.", "COOP": "Une seule grille pour l'équipe, essais partagés."}
+SOMBRE = "#14182A"  # texte sur les couleurs de mode
 
 
 def calcul_elimination(d, manche):
@@ -329,29 +338,29 @@ class PageAccueil(tk.Frame):
         super().__init__(parent, bg=P["fond"]); self.controller = controller
         h = tk.Frame(self, bg=P["fond"]); h.pack(fill="x", padx=28, pady=(18, 0))
         Icone(h, "retour", lambda: self.controller.controller.creer_menu_accueil()).pack(side="left")
-        c = tk.Frame(self, bg=P["fond"]); c.pack(pady=(0, 10))
-        etiquette(c, "Multijoueur", "titre", 46).pack(anchor="w", pady=(14, 6))
-        lp = tk.Frame(c, bg=P["fond"]); lp.pack(anchor="w", pady=(0, 22))
-        etiquette(lp, "Ton pseudo", "texte", 16, P["texte2"]).pack(side="left", padx=(0, 12))
-        self.champ_pseudo = Champ(lp, largeur=260, hauteur=44, mono=True, taille=17)
+        etiquette(h, "Multijoueur", "texte", 19, gras=True).pack(side="left", padx=16)
+        lp = tk.Frame(h, bg=P["fond"]); lp.pack(side="right")
+        etiquette(lp, "Pseudo", "texte", 14, P["texte2"]).pack(side="left", padx=(0, 10))
+        self.champ_pseudo = Champ(lp, largeur=200, hauteur=42, mono=True, taille=16)
         self.champ_pseudo.set(self.controller.pseudo if self.controller.pseudo != "ANONYME" else "")
         self.champ_pseudo.var.trace_add("write", self.format_p); self.champ_pseudo.pack(side="left")
         self.sv_pseudo = self.champ_pseudo.var
+        c = tk.Frame(self, bg=P["fond"]); c.pack(pady=(18, 10))
+        self.zone_reprise = tk.Frame(c, bg=P["fond"]); self.zone_reprise.pack(anchor="w", fill="x")
         actions = tk.Frame(c, bg=P["fond"]); actions.pack(anchor="w")
-        Bouton(actions, "Créer un salon", self.creer, largeur=270, hauteur=56, taille=17).pack(side="left")
-        self.champ_code = Champ(actions, largeur=300, hauteur=56, texte_aide="CODE", mono=True, taille=22)
-        self.champ_code.pack(side="left", padx=14); self.champ_code.bind_entree(self.valider)
+        TuileAction(actions, "Partie rapide", "Joue tout de suite avec d'autres joueurs", self.partie_rapide, P["bien"], P["sur_bien"], largeur=367).pack(side="left", padx=(0, 14))
+        TuileAction(actions, "Créer un salon", "Choisis le mode et invite tes amis", self.creer, P["mal"], P["sur_mal"], largeur=367).pack(side="left")
+        rj = Panneau(c, padding=12, largeur=748); rj.pack(anchor="w", pady=(14, 0)); ri = rj.interieur
+        etiquette(ri, "Rejoindre avec un code", "texte", 16, gras=True).pack(side="left", padx=(6, 14))
+        self.champ_code = Champ(ri, largeur=300, hauteur=50, texte_aide="CODE", mono=True, taille=22)
+        self.champ_code.pack(side="left", padx=(0, 12)); self.champ_code.bind_entree(self.valider)
         self.champ_code.var.trace_add("write", lambda *a: self._filtrer_code())
         self.e = self.champ_code.e
-        Bouton(actions, "Rejoindre", self.valider, largeur=150, hauteur=56, variante="tuile", taille=17).pack(side="left")
-        rapide = tk.Frame(c, bg=P["fond"]); rapide.pack(anchor="w", pady=(14, 0))
-        Bouton(rapide, "Partie rapide", self.partie_rapide, largeur=270, hauteur=48, variante="secondaire", taille=16).pack(side="left")
-        etiquette(rapide, "Rejoint le salon public le plus rempli, ou en crée un.", "texte", 14, P["texte2"]).pack(side="left", padx=14)
-        self.zone_reprise = tk.Frame(c, bg=P["fond"]); self.zone_reprise.pack(anchor="w", fill="x")
-        tete = tk.Frame(c, bg=P["fond"]); tete.pack(fill="x", pady=(34, 10))
+        Bouton(ri, "Rejoindre", self.valider, largeur=150, hauteur=50, variante="tuile", taille=16).pack(side="left")
+        tete = tk.Frame(c, bg=P["fond"]); tete.pack(fill="x", pady=(28, 10))
         etiquette(tete, espacer("Salons publics"), "texte", 14, P["texte2"], True).pack(side="left")
         Icone(tete, "rafraichir", self.charger_liste, 34).pack(side="right")
-        self.liste = Defilant(c, largeur=748, hauteur=430); self.liste.pack(fill="x")
+        self.liste = Defilant(c, largeur=748, hauteur=380); self.liste.pack(fill="x")
         self.lf = self.liste.interieur
         # mot de passe
         self.pass_view = Superposition(self, largeur=460); i = self.pass_view.interieur
@@ -388,9 +397,9 @@ class PageAccueil(tk.Frame):
         for w in self.zone_reprise.winfo_children(): w.destroy()
         pe = design.lire_config().get("partie_en_cours")
         if not pe or time.time() - pe.get("t", 0) > 900: return
-        p = Panneau(self.zone_reprise, padding=16, largeur=748, contour=P["mal"]); p.pack(anchor="w", pady=(16, 0))
+        p = Panneau(self.zone_reprise, padding=14, largeur=748, contour=P["mal"]); p.pack(anchor="w", pady=(0, 16))
         i = p.interieur
-        etiquette(i, f"Partie interrompue dans le salon {pe['code']}", "texte", 17, gras=True).pack(side="left", padx=(4, 0))
+        etiquette(i, f"Partie interrompue · salon {pe['code']}", "texte", 16, gras=True).pack(side="left", padx=(4, 0))
         Bouton(i, "Ignorer", lambda: (self.controller.oublier_partie(), self.afficher_reprise()), largeur=110, hauteur=44, variante="discret").pack(side="right")
         Bouton(i, "Reprendre", lambda: self.reprendre(pe), largeur=150, hauteur=44).pack(side="right", padx=10)
 
@@ -556,37 +565,43 @@ class PageLobby(tk.Frame):
             self.player_slots.append(c)
         ps = Panneau(cols, padding=26); ps.pack(side="left", anchor="n", padx=(24, 0), fill="x", expand=True)
         i = ps.interieur
-        self.lbl_param_badge = etiquette(i, "Paramètres de la partie", "texte", 18, gras=True); self.lbl_param_badge.pack(anchor="w")
-        etiquette(i, "Mode", "texte", 15, P["texte2"], True).pack(anchor="w", pady=(12, 8))
-        gm = tk.Frame(i, bg=i["bg"]); gm.pack(anchor="w")
+        # bandeau du mode choisi : nom, règle, résumé des réglages (lisible aussi par les invités)
+        self.bandeau = tk.Canvas(i, width=632, height=118, bg=i["bg"], highlightthickness=0); self.bandeau.pack(anchor="w")
+        self.zone_hote = tk.Frame(i, bg=i["bg"]); self.zone_hote.pack(anchor="w")
+        zh = self.zone_hote
+        etiquette(zh, espacer("Choisir le mode"), "texte", 12, P["texte2"], True).pack(anchor="w", pady=(14, 8))
+        gm = tk.Frame(zh, bg=i["bg"]); gm.pack(anchor="w")
         self.cartes_mode = {}
         for k, (m, nom, desc) in enumerate(MODES):
-            cc = CarteChoix(gm, nom, desc, lambda m=m: self.set_mode(m), largeur=158, hauteur=62)
+            cc = CarteChoix(gm, nom, desc, lambda m=m: self.set_mode(m), largeur=152, hauteur=56, couleur=COULEURS_MODES[m])
             cc.grid(row=k // 4, column=k % 4, padx=(0, 8), pady=(0, 8)); self.cartes_mode[m] = cc
-        etiquette(i, "Longueur des mots", "texte", 15, P["texte2"], True).pack(anchor="w", pady=(6, 8))
-        lg = tk.Frame(i, bg=i["bg"]); lg.pack(anchor="w")
-        etiquette(lg, "de", "texte", 15, P["texte2"]).pack(side="left", padx=(0, 8))
-        self.c_min = Chips(lg, range(6, 11), 6, self._min, largeur=44, hauteur=40); self.c_min.pack(side="left")
-        etiquette(lg, "à", "texte", 15, P["texte2"]).pack(side="left", padx=(6, 8))
-        self.c_max = Chips(lg, range(6, 11), 7, self._max, largeur=44, hauteur=40); self.c_max.pack(side="left")
-        etiquette(i, "Nombre de manches", "texte", 15, P["texte2"], True).pack(anchor="w", pady=(16, 8))
-        self.c_rounds = Chips(i, range(1, 11), 3, lambda v: self.sync_params(), largeur=44, hauteur=40); self.c_rounds.pack(anchor="w")
-        st = tk.Frame(i, bg=i["bg"]); st.pack(anchor="w", pady=(16, 0))
+        etiquette(zh, espacer("Réglages"), "texte", 12, P["texte2"], True).pack(anchor="w", pady=(6, 8))
+        lg = tk.Frame(zh, bg=i["bg"]); lg.pack(anchor="w")
+        etiquette(lg, "Lettres", "texte", 15, P["texte2"], True, width=8, anchor="w").pack(side="left")
+        self.c_min = Chips(lg, range(6, 11), 6, self._min, largeur=40, hauteur=38); self.c_min.pack(side="left")
+        etiquette(lg, "à", "texte", 15, P["texte2"]).pack(side="left", padx=(0, 8))
+        self.c_max = Chips(lg, range(6, 11), 7, self._max, largeur=40, hauteur=38); self.c_max.pack(side="left")
+        lr = tk.Frame(zh, bg=i["bg"]); lr.pack(anchor="w", pady=(10, 0))
+        etiquette(lr, "Manches", "texte", 15, P["texte2"], True, width=8, anchor="w").pack(side="left")
+        self.c_rounds = Chips(lr, range(1, 11), 3, lambda v: self.sync_params(), largeur=40, hauteur=38); self.c_rounds.pack(side="left")
+        st = tk.Frame(zh, bg=i["bg"]); st.pack(anchor="w", pady=(12, 0))
         f1 = tk.Frame(st, bg=i["bg"]); f1.pack(side="left", padx=(0, 40))
         etiquette(f1, "Essais", "texte", 15, P["texte2"], True).pack(anchor="w", pady=(0, 8))
         self.s_essais = Stepper(f1, 4, 10, 8, 1, lambda v: self.sync_params(), largeur_valeur=60); self.s_essais.pack(anchor="w")
         f2 = tk.Frame(st, bg=i["bg"]); f2.pack(side="left")
         etiquette(f2, "Temps par manche", "texte", 15, P["texte2"], True).pack(anchor="w", pady=(0, 8))
         self.s_time = Stepper(f2, 15, 600, 180, 15, lambda v: self.sync_params(), formater=mm_ss, largeur_valeur=100); self.s_time.pack(anchor="w")
-        self.btn_lancer = Bouton(i, "Lancer la partie", self.lancer, largeur=620, hauteur=56, taille=17); self.btn_lancer.pack(anchor="w", pady=(22, 0))
+        self.lbl_invite = etiquette(i, "L'hôte choisit le mode et les réglages.", "texte", 15, P["texte2"])
+        self.btn_lancer = Bouton(i, "Lancer la partie", self.lancer, largeur=632, hauteur=54, taille=17); self.btn_lancer.pack(anchor="w", pady=(18, 0))
+        self._maj_bandeau()
 
     # --- réglages ---
     def _min(self, v):
         if v > self.c_max.get(): self.c_max.set_valeur(v)
-        self.sync_params()
+        self.sync_params(); self._maj_bandeau()
     def _max(self, v):
         if v < self.c_min.get(): self.c_min.set_valeur(v)
-        self.sync_params()
+        self.sync_params(); self._maj_bandeau()
 
     def copier(self):
         try:
@@ -611,11 +626,36 @@ class PageLobby(tk.Frame):
     def update_mode_ui(self, mode):
         for m, c in self.cartes_mode.items():
             if c.selection != (m == mode): c.set_selection(m == mode)
+        self._maj_bandeau()
+
+    def _maj_bandeau(self):
+        """Bandeau coloré du mode choisi + résumé des réglages ; les pastilles et le bouton prennent la couleur du mode."""
+        mode = self.active_mode; mc = COULEURS_MODES.get(mode, COULEURS_MODES["CLASSIQUE"]); v = self.valeurs()
+        sig = (mode, tuple(sorted(v.items())))
+        if getattr(self, "_sig_bandeau", None) == sig: return
+        self._sig_bandeau = sig
+        b = self.bandeau; b.delete("all"); W, H = 632, 118
+        arrondi(b, 0, 0, W, H, 14, fill=mc, outline="")
+        b.create_text(18, 18, text=espacer("Mode de jeu"), anchor="w", fill=melanger(SOMBRE, mc, 0.35), font=police("texte", 10, True))
+        b.create_text(18, 44, text=NOM_MODE.get(mode, mode), anchor="w", fill=SOMBRE, font=police("titre", 26))
+        b.create_text(18, 70, text=REGLES_MODES.get(mode, ""), anchor="w", fill=SOMBRE, font=police("texte", 13))
+        rush = mode in RUSHS
+        morceaux = [f"{mm_ss(v['timer'])} de jeu" if rush else f"{v['rounds']} manche{'s' if v['rounds'] > 1 else ''}{' max' if mode == 'ELIMINATION' else ''}",
+                    None if rush else f"{mm_ss(v['timer'])} par manche", None if rush else f"{v['essais']} essais",
+                    f"{v['min']} lettres" if v["min"] == v["max"] else f"{v['min']} à {v['max']} lettres"]
+        x = 18
+        for t in [m for m in morceaux if m]:
+            f = police("texte", 11, True); w = tkfont.Font(font=f).measure(t) + 16
+            arrondi(b, x, 86, x + w, 108, 7, fill=melanger(mc, SOMBRE, 0.16), outline=""); b.create_text(x + w / 2, 97, text=t, fill=SOMBRE, font=f); x += w + 6
+        for ch in (self.c_min, self.c_max, self.c_rounds): ch.set_couleur(mc)
+        self.btn_lancer.set_couleur(mc)
+        if self.controller.is_host: self.btn_lancer.set_text(f"Lancer · {NOM_MODE.get(mode, mode)}" if self.controller.nb_joueurs > 1 else "Il faut au moins 2 joueurs")
 
     def valeurs(self):
         return {"rounds": self.c_rounds.get(), "essais": self.s_essais.get(), "min": self.c_min.get(), "max": self.c_max.get(), "timer": self.s_time.get()}
 
     def sync_params(self):
+        if hasattr(self, "bandeau"): self._maj_bandeau()
         if self.controller.is_host and self.active_sync:
             sc = self.controller.settings_config
             mode = sc.get("game_mode", "CLASSIQUE")
@@ -667,8 +707,9 @@ class PageLobby(tk.Frame):
             c.create_oval(14, 13, 50, 49, fill=P["vide"], outline="")
             c.create_text(66, h / 2, text="Place libre", anchor="w", fill=P["texte_absent"], font=police("texte", 17, True))
             return
-        arrondi(c, 0, 0, w, h, 12, fill=P["tuile"], outline="")
         coul = Avatar.COULEURS[index % len(Avatar.COULEURS)]
+        arrondi(c, 0, 0, w, h, 12, fill=melanger(P["tuile"], coul, 0.16), outline="")
+        arrondi(c, 0, 8, 5, h - 8, 2, fill=coul, outline="")
         c.create_oval(14, 13, 50, 49, fill=coul, outline="")
         c.create_text(32, 31, text=nom[:1].upper(), fill="#16130a", font=police("texte", 16, True))
         aff = nom.capitalize() + (" (vous)" if moi else "")
@@ -727,9 +768,13 @@ class PageLobby(tk.Frame):
             self.lbl_status.config(text=f"En attente des joueurs · {n} sur 4" + ("  ·  salon privé" if not self.controller.settings_config.get("visible", True) else ""))
             hote = self.controller.is_host
             for sw in [self.c_rounds, self.s_essais, self.c_min, self.c_max, self.s_time] + list(self.cartes_mode.values()): sw.activer(hote)
+            self._maj_bandeau()
+            if hote != getattr(self, "_vue_hote", None):  # l'hôte règle la partie, les invités voient le résumé
+                self._vue_hote = hote
+                if hote: self.lbl_invite.pack_forget(); self.zone_hote.pack(anchor="w", after=self.bandeau)
+                else: self.zone_hote.pack_forget(); self.lbl_invite.pack(anchor="w", pady=(12, 0), after=self.bandeau)
             if hote:
-                self.btn_lancer.set_variante("principal")
-                self.btn_lancer.set_text("Lancer la partie" if n > 1 else "Il faut au moins 2 joueurs")
+                self.btn_lancer.set_variante("principal"); self._sig_bandeau = None; self._maj_bandeau()
                 self.btn_lancer.activer(n > 1)
             else:
                 self.btn_lancer.set_variante("discret"); self.btn_lancer.set_text("En attente du lancement par l'hôte…"); self.btn_lancer.activer(False)

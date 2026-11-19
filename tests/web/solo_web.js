@@ -30,7 +30,7 @@ const res = []; const ok = (nom, c, info = "") => { res.push(!!c); console.log((
   await taper(p, premier); await sleep(500);
   const t = await texte(p);
   ok("victoire affichée", t.includes("Bravo, mot trouvé"), sc0);
-  ok("boutons Rejouer et Accueil", t.includes("Rejouer") && t.includes("Retour à l'accueil"));
+  ok("boutons Rejouer et Retour", t.includes("Rejouer") && t.includes("Retour"));
   // défaite
   await p.evaluate(() => [...document.querySelectorAll("button")].find(x => x.textContent === "Rejouer").click()); await sleep(400);
   ok("Rejouer ferme l'écran de fin", !(await p.evaluate(() => document.querySelector(".voile:not(.cache)") && document.body.innerText.includes("Bravo"))));

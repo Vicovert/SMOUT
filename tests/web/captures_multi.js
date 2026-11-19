@@ -18,10 +18,10 @@ const res = []; const ok = (n, c, i = "") => { res.push(!!c); console.log((c ? "
     await p.goto(process.env.SMOUT_SITE || "http://127.0.0.1:8000/", { waitUntil: "networkidle0" });
     await p.evaluate(() => multiAccueil()); await sleep(1500);
     const deb = () => p.evaluate(() => { const w = document.documentElement.clientWidth; return [...document.querySelectorAll("body *")].filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && (r.right > w + 1 || r.left < -1); }).slice(0, 3).map(e => e.className); });
-    ok(`${l}px accueil multi : reprise + partie rapide`, await p.evaluate(() => document.body.innerText.includes("Partie interrompue dans le salon 4821") && document.body.innerText.includes("Partie rapide")));
+    ok(`${l}px accueil multi : reprise + partie rapide`, await p.evaluate(() => document.body.innerText.includes("Partie interrompue · salon 4821") && document.body.innerText.includes("Partie rapide")));
     ok(`${l}px accueil multi : rien ne dépasse`, !(await deb()).length, (await deb()).join(" "));
     await p.screenshot({ path: `/tmp/wm_accueil_${l}.png` });
-    await p.evaluate(() => [...document.querySelectorAll("button")].find(x => x.textContent === "Partie rapide").click()); await sleep(2500);
+    await p.evaluate(() => document.querySelector("button.a-rapide").click()); await sleep(2500);
     ok(`${l}px partie rapide → salon créé`, await p.evaluate(() => !!M.lobby && M.estHote));
     ok(`${l}px salon : 8 modes`, await p.evaluate(() => document.querySelectorAll(".choix").length >= 8));
     ok(`${l}px salon : rien ne dépasse`, !(await deb()).length, (await deb()).join(" "));

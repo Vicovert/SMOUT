@@ -2,7 +2,7 @@ import tkinter as tk
 import json, random, os, sys, time, datetime
 import design
 from design import (P, police, etiquette, espacer, Tuile, Bouton, Panneau, Icone, Clavier, Stat, Chips, Superposition, entete, fenetre_aide,
-                    Champ, Interrupteur)
+                    Champ, Interrupteur, CarteMenu)
 
 
 def get_data_path(filename):
@@ -50,7 +50,7 @@ def charger_mots():
     _MOTS = (liste, set(lire('fichiers/banque_mots.txt')) or set(liste))
     return _MOTS
 
-TITRES = {"libre": "Solo", "mdj": "Mot du jour", "marathon": "Marathon", "defi": "Défi"}
+TITRES = {"libre": "Solo", "mdj": "Mot du jour", "marathon": "Marathon"}
 
 
 class EcranFin(tk.Frame):
@@ -59,7 +59,7 @@ class EcranFin(tk.Frame):
         super().__init__(parent, bg=P["fond"])
         self.rejouer_cmd, self.menu_cmd = rejouer_cmd, menu_cmd
 
-    def afficher(self, victoire, mot, historique, titre, stats, rejouer=True, partage=None, code=None, note=None):
+    def afficher(self, victoire, mot, historique, titre, stats, rejouer=True, partage=None, note=None):
         """historique = [[(lettre, etat)]] ; stats = [(libellé, valeur, couleur)] ; partage = texte à copier."""
         for w in self.winfo_children(): w.destroy()
         c = tk.Frame(self, bg=P["fond"]); c.place(relx=0.5, rely=0.46, anchor="center")
@@ -72,11 +72,6 @@ class EcranFin(tk.Frame):
         if note: etiquette(c, note, "texte", 17, P["texte2"]).pack(pady=(6, 0))
         st = tk.Frame(c, bg=P["fond"]); st.pack(pady=22)
         for lib, val, coul in stats: Stat(st, lib, val, coul, taille=34).pack(side="left", padx=30)
-        if code:
-            cf = tk.Frame(c, bg=P["fond"]); cf.pack(pady=(0, 16))
-            etiquette(cf, "Code du défi", "texte", 14, P["texte2"], True).pack()
-            etiquette(cf, code, "chiffres", 34, P["mal"]).pack()
-            etiquette(cf, design.lien_defi(code), "texte", 14, P["texte2"]).pack()
         if historique:
             g = tk.Frame(c, bg=P["fond"]); g.pack(pady=(0, 22))
             for ligne in historique[-8:]:
@@ -87,7 +82,7 @@ class EcranFin(tk.Frame):
         bf = tk.Frame(c, bg=P["fond"]); bf.pack()
         if rejouer: Bouton(bf, "Rejouer", self._rejouer, largeur=210, hauteur=54, taille=17).pack(side="left", padx=8)
         if partage: Bouton(bf, "Copier le résultat", lambda: self._copier(partage), largeur=230, hauteur=54, taille=17, variante="secondaire").pack(side="left", padx=8)
-        Bouton(bf, "Retour à l'accueil", self.menu_cmd, largeur=230, hauteur=54, variante="discret", taille=17).pack(side="left", padx=8)
+        Bouton(bf, "Retour", self.menu_cmd, largeur=230, hauteur=54, variante="discret", taille=17).pack(side="left", padx=8)
         self.place(relx=0, rely=0, relwidth=1, relheight=1); self.tkraise()
 
     def _copier(self, texte):
@@ -99,10 +94,10 @@ class EcranFin(tk.Frame):
 
 
 class PageSolo(tk.Frame):
-    """mode : libre, mdj, marathon, defi (avec code)."""
-    def __init__(self, parent, controller, mdj=False, mode=None, code=None):
+    """mode : libre, mdj, marathon."""
+    def __init__(self, parent, controller, mdj=False, mode=None):
         super().__init__(parent, bg=P["fond"])
-        self.controller, self.mode, self.code = controller, mode or ("mdj" if mdj else "libre"), code
+        self.controller, self.mode = controller, mode or ("mdj" if mdj else "libre")
         self.mdj = self.mode == "mdj"
         self.config = charger_config_solo(); self.config["mdj"] = self.mdj
         self.difficile = bool(self.config.get("difficile")) and self.mode != "mdj"
@@ -115,15 +110,15 @@ class PageSolo(tk.Frame):
         design.maj_config(**{k: self.config[k] for k in ("nb_essais", "nb_lettres_min", "nb_lettres_max", "last_mdj")})
 
     def nouvelle_partie(self):
-        """« Rejouer » : nouveau mot (libre), nouveau marathon, ou nouveau défi."""
+        """« Rejouer » : nouveau mot (libre) ou nouveau marathon."""
         if self.mode == "marathon": self.marathon = {"mots": 0, "score": 0, "temps": 0}
-        if self.mode == "defi": self.code = design.nouveau_code_defi()
         self.jeu.initialiser_partie()
 
     def retour_accueil(self):
         self.jeu.timer_actif = False
         self.winfo_toplevel().unbind("<Key>")
-        self.controller.creer_menu_accueil()
+        if self.mode == "mdj": self.controller.creer_menu_accueil()
+        else: self.controller.ouvrir_menu_solo()
 
 
 class PageJeu(tk.Frame):
@@ -149,15 +144,13 @@ class PageJeu(tk.Frame):
             self.mot = design.mot_graine(sorted(mots), "mdj:" + auj); self.nb_essais_partie = 7  # même mot sur PC et sur le web
             # la partie compte dès qu'elle commence (on ne peut plus la rejouer en fermant la fenêtre)
             conf["last_mdj"] = auj; ctl.sauver_parametres()
-        elif mode == "defi":
-            self.mot = design.mot_defi(mots, ctl.code); self.nb_essais_partie = design.ESSAIS_DEFI
         else:
             mi, ma = conf["nb_lettres_min"], conf["nb_lettres_max"]; filtre = [m for m in mots if mi <= len(m) <= ma]
             self.mot = random.choice(filtre if filtre else mots); self.nb_essais_partie = conf["nb_essais"]
 
         self.score_initial, self.penalite_dict, self.historique_complet, self.fini_local = (len(self.mot) * 100) * (13 - self.nb_essais_partie), 0, [], False
         self.statut_lettres = {l: None for l in ALPHABET}
-        titre = TITRES[mode] + (f" {ctl.code}" if mode == "defi" else "") + (f" · mot {ctl.marathon['mots'] + 1}" if mode == "marathon" else "") \
+        titre = TITRES[mode] + (f" · mot {ctl.marathon['mots'] + 1}" if mode == "marathon" else "") \
             + f" · {len(self.mot)} lettres" + (" · difficile" if ctl.difficile else "")
         entete(self, titre, ctl.retour_accueil, droite=lambda h: Icone(h, "aide", lambda: self.aide.montrer()))
 
@@ -268,19 +261,16 @@ class PageJeu(tk.Frame):
             ctl.config["last_mdj"] = datetime.date.today().isoformat(); ctl.sauver_parametres()
             design.enregistrer_resultat_mdj(victoire)
         essais_txt = f"{essais_n} / {self.nb_essais_partie}" if victoire else f"– / {self.nb_essais_partie}"
-        design.enregistrer_partie({"libre": "solo", "mdj": "mdj", "defi": "defi"}[mode], victoire, essais_n, score, self.mot, ctl.code or "")
-        if mode == "defi":
-            joues = design.lire_config().get("defis_joues", {}); joues[ctl.code] = {"v": victoire, "e": essais_n, "s": score, "l": etats}
-            design.maj_config(defis_joues=dict(list(joues.items())[-50:]))
+        design.enregistrer_partie({"libre": "solo", "mdj": "mdj"}[mode], victoire, essais_n, score, self.mot)
         partage = None
-        if mode in ("mdj", "defi"):
-            t = f"Mot du jour {datetime.date.today().strftime('%d/%m')}" if mode == "mdj" else f"Défi {ctl.code}"
+        if mode == "mdj":
+            t = f"Mot du jour {datetime.date.today().strftime('%d/%m')}"
             if ctl.difficile: t += " (difficile)"
-            partage = design.texte_partage(t, etats, essais_txt.replace(" ", ""), nombre(score), design.lien_defi(ctl.code) if mode == "defi" else design.URL_WEB)
-        titre = ("Bravo, mot du jour trouvé !" if mode == "mdj" else "Défi réussi !" if mode == "defi" else "Bravo, mot trouvé !") if victoire else "Perdu…"
+            partage = design.texte_partage(t, etats, essais_txt.replace(" ", ""), nombre(score), design.URL_WEB)
+        titre = ("Bravo, mot du jour trouvé !" if mode == "mdj" else "Bravo, mot trouvé !") if victoire else "Perdu…"
         self.overlay_fin.afficher(victoire, self.mot, self.historique_complet, titre,
                                   [("Temps", mmss(ecoule), None), ("Score", nombre(score), P["mal"]), ("Essais", essais_txt, None)],
-                                  rejouer=mode != "mdj", partage=partage, code=ctl.code if mode == "defi" else None)
+                                  rejouer=mode != "mdj", partage=partage)
 
     def maj_clavier(self):
         for char, etat in self.statut_lettres.items(): self.clavier.set_couleur(char, P[etat] if etat else None)
@@ -312,40 +302,18 @@ class PageJeu(tk.Frame):
             case.set_curseur(i == len(self.mot_tape))
 
 
-class PageDefi(tk.Frame):
-    """Défi entre amis : créer un défi (code à partager) ou jouer celui d'un ami."""
+class PageMenuSolo(tk.Frame):
+    """Page intermédiaire du solo : partie normale, marathon, paramètres."""
     def __init__(self, parent, controller):
         super().__init__(parent, bg=P["fond"]); self.controller = controller
         entete(self, "", controller.creer_menu_accueil)
-        c = tk.Frame(self, bg=P["fond"]); c.pack(pady=(10, 0))
-        etiquette(c, "Défi entre amis", "titre", 46).pack(anchor="w")
-        etiquette(c, f"Tout le monde joue le même mot, en {design.ESSAIS_DEFI} essais, quand il veut. Comparez vos scores !", "texte", 16, P["texte2"]).pack(anchor="w", pady=(4, 24))
-        p = Panneau(c, padding=30, largeur=700); p.pack(anchor="w")
-        i = p.interieur
-        etiquette(i, "Lancer un défi", "texte", 18, gras=True).pack(anchor="w")
-        etiquette(i, "Un code est créé : envoie-le (ou le lien) à tes amis après ta partie.", "texte", 15, P["texte2"]).pack(anchor="w", pady=(4, 12))
-        Bouton(i, "Créer un défi", lambda: controller.ouvrir_defi_jeu(design.nouveau_code_defi()), largeur=300, hauteur=54, taille=17).pack(anchor="w")
-        tk.Frame(i, bg=P["bordure"], height=1).pack(fill="x", pady=24)
-        etiquette(i, "Relever le défi d'un ami", "texte", 18, gras=True).pack(anchor="w")
-        r = tk.Frame(i, bg=i["bg"]); r.pack(anchor="w", pady=(12, 0))
-        self.champ = Champ(r, largeur=300, hauteur=54, texte_aide="CODE", mono=True, taille=22); self.champ.pack(side="left")
-        self.champ.var.trace_add("write", self._filtrer)
-        self.champ.e.bind("<Return>", lambda e: self.jouer())
-        Bouton(r, "Jouer", self.jouer, largeur=150, hauteur=54, variante="tuile").pack(side="left", padx=12)
-        self.msg = etiquette(i, "", "texte", 15, P["danger"], True, wraplength=620, justify="left"); self.msg.pack(anchor="w", pady=(12, 0))
-
-    def _filtrer(self, *a):
-        v = "".join(ch for ch in self.champ.get().upper() if ch.isalnum())[:6]
-        if v != self.champ.get(): self.champ.set(v)
-
-    def jouer(self):
-        code = design.normaliser_code_defi(self.champ.get())
-        if not code: self.msg.config(text="Le code contient 6 caractères (lettres et chiffres)."); return
-        deja = design.lire_config().get("defis_joues", {}).get(code)
-        if deja:
-            res = f"{deja['e']}/{design.ESSAIS_DEFI} · {nombre(deja['s'])} pts" if deja["v"] else "perdu"
-            self.msg.config(text=f"Tu as déjà joué ce défi ({res}).", fg=P["texte2"]); return
-        self.controller.ouvrir_defi_jeu(code)
+        centre = tk.Frame(self, bg=P["fond"]); centre.place(relx=0.5, rely=0.46, anchor="center")
+        etiquette(centre, "Solo", "titre", 46).pack(pady=(0, 6))
+        etiquette(centre, "À votre rythme", "texte", 18, P["texte2"]).pack(pady=(0, 26))
+        rec = design.lire_stats()["marathon"]["record"]
+        CarteMenu(centre, "Partie normale", "Un mot, à votre rythme", lambda: controller.ouvrir_solo(False)).pack(pady=6)
+        CarteMenu(centre, "Marathon", "Enchaînez les mots jusqu'à l'erreur", controller.ouvrir_marathon, badge=f"Record {rec}" if rec else None).pack(pady=6)
+        CarteMenu(centre, "Paramètres", "Essais, longueur des mots, difficile", controller.ouvrir_parametres).pack(pady=6)
 
 
 class PageStats(tk.Frame):
@@ -357,7 +325,7 @@ class PageStats(tk.Frame):
         c = tk.Frame(self, bg=P["fond"]); c.pack(pady=(0, 0), padx=60, fill="x")
         etiquette(c, "Statistiques", "titre", 46).pack(anchor="w", pady=(0, 16))
         haut = tk.Frame(c, bg=P["fond"]); haut.pack(anchor="w")
-        for col, (cle, nom) in enumerate((("solo", "Solo"), ("mdj", "Mot du jour"), ("defi", "Défis"))):
+        for col, (cle, nom) in enumerate((("solo", "Solo"), ("mdj", "Mot du jour"))):
             s = st[cle]; p = Panneau(haut, padding=20, largeur=330); p.grid(row=0, column=col, padx=(0, 16), sticky="n")
             i = p.interieur
             etiquette(i, nom, "texte", 18, gras=True).pack(anchor="w")
@@ -376,13 +344,13 @@ class PageStats(tk.Frame):
                 design.arrondi(b, 0, 1, w, 19, 5, fill=P["bien"] if v and v == mx else P["tuile"], outline="")
                 b.create_text(w - 6, 10, text=str(v), anchor="e", fill=P["sur_bien"] if v and v == mx else P["texte"], font=police("chiffres", 11))
         bas = tk.Frame(c, bg=P["fond"]); bas.pack(anchor="w", pady=16)
-        m = st["marathon"]; p = Panneau(bas, padding=20, largeur=330); p.grid(row=0, column=0, padx=(0, 16), sticky="n")
+        m = st["marathon"]; p = Panneau(haut, padding=20, largeur=330); p.grid(row=0, column=2, sticky="n")
         i = p.interieur
         etiquette(i, "Marathon", "texte", 18, gras=True).pack(anchor="w")
         l = tk.Frame(i, bg=i["bg"]); l.pack(anchor="w", pady=(8, 0))
         for k, (lib, v) in enumerate((("Record", m["record"]), ("Meilleur score", nombre(m["record_score"])), ("Parties", m["parties"]))):
             Stat(l, lib, str(v), taille=22).grid(row=0, column=k, padx=(0, 14))
-        p = Panneau(bas, padding=20, largeur=676); p.grid(row=0, column=1, columnspan=2, sticky="n")
+        p = Panneau(bas, padding=20, largeur=1022); p.grid(row=0, column=0, sticky="n")
         i = p.interieur
         etiquette(i, "Dernières parties", "texte", 18, gras=True).pack(anchor="w", pady=(0, 6))
         if not st["historique"]: etiquette(i, "Aucune partie pour le moment.", "texte", 15, P["texte2"]).pack(anchor="w")
@@ -402,10 +370,10 @@ class PageParametres(tk.Frame):
         super().__init__(parent, bg=P["fond"]); self.controller = controller
         self.config = charger_config_solo()
         h = tk.Frame(self, bg=P["fond"]); h.pack(fill="x", padx=28, pady=(18, 0))
-        Icone(h, "retour", controller.creer_menu_accueil).pack(side="left")
+        Icone(h, "retour", controller.ouvrir_menu_solo).pack(side="left")
         corps = tk.Frame(self, bg=P["fond"]); corps.pack(padx=90, anchor="w")
         etiquette(corps, "Paramètres", "titre", 46).pack(anchor="w", pady=(0, 6))
-        etiquette(corps, "Réglages des parties solo et marathon (le mot du jour se joue toujours en 7 essais, le défi en 6).", "texte", 16, P["texte2"]).pack(anchor="w", pady=(0, 18))
+        etiquette(corps, "Réglages des parties normales et du marathon (le mot du jour se joue toujours en 7 essais).", "texte", 16, P["texte2"]).pack(anchor="w", pady=(0, 18))
         p = Panneau(corps, padding=26, largeur=620); p.pack(anchor="w")
         i = p.interieur
         etiquette(i, "Nombre d'essais", "texte", 17, gras=True).pack(anchor="w")
@@ -428,4 +396,4 @@ class PageParametres(tk.Frame):
         design.maj_config(nb_essais=self.c_essais.get(), nb_lettres_min=self.c_min.get(), nb_lettres_max=self.c_max.get(),
                           difficile=self.i_diff.valeur, daltonien=self.i_dalt.valeur)
         if changement and hasattr(self.controller, "apply_theme"): self.controller.apply_theme(self.controller.current_theme_name, save=False)
-        self.controller.creer_menu_accueil()
+        self.controller.ouvrir_menu_solo()

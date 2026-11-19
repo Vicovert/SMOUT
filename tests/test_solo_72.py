@@ -1,10 +1,10 @@
-"""Tests solo 7.2 (PC) : marathon, difficile, défi, statistiques, daltonien, captures."""
-import sys, os, time, datetime
+"""Tests solo 7.2 (PC) : marathon, difficile, accueil et menu solo, statistiques, daltonien, captures."""
+import sys, os, time, datetime, tkinter as tk
 repo = sys.argv[1]; os.chdir(repo); sys.path.insert(0, repo)
 import main as M, design as D, page_solo as PS
 res = []
 def ok(nom, c, info=""): res.append(bool(c)); print(("OK    " if c else "ÉCHEC ") + nom + (f"  — {info}" if info else ""), flush=True)
-D.maj_config(stats={}, defis_joues={}, difficile=False, daltonien=False, nb_essais=6, nb_lettres_min=6, nb_lettres_max=10, theme="PLATEAU DE NUIT")
+D.maj_config(stats={}, difficile=False, daltonien=False, nb_essais=6, nb_lettres_min=6, nb_lettres_max=10, theme="PLATEAU DE NUIT")
 app = M.MenuPrincipal(); app.geometry("1200x860")
 def pump(t=0.3):
     end = time.time() + t
@@ -15,7 +15,6 @@ def taper(j, mot):
 def capture(nom):
     pump(0.4); os.system(f"import -window root /tmp/pc_{nom}.png 2>/dev/null")
 pump(0.6); capture("accueil")
-ok("menu : 5 cartes", sum(isinstance(w, D.CarteMenu) for w in app.container.winfo_children()[0].winfo_children()[-1].winfo_children()) == 5 or True)
 # --- solo libre + stats
 app.ouvrir_solo(False); pump(); j = jeu(); mot = j.mot
 taper(j, mot); pump(0.3)
@@ -49,24 +48,24 @@ pump(0.4); st = D.lire_stats()
 ok("marathon terminé → record 3", st["marathon"]["record"] == 3 and st["marathon"]["parties"] == 1, str(st["marathon"]))
 capture("marathon_fin")
 app.creer_menu_accueil(); pump()
-# --- défi
-app.ouvrir_defi(); pump(); capture("defi")
-pd = app.container.winfo_children()[0]
-pd.champ.set("abc"); pd.jouer(); ok("code défi invalide refusé", "6 caractères" in pd.msg.cget("text"))
-code = "K7Q2WM"; mot_attendu = D.mot_defi(PS.charger_mots()[0], code)
-pd.champ.set("k7q2wm"); pd.jouer(); pump(); j = jeu()
-ok("défi : mot déterminé par le code", j.mot == mot_attendu and j.nb_essais_partie == 6, mot_attendu)
-faux = [m for m in sorted(j.controller.banque_verif) if len(m) == len(j.mot) and m[0] == j.mot[0] and m != j.mot]
-taper(j, faux[0]); taper(j, j.mot); pump(0.4)
-txt = D.texte_partage("Défi " + code, [[e for _, e in l] for l in j.historique_complet], "2/6", "1", D.lien_defi(code))
-ok("texte de partage", "?defi=K7Q2WM" in txt and txt.count("\n") == 3, txt.replace("\n", " | "))
-capture("defi_fin")
-app.ouvrir_defi(); pump(); pd = app.container.winfo_children()[0]
-pd.champ.set(code); pd.jouer(); ok("défi déjà joué signalé", "déjà joué" in pd.msg.cget("text"), pd.msg.cget("text"))
+# --- accueil allégé + page intermédiaire du solo
+def textes(w):
+    out = []
+    def rec(x):
+        for c in x.winfo_children():
+            if isinstance(c, tk.Canvas):
+                for i in c.find_all():
+                    if c.type(i) == "text": out.append(c.itemcget(i, "text"))
+            rec(c)
+    rec(w); return out
+app.creer_menu_accueil(); pump(); t = textes(app.container)
+ok("accueil : Solo, Mot du jour, Multijoueur seulement", all(x in t for x in ("Solo", "Mot du jour", "Multijoueur")) and not any(x in t for x in ("Marathon", "Défi entre amis")), str(t))
+app.ouvrir_menu_solo(); pump(); t = textes(app.container); capture("menu_solo")
+ok("menu solo : Partie normale / Marathon / Paramètres", all(x in t for x in ("Partie normale", "Marathon", "Paramètres")), str(t))
 # --- mot du jour + stats
 D.maj_config(last_mdj="")
 app.ouvrir_solo(True); pump(); j = jeu(); taper(j, j.mot); pump(0.3)
-st = D.lire_stats(); ok("mot du jour → stats mdj", st["mdj"]["victoires"] == 1 and st["defi"]["victoires"] == 1)
+st = D.lire_stats(); ok("mot du jour → stats mdj", st["mdj"]["victoires"] == 1)
 app.ouvrir_stats(); pump(); capture("stats"); ok("écran statistiques", True)
 # --- daltonien
 app.ouvrir_parametres(); pump(); p = app.container.winfo_children()[0]

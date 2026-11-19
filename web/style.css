@@ -51,7 +51,7 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 .panneau { background: var(--panneau); border-radius: 18px; padding: 24px; max-width: 100%; }
 .icone { width: 40px; height: 40px; border-radius: 10px; border: 0; background: transparent; color: var(--texte2); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; flex: none; }
 .icone:hover { background: var(--panneau); color: var(--texte); }
-.icone.cadre { box-shadow: inset 0 0 0 1px var(--bordure); width: 46px; height: 46px; }
+.icone.cadre { box-shadow: inset 0 0 0 1px var(--bordure); background: var(--panneau); color: var(--texte); width: 46px; height: 46px; }
 .icone svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .icone[disabled] { visibility: hidden; }
 
@@ -167,3 +167,48 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 .historique { display: grid; grid-template-columns: auto auto 1fr auto auto; gap: 3px 18px; font-size: 14px; }
 .historique .r { display: contents; }
 @media (max-width: 560px) { .historique { grid-template-columns: auto auto auto; } .historique .r span:nth-child(3), .historique .r span:nth-child(4) { display: none; } }
+
+/* ---------- écran Multijoueur (8.1) */
+.puce-pseudo { display: inline-flex; align-items: center; gap: 8px; height: 42px; padding: 0 12px 0 6px; border-radius: 21px; border: 0; background: var(--panneau); color: var(--texte); font-weight: 600; font-size: 15px; cursor: pointer; }
+.puce-pseudo .avatar { font-size: 13px; }
+.puce-pseudo .crayon svg { stroke: var(--texte2); }
+.actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.action { border: 0; border-radius: 18px; padding: 22px 22px 20px; min-height: 112px; text-align: left; cursor: pointer; display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; transition: transform .08s; }
+.action:active { transform: scale(.98); }
+.action .t { font-family: var(--f-titre); font-size: 26px; line-height: 1.05; }
+.action .s { font-size: 14px; opacity: .85; }
+.action.a-rapide { background: var(--bien); color: var(--sur-bien); }
+.action.a-creer { background: var(--mal); color: var(--sur-mal); }
+.rejoindre { gap: 12px; margin-top: 14px; background: var(--panneau); border-radius: 16px; padding: 12px 12px 12px 18px; flex-wrap: wrap; }
+.rejoindre > .gras { font-size: 16px; flex-basis: 100%; }
+@media (min-width: 620px) { .rejoindre > .gras { flex-basis: auto; } }
+
+/* ---------- salon : une couleur par mode, une couleur par joueur */
+.grille-modes { display: grid; grid-template-columns: repeat(auto-fill, minmax(max(140px, 22%), 1fr)); gap: 8px; }
+.choix.mode { position: relative; padding: 11px 12px 11px 18px; overflow: hidden; }
+.choix.mode::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--mc); }
+.choix.mode .t { color: var(--mc); font-size: 16px; }
+.choix.mode.sel { background: var(--mc); color: #14182a; }
+.choix.mode.sel .t, .choix.mode.sel .d { color: #14182a; }
+.choix.mode.sel::before { background: rgba(0,0,0,.18); }
+.bandeau-mode { background: var(--mc); color: #14182a; border-radius: 14px; padding: 16px 18px; }
+.bandeau-mode .caps { color: rgba(20,24,42,.65); }
+.bandeau-mode .n { font-family: var(--f-titre); font-size: 30px; line-height: 1.1; margin-top: 2px; }
+.bandeau-mode .r { font-size: 15px; margin-top: 4px; }
+.bandeau-mode .resume { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.bandeau-mode .resume span { background: rgba(20,24,42,.14); border-radius: 8px; padding: 4px 9px; font-size: 13px; font-weight: 600; }
+.salon-partie .chip.sel { background: var(--mc); color: #14182a; }
+.salon-partie .btn.lancer { background: var(--mc); color: #14182a; }
+.reglages { display: flex; flex-direction: column; gap: 14px; }
+.reglage > .t2 { font-size: 14px; margin-bottom: 6px; }
+.joueur.plein { background: color-mix(in srgb, var(--jc) 16%, var(--tuile)); box-shadow: inset 4px 0 0 var(--jc); }
+
+/* thèmes : deux colonnes sur téléphone */
+@media (max-width: 600px) {
+  .cartes-themes { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .carte-theme { width: 100%; height: 92px; padding: 12px; }
+  .carte-theme .mt { gap: 4px; }
+  .carte-theme .mt span { width: 100%; max-width: 26px; height: 24px; font-size: 12px; }
+  .carte-theme .nm { margin-top: 10px; font-size: 14px; }
+  .carte-theme .ok { right: 10px; bottom: 10px; }
+}
