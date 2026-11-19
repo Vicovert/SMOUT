@@ -28,8 +28,6 @@ etape "Croisé : Coopératif, hôte web"
 DUREE=220 $S c5 'web:{"nom":"BOB","role":"host","mode":"COOP","manches":2,"nb":2}' 'pc:{"nom":"ALICE","role":"join","hote":"BOB","mode":"COOP","manches":2,"jeu":"perd"}' 2>&1 | tee /tmp/t_c5.txt; verifier /tmp/t_c5.txt
 etape "Croisé : Chaîne 30 s, hôte PC"
 DUREE=220 $S c6 'pc:{"nom":"ALICE","role":"host","mode":"CHAINE","manches":1,"nb":2,"jeu":"rush","timer":30}' 'web:{"nom":"BOB","role":"join","hote":"ALICE","mode":"CHAINE","manches":1,"jeu":"rush"}' 2>&1 | tee /tmp/t_c6.txt; verifier /tmp/t_c6.txt
-etape "Croisé : partie rapide (PC crée, web et PC rejoignent)"
-DUREE=220 PAUSE=6 $S c7 'pc:{"nom":"ALICE","role":"rapide","mode":"CLASSIQUE","manches":1,"nb":3}' 'web:{"nom":"BOB","role":"rapide","mode":"CLASSIQUE","manches":1}' 'pc:{"nom":"CHLOE","role":"rapide","mode":"CLASSIQUE","manches":1}' 2>&1 | tee /tmp/t_c7.txt; verifier /tmp/t_c7.txt
 etape "Croisé : le joueur web plante en manche 2 et reprend la partie"
 DUREE=440 PAUSE=4 $S c8 'pc:{"nom":"ALICE","role":"host","mode":"CLASSIQUE","manches":3,"nb":2}' 'web:{"nom":"BOB","role":"join","hote":"ALICE","mode":"CLASSIQUE","manches":3,"planter_manche":2}' 'web:{"nom":"BOB","role":"reprise","mode":"CLASSIQUE","manches":3,"config_depuis":"/tmp/sc/c8/r2.json","attente_reprise":3}' 2>&1 | tee /tmp/t_c8.txt; verifier /tmp/t_c8.txt
 echo; if [ $ECHECS -eq 0 ]; then echo "TOUS LES TESTS SONT PASSÉS"; else echo "$ECHECS ÉTAPE(S) EN ÉCHEC"; fi

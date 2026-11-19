@@ -44,11 +44,7 @@ async function clicTexte(sel, txt) { return ev((s, t) => { const e = [...documen
   await p.evaluateOnNewDocument(c => { if (!sessionStorage.getItem("i")) { localStorage.setItem("smout_config", c); sessionStorage.setItem("i", "1"); } }, JSON.stringify(confInit));
   await p.goto((process.env.SMOUT_SITE || "http://127.0.0.1:8000/"), { waitUntil: "networkidle0" });
   await clicTexte(".carte-menu", "Multijoueur"); await sleep(1200);
-  if (S.role === "rapide") {
-    await clicTexte("button", "Partie rapide");
-    if (!(await attendre(() => M.lobby !== "", 20000))) { log("ÉCHEC partie rapide"); return fin(false); }
-    R.code = await ev(() => M.lobby); S.role = (await ev(() => M.estHote)) ? "host" : "join"; log("partie rapide :", S.role === "host" ? "salon créé" : "a rejoint", R.code);
-  } else if (S.role === "reprise") {
+  if (S.role === "reprise") {
     if (!(await attendre(() => [...document.querySelectorAll("button")].some(b => b.textContent === "Reprendre"), 15000))) { log("ÉCHEC pas de proposition de reprise"); return fin(false); }
     await clicTexte("button", "Reprendre");
     if (!(await attendre(() => M.lobby !== "", 15000))) { log("ÉCHEC reprise"); return fin(false); }
@@ -62,18 +58,22 @@ async function clicTexte(sel, txt) { return ev((s, t) => { const e = [...documen
     R.code = await ev(() => M.lobby); log("salon créé", R.code);
   } else {
     const trouver = async () => { const idx = ((await db()).v7 || {}).index || {}; const c = Object.entries(idx).filter(([k, v]) => v.status === "waiting" && v.hote === S.hote).sort((a, b) => b[1].maj - a[1].maj); return c.length ? c[0][0] : null; };
+    await clicTexte("button", "Rejoindre un salon"); await sleep(500);
     let code = null; for (let i = 0; i < 300 && !(code = await trouver()); i++) await sleep(300);
     if (!code) { log("ÉCHEC salon introuvable"); return fin(false); }
     await p.type('input[placeholder="CODE"]', code); await p.keyboard.press("Enter"); await sleep(1500);
     if (S.mdp || S.mdp_faux) {
       if (!(await attendre(() => !document.querySelector(".voile").classList.contains("cache"), 8000))) { log("ÉCHEC pas de demande de mot de passe"); return fin(false); }
       if (S.mdp_faux) {
-        await p.type('input[type="password"]', S.mdp_faux); await p.keyboard.press("Enter"); await sleep(1500);
+        await attendre(() => document.activeElement && document.activeElement.type === "password", 8000) || await p.click('input[type="password"]');
+        await p.type('input[type="password"]', S.mdp_faux); await p.keyboard.press("Enter");
+        await attendre(() => document.body.textContent.includes("Mot de passe incorrect") || M.lobby !== "", 8000);  // la machine peut être chargée
         const refus = await ev(() => document.body.textContent.includes("Mot de passe incorrect") && M.lobby === "");
         R.mdp_faux_refuse = refus; log(refus ? "mauvais mot de passe refusé" : "BUG: mauvais mot de passe accepté");
         if (!refus) return fin(false);
         await ev(() => { document.querySelector('input[type="password"]').value = ""; });
       }
+      await attendre(() => document.activeElement && document.activeElement.type === "password", 8000) || await p.click('input[type="password"]');
       await p.type('input[type="password"]', S.mdp || ""); await p.keyboard.press("Enter");
     }
     if (!(await attendre(() => M.lobby !== "", 15000))) { log("ÉCHEC rejoindre"); return fin(!!S.attendu_refus); }
@@ -85,21 +85,17 @@ async function clicTexte(sel, txt) { return ev((s, t) => { const e = [...documen
       if (partie === 1) {
         if (S.mode !== "CLASSIQUE") await clicTexte(".choix", ({ BLAST: "Blast", PRECISION: "Précision", MYSTERE: "Mystère", RUSH: "Rush", ELIMINATION: "Élimination", CHAINE: "Chaîne", COOP: "Coopératif" })[S.mode]);
         await sleep(300);
-        await ev(m => [...document.querySelectorAll(".chips")][2].children[m - 1].click(), S.manches || 1);
-        if (S.timer) { const cur = await ev(() => { const v = document.querySelectorAll(".stepper .v")[1].textContent.split(":"); return +v[0] * 60 + +v[1]; });
-          const n = Math.round((cur - S.timer) / 15); for (let i = 0; i < Math.abs(n); i++) await ev(s => document.querySelectorAll(".stepper")[1].querySelectorAll(".icone")[s > 0 ? 0 : 1].click(), n); }
-        if (S.essais) { const cur = await ev(() => +document.querySelectorAll(".stepper .v")[0].textContent); for (let i = 0; i < Math.abs(cur - S.essais); i++) await ev(s => document.querySelectorAll(".stepper")[0].querySelectorAll(".icone")[s > 0 ? 0 : 1].click(), cur - S.essais); }
+        const regler = (i, v) => ev((i, v) => { const x = document.querySelectorAll(".salon-partie input[type=range]")[i]; x.value = v; x.dispatchEvent(new Event("input")); }, i, v);
+        await regler(0, S.manches || 1);
+        if (S.timer) await regler(1, S.timer);
+        if (S.essais) await regler(2, S.essais);
       }
       await sleep(1500);
       if (!(await clicTexte("button.lancer", "Lancer"))) { log("ÉCHEC lancer"); return fin(false); }
       log("partie lancée", partie);
     }
     let debut = 1;
-    if (S.role === "rapide") {
-    await clicTexte("button", "Partie rapide");
-    if (!(await attendre(() => M.lobby !== "", 20000))) { log("ÉCHEC partie rapide"); return fin(false); }
-    R.code = await ev(() => M.lobby); S.role = (await ev(() => M.estHote)) ? "host" : "join"; log("partie rapide :", S.role === "host" ? "salon créé" : "a rejoint", R.code);
-  } else if (S.role === "reprise") { await attendre(() => document.querySelector(".clavier") && document.querySelector(".stat .v"), 90000); debut = await ev(() => +document.querySelector(".stat .v").textContent || 1); log("reprend à la manche", debut); }
+    if (S.role === "reprise") { await attendre(() => document.querySelector(".clavier") && document.querySelector(".stat .v"), 90000); debut = await ev(() => +document.querySelector(".stat .v").textContent || 1); log("reprend à la manche", debut); }
     for (let manche = debut; manche <= (S.manches || 1); manche++) {
       if (manche > 1 && await ev(() => !!document.querySelector(".podium"))) { log("partie terminée avant la manche", manche); break; }
       if (!(await attendre(m => (document.querySelector(".clavier") || document.body.innerText.includes("Tu es éliminé")) && document.querySelector(".stat .v")?.textContent === String(m) && M.dernierMot, 90000, manche))) { log("ÉCHEC manche pas commencée", manche); return fin(false); }

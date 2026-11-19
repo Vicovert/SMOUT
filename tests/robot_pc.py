@@ -52,11 +52,7 @@ def fin(ok=True):
     sys.exit(0)
 J, lob = A.frames["PageJeu"], A.frames["PageLobby"]
 try:
-    if S["role"] == "rapide":
-        A.frames["PageAccueil"].partie_rapide(); pump(1.5)
-        if not A.lobby_code: log("ÉCHEC partie rapide"); fin(False)
-        S["role"] = "host" if A.is_host else "join"; R["code"] = A.lobby_code; log("partie rapide :", "salon créé" if A.is_host else "a rejoint", A.lobby_code)
-    elif S["role"] == "reprise":
+    if S["role"] == "reprise":
         pe = design.lire_config().get("partie_en_cours")
         if not pe or not A.frames["PageAccueil"].zone_reprise.winfo_children(): log("ÉCHEC pas de proposition de reprise"); fin(False)
         A.frames["PageAccueil"].reprendre(pe); pump(1)
@@ -76,7 +72,7 @@ try:
             c = [(v.get("maj", 0), k) for k, v in idx.items() if v.get("status") == "waiting" and v.get("hote") == cible]
             return max(c)[1] if c else None
         if not attendre(lambda: trouver(), 90): log("ÉCHEC salon introuvable"); fin(False)
-        code = trouver(); pa = A.frames["PageAccueil"]
+        code = trouver(); pa = A.frames["PageRejoindre"]
         if S.get("mdp_faux"):
             refus = not pa.rejoindre(code, S["mdp_faux"], silencieux=True)
             log("mauvais mot de passe refusé" if refus else "BUG: mauvais mot de passe accepté"); R["mdp_faux_refuse"] = refus

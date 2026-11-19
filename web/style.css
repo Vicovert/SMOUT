@@ -177,7 +177,7 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 .action:active { transform: scale(.98); }
 .action .t { font-family: var(--f-titre); font-size: 26px; line-height: 1.05; }
 .action .s { font-size: 14px; opacity: .85; }
-.action.a-rapide { background: var(--bien); color: var(--sur-bien); }
+.action.a-rejoindre { background: var(--bien); color: var(--sur-bien); }
 .action.a-creer { background: var(--mal); color: var(--sur-mal); }
 .rejoindre { gap: 12px; margin-top: 14px; background: var(--panneau); border-radius: 16px; padding: 12px 12px 12px 18px; flex-wrap: wrap; }
 .rejoindre > .gras { font-size: 16px; flex-basis: 100%; }
@@ -211,4 +211,53 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   .carte-theme .mt span { width: 100%; max-width: 26px; height: 24px; font-size: 12px; }
   .carte-theme .nm { margin-top: 10px; font-size: 14px; }
   .carte-theme .ok { right: 10px; bottom: 10px; }
+}
+
+.choix { position: relative; }
+.choix .ico { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); display: inline-flex; }
+.choix .ico svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.choix.mode:not(.sel) .ico { color: var(--mc); }
+.action { min-height: 170px; }
+
+/* salon épuré : curseurs, pastilles de modes */
+.curseur { display: flex; align-items: center; gap: 14px; flex: 1; min-width: 0; --pc: var(--mc, var(--mal)); }
+.curseur input[type=range] { -webkit-appearance: none; appearance: none; flex: 1; min-width: 0; height: 32px; margin: 0; background: transparent; cursor: pointer; }
+.curseur input[type=range]:disabled { cursor: default; opacity: .55; }
+.curseur:not(.plage) input::-webkit-slider-runnable-track { height: 8px; border-radius: 4px; background: linear-gradient(to right, var(--pc) var(--p, 0%), var(--tuile) var(--p, 0%)); }
+.curseur:not(.plage) input::-moz-range-track { height: 8px; border-radius: 4px; background: linear-gradient(to right, var(--pc) var(--p, 0%), var(--tuile) var(--p, 0%)); }
+.curseur.plage input::-webkit-slider-runnable-track { height: 8px; background: transparent; }
+.curseur.plage input::-moz-range-track { height: 8px; background: transparent; }
+.curseur input::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; margin-top: -7px; border-radius: 50%; background: var(--pc); border: 3px solid var(--panneau); pointer-events: auto; }
+.curseur input::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: var(--pc); border: 3px solid var(--panneau); pointer-events: auto; }
+.curseur .val { width: 64px; text-align: right; font-family: var(--f-chiffres); font-weight: 700; font-size: 16px; flex: none; }
+.curseur .duo { position: relative; flex: 1; min-width: 0; height: 32px; }
+.curseur .duo .piste { position: absolute; left: 11px; right: 11px; top: 50%; height: 8px; margin-top: -4px; border-radius: 4px; background: var(--tuile); }
+.curseur .duo .rempli { position: absolute; top: 0; bottom: 0; left: var(--pa, 0%); right: calc(100% - var(--pb, 100%)); background: var(--pc); border-radius: 4px; }
+.curseur .duo input { position: absolute; left: 0; top: 0; width: 100%; pointer-events: none; }
+.salon-partie .reglages { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.salon-partie .reglage { display: flex; align-items: center; gap: 12px; }
+.salon-partie .reglage > .t2 { width: 150px; flex: none; font-size: 15px; }
+.salon-partie .regle { color: var(--mc); font-weight: 600; font-size: 14px; margin: 4px 0 14px; }
+.grille-modes .choix.mode { padding: 11px 12px 11px 18px; }
+.grille-modes .choix .d:empty { display: none; }
+.choix.mode .t { font-size: 15px; }
+@media (max-width: 520px) { .salon-partie .reglage { flex-direction: column; align-items: stretch; gap: 0; } .salon-partie .reglage > .t2 { width: auto; } }
+
+.salon-tete { gap: 16px; align-items: flex-start; flex-wrap: nowrap; }
+@media (max-width: 600px) {
+  .salon-tete .code-boite { padding: 10px 12px; gap: 10px; }
+  .salon-tete .code-boite .chiffres { font-size: 26px !important; }
+  .salon-tete .titre { font-size: 26px !important; }
+  .joueur { height: 52px; margin: 5px 0; }
+}
+
+/* thèmes : l'aperçu suit le défilement */
+.themes-corps { align-items: flex-start; gap: 26px; flex-wrap: wrap; }
+.theme-apercu { width: 350px; padding: 28px; position: sticky; top: 14px; align-self: flex-start; }
+@media (max-width: 700px) {
+  .themes-corps { gap: 14px; }
+  .theme-apercu { width: 100%; padding: 12px; top: 0; z-index: 5; display: grid; grid-template-columns: 150px 1fr; grid-template-areas: "cv caps" "cv btn"; column-gap: 14px; align-items: center; align-content: center; box-shadow: 0 10px 14px -6px var(--fond), 0 0 0 6px var(--fond); }
+  .theme-apercu canvas { grid-area: cv; width: 150px; height: auto; margin: 0 !important; }
+  .theme-apercu .caps { grid-area: caps; align-self: end; margin: 0 0 8px; text-align: left; }
+  .theme-apercu .btn { grid-area: btn; align-self: start; height: 46px !important; }
 }

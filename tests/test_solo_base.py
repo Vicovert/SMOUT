@@ -28,7 +28,7 @@ app.ouvrir_solo(True); pump(); j = app.container.winfo_children()[0].jeu
 print("Rejouer le mot du jour bloqué :", not hasattr(j, "grille_labels") or not j.timer_actif)
 # paramètres
 app.ouvrir_parametres(); pump(); p = app.container.winfo_children()[0]
-p.c_min._choisir(9); p.c_max._choisir(7); print("Min ≤ max respecté :", p.c_min.get(), p.c_max.get())
+p.c_lettres.set_valeur(7, 7); print("Plage de lettres :", p.c_lettres.get())
 p.save(); print("Paramètres enregistrés :", {k: D.lire_config()[k] for k in ("nb_essais", "nb_lettres_min", "nb_lettres_max")})
 app.ouvrir_solo(False); pump(); j = app.container.winfo_children()[0].jeu
 print("Longueur respectée :", 7 <= len(j.mot) <= 7, len(j.mot))

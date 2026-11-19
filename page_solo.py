@@ -2,7 +2,7 @@ import tkinter as tk
 import json, random, os, sys, time, datetime
 import design
 from design import (P, police, etiquette, espacer, Tuile, Bouton, Panneau, Icone, Clavier, Stat, Chips, Superposition, entete, fenetre_aide,
-                    Champ, Interrupteur, CarteMenu)
+                    Champ, Interrupteur, CarteMenu, Curseur)
 
 
 def get_data_path(filename):
@@ -377,23 +377,17 @@ class PageParametres(tk.Frame):
         p = Panneau(corps, padding=26, largeur=620); p.pack(anchor="w")
         i = p.interieur
         etiquette(i, "Nombre d'essais", "texte", 17, gras=True).pack(anchor="w")
-        self.c_essais = Chips(i, range(4, 9), self.config["nb_essais"]); self.c_essais.pack(anchor="w", pady=(8, 16))
-        etiquette(i, "Longueur minimale des mots", "texte", 17, gras=True).pack(anchor="w")
-        self.c_min = Chips(i, range(6, 11), self.config["nb_lettres_min"], self._min); self.c_min.pack(anchor="w", pady=(8, 16))
-        etiquette(i, "Longueur maximale des mots", "texte", 17, gras=True).pack(anchor="w")
-        self.c_max = Chips(i, range(6, 11), self.config["nb_lettres_max"], self._max); self.c_max.pack(anchor="w", pady=(8, 16))
+        self.c_essais = Curseur(i, 4, 8, self.config["nb_essais"], 1, largeur=560); self.c_essais.pack(anchor="w", pady=(4, 14))
+        etiquette(i, "Longueur des mots", "texte", 17, gras=True).pack(anchor="w")
+        self.c_lettres = Curseur(i, 6, 10, (self.config["nb_lettres_min"], self.config["nb_lettres_max"]), 1, largeur=560, plage=True); self.c_lettres.pack(anchor="w", pady=(4, 14))
         self.i_diff = Interrupteur(i, "Mode difficile (lettres trouvées obligatoires)", bool(self.config.get("difficile")), largeur=560); self.i_diff.pack(anchor="w", pady=(0, 6))
         self.i_dalt = Interrupteur(i, "Mode daltonien (orange et bleu)", bool(design.lire_config().get("daltonien")), largeur=560); self.i_dalt.pack(anchor="w", pady=(0, 18))
         self.btn = Bouton(i, "Enregistrer", self.save, largeur=560, hauteur=54, taille=17); self.btn.pack()
 
-    def _min(self, v):
-        if v > self.c_max.get(): self.c_max.set_valeur(v)
-    def _max(self, v):
-        if v < self.c_min.get(): self.c_min.set_valeur(v)
 
     def save(self):
         changement = bool(design.lire_config().get("daltonien")) != self.i_dalt.valeur
-        design.maj_config(nb_essais=self.c_essais.get(), nb_lettres_min=self.c_min.get(), nb_lettres_max=self.c_max.get(),
+        design.maj_config(nb_essais=self.c_essais.get(), nb_lettres_min=self.c_lettres.get()[0], nb_lettres_max=self.c_lettres.get()[1],
                           difficile=self.i_diff.valeur, daltonien=self.i_dalt.valeur)
         if changement and hasattr(self.controller, "apply_theme"): self.controller.apply_theme(self.controller.current_theme_name, save=False)
         self.controller.ouvrir_menu_solo()

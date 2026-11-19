@@ -6,7 +6,10 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
 DATA, LOCK, UIDS = {}, threading.Lock(), itertools.count(1)
+EMIS = set()  # jetons de rafraîchissement émis par CE serveur (comme Firebase : un jeton inconnu est refusé)
 JOURNAL = open("/tmp/fb_refus.log", "a")
+import os
+TRACE = open("/tmp/fb_trace.log", "a") if os.environ.get("FB_TRACE") else None  # FB_TRACE=1 : journal de toutes les requêtes
 maintenant = lambda: int(time.time() * 1000)
 
 def resoudre(v):
@@ -119,6 +122,8 @@ def autorise(uid, ecritures):
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
     def rep(self, code, obj):
+        if TRACE and self.command != "OPTIONS":
+            TRACE.write(f"{time.strftime('%H:%M:%S')}.{int(time.time()*1000)%1000:03d} {code} {self.command} {urlparse(self.path).path} {json.dumps(obj)[:120]}\n"); TRACE.flush()
         b = json.dumps(obj).encode()
         self.send_response(code); self.send_header("Content-Type", "application/json"); self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
@@ -157,9 +162,9 @@ class H(BaseHTTPRequestHandler):
             return self.rep(200, True)
         if "token" in self.path:  # renouvellement : même joueur (comme Firebase), à partir du jeton de rafraîchissement
             ancien = (parse_qs(b).get("refresh_token") or [""])[0]
-            if ancien.startswith("r-uid"): uid = ancien[2:]; return self.rep(200, {"id_token": "tok-" + uid, "refresh_token": ancien, "user_id": uid, "expires_in": "3600"})
+            if ancien in EMIS: uid = ancien[2:]; return self.rep(200, {"id_token": "tok-" + uid, "refresh_token": ancien, "user_id": uid, "expires_in": "3600"})
             return self.rep(400, {"error": "INVALID_REFRESH_TOKEN"})
-        uid = f"uid{next(UIDS):03d}"
+        uid = f"uid{next(UIDS):03d}"; EMIS.add("r-" + uid)
         self.rep(200, {"idToken": "tok-" + uid, "refreshToken": "r-" + uid, "localId": uid, "expiresIn": "3600"})
     def do_GET(self):
         p, uid = self.chemin()

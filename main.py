@@ -309,8 +309,15 @@ class PageSkins(tk.Frame):
                 if nb_perso < 4: c.bind("<ButtonRelease-1>", lambda e: self.controller.show_custom_creator())
                 c.grid(row=k // nc, column=k % nc, padx=(0, 12), pady=(0, 12))
 
+    def _restaurer_defilement(self, y):
+        def faire():
+            try: self.update_idletasks(); self.liste.canvas.yview_moveto(y)
+            except tk.TclError: pass
+        self.after(30, faire)
+
     def choisir(self, nom):
-        self.choix = nom; self.remplir(); self.maj_apercu()
+        y = self.liste.canvas.yview()[0]  # choisir un thème ne remonte pas la liste
+        self.choix = nom; self.remplir(); self.maj_apercu(); self._restaurer_defilement(y)
 
     def maj_apercu(self):
         t = THEMES[self.choix]; pal = calculer_palette(t)
@@ -328,7 +335,9 @@ class PageSkins(tk.Frame):
         self.btn_appliquer.set_variante("discret" if actuel else "principal"); self.btn_appliquer.actif = not actuel
 
     def appliquer(self):
+        y = self.liste.canvas.yview()[0]
         self.controller.apply_theme(self.choix); self.controller.show_skins()
+        self.controller.container.winfo_children()[0]._restaurer_defilement(y)
 
     def supprimer(self, nom):
         if nom in THEMES:
@@ -445,7 +454,7 @@ class MenuPrincipal(tk.Tk):
     def charger_themes_personnalises(self):
         for n, c in design.lire_config().get("custom_themes", {}).items():
             if n in THEMES and THEMES[n].get("type") != "PERSO": n = n + " PERSO"  # ne jamais écraser un thème intégré
-            c["type"] = "PERSO"; THEMES[n] = c
+            c = dict(THEMES.get(THEME_PAR_DEFAUT, {}), **c); c["type"] = "PERSO"; THEMES[n] = c  # clés manquantes : celles du thème par défaut
 
     def save_custom_themes_to_config(self):
         design.maj_config(custom_themes={n: d for n, d in THEMES.items() if d.get("type") == "PERSO"})

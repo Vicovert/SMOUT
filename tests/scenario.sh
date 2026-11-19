@@ -8,7 +8,7 @@ for a in "$@"; do
   sup=${a%%:*}; js=${a#*:}; i=$((i+1)); out=/tmp/sc/$nom/r$i.json
   js=$(python3 -c "import json,sys;d=json.loads(sys.argv[1]);d['sortie']=sys.argv[2];print(json.dumps(d))" "$js" "$out")
   if [ $sup = pc ]; then
-    (HOME=/tmp/h$nom$i; mkdir -p $HOME; timeout ${DUREE:-400} xvfb-run -a -s "-screen 0 1200x860x24" ${PY:-python3} "$ICI/robot_pc.py" "$DEPOT" "$js" > /tmp/sc/$nom/log$i.txt 2>&1) &
+    (HOME=/tmp/h$nom$i; rm -rf $HOME; mkdir -p $HOME; timeout ${DUREE:-400} xvfb-run -a -s "-screen 0 1200x860x24" ${PY:-python3} "$ICI/robot_pc.py" "$DEPOT" "$js" > /tmp/sc/$nom/log$i.txt 2>&1) &
   else
     (cd "$ICI/web" && timeout ${DUREE:-400} node robot_web.js "$js" > /tmp/sc/$nom/log$i.txt 2>&1) &
   fi

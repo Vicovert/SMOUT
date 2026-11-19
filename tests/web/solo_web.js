@@ -48,7 +48,7 @@ const res = []; const ok = (nom, c, info = "") => { res.push(!!c); console.log((
   ok(`défaite après ${essais} essais`, t3.includes("Perdu") || t3.includes("Bravo"), faux.slice(0, 2).join(","));
   // paramètres
   await p.evaluate(() => parametres()); await sleep(200);
-  await p.evaluate(() => { const c = document.querySelectorAll(".chips"); c[0].children[0].click(); c[1].children[4].click(); c[2].children[4].click(); [...document.querySelectorAll("button")].find(x => x.textContent === "Enregistrer").click(); });
+  await p.evaluate(() => { const r = document.querySelectorAll(".curseur input"); const set = (i, v) => { r[i].value = v; r[i].dispatchEvent(new Event("input")); }; set(0, 4); set(1, 10); [...document.querySelectorAll("button")].find(x => x.textContent === "Enregistrer").click(); });
   const conf = await p.evaluate(() => configSolo());
   ok("paramètres enregistrés (4 essais, 10 lettres)", conf.nb_essais === 4 && conf.nb_lettres_min === 10 && conf.nb_lettres_max === 10, JSON.stringify(conf));
   await p.evaluate(() => solo(false)); await sleep(300);

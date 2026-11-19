@@ -3,7 +3,7 @@ import tkinter as tk
 import tkinter.font as tkfont
 import os, sys, ctypes, colorsys, hashlib
 
-VERSION_APP = "8.1"
+VERSION_APP = "8.2"
 URL_WEB = "https://vicovert.github.io/SMOUT/"
 
 def mot_graine(liste_triee, graine, index=0):
@@ -378,14 +378,14 @@ class Avatar(tk.Canvas):
 
 
 class Logo(tk.Canvas):
-    """SMOUT en tuiles : S et T bien placées, O mal placée, M et U saisies."""
+    """SMOUT en tuiles, comme MOTUS (dont SMOUT est un anagramme) : U bien placé, les autres lettres mal placées."""
     def __init__(self, parent, taille=88, ecart=14):
         n = 5
         super().__init__(parent, width=n * taille + (n - 1) * ecart, height=taille + 4, bg=fond_parent(parent), highlightthickness=0)
-        etats = ["bien", "tuile", "mal", "tuile", "bien"]
+        etats = ["mal", "mal", "mal", "bien", "mal"]
         for i, (ch, et) in enumerate(zip("SMOUT", etats)):
             x = i * (taille + ecart)
-            fill = P[et]; fg = P["sur_bien"] if et == "bien" else P["sur_mal"] if et == "mal" else P["texte"]
+            fill = P[et]; fg = P["sur_bien"] if et == "bien" else P["sur_mal"]
             arrondi(self, x + 1, 1, x + taille - 1, taille - 1, taille * 0.14, fill=fill, outline="")
             self.create_text(x + taille / 2, taille / 2, text=ch, fill=fg, font=police("chiffres", taille * 0.5))
 
@@ -425,11 +425,18 @@ class Chips(tk.Frame):
             c.create_text(w / 2, h / 2, text=lib, fill=fg, font=police("chiffres", 17))
 
 
+def dessiner_cadenas(c, cx, cy, t, couleur):
+    """Petit cadenas fermé centré en (cx, cy), de hauteur t."""
+    w, h = t * 0.72, t * 0.5; ep = max(1.8, t * 0.1)
+    haut = cy - t * 0.5
+    c.create_arc(cx - w * 0.3, haut, cx + w * 0.3, haut + t * 0.62, start=0, extent=180, style="arc", outline=couleur, width=ep)
+    arrondi(c, cx - w / 2, cy - t * 0.08, cx + w / 2, cy - t * 0.08 + h, t * 0.1, fill=couleur, outline="")
+
 class CarteChoix(tk.Canvas):
     """Carte de mode de jeu (titre + description), sélectionnée = couleur d'accent."""
-    def __init__(self, parent, titre, description, commande, largeur=300, hauteur=78, couleur=None):
+    def __init__(self, parent, titre, description, commande, largeur=300, hauteur=78, couleur=None, icone=None):
         super().__init__(parent, width=largeur, height=hauteur, bg=fond_parent(parent), highlightthickness=0, cursor="hand2")
-        self.titre, self.desc, self.commande, self.l, self.h, self.couleur = titre, description, commande, largeur, hauteur, couleur
+        self.titre, self.desc, self.commande, self.l, self.h, self.couleur, self.icone = titre, description, commande, largeur, hauteur, couleur, icone
         self.selection, self.actif = False, True
         self.bind("<ButtonRelease-1>", lambda e=None: self.commande() if self.actif else None)
         self._dessiner()
@@ -445,8 +452,65 @@ class CarteChoix(tk.Canvas):
         if mc and not sel: arrondi(self, 5, 10, 9, self.h - 10, 2, fill=mc, outline="")  # liseré de couleur du mode
         compact = self.l < 200  # grille de 4 cartes par rangée
         x = 14 if compact else 20
-        self.create_text(x, self.h * 0.36, text=self.titre, anchor="w", fill=fg1, font=police("texte", 15 if compact else 17, True))
-        self.create_text(x, self.h * 0.7, text=self.desc, anchor="w", fill=fg2, font=police("texte", 11 if compact else 12), width=self.l - x - 8)
+        self.create_text(x, self.h * (0.36 if self.desc else 0.5), text=self.titre, anchor="w", fill=fg1, font=police("texte", 15 if compact else 17, True))
+        marge = 56 if self.icone else 8
+        if self.desc: self.create_text(x, self.h * 0.7, text=self.desc, anchor="w", fill=fg2, font=police("texte", 11 if compact else 12), width=self.l - x - marge)
+        if self.icone == "cadenas": dessiner_cadenas(self, self.l - 32, self.h / 2, 26, fg1)
+
+
+class Curseur(tk.Canvas):
+    """Curseur à glisser (valeur unique) ou plage à deux poignées (plage=True, valeur = (min, max)).
+    La valeur s'affiche à droite ; une poignée qui dépasse l'autre la pousse."""
+    def __init__(self, parent, mini, maxi, valeur, pas=1, commande=None, formater=str, largeur=440, plage=False, couleur=None):
+        super().__init__(parent, width=largeur, height=36, bg=fond_parent(parent), highlightthickness=0, cursor="hand2")
+        self.mini, self.maxi, self.pas, self.commande, self.fmt, self.l, self.plage = mini, maxi, pas, commande, formater, largeur, plage
+        self.x0, self.x1 = 14, largeur - 74
+        self.v = list(valeur) if plage else [valeur]
+        self.actif, self.couleur, self.idx = True, couleur, 0
+        self.bind("<ButtonPress-1>", self._presse); self.bind("<B1-Motion>", self._bouge)
+        self._dessiner()
+    def get(self): return tuple(self.v) if self.plage else self.v[0]
+    def set_valeur(self, *vals):
+        nv = list(vals[0]) if (self.plage and len(vals) == 1) else list(vals)
+        nv = [max(self.mini, min(self.maxi, int(x))) for x in nv]
+        if nv != self.v: self.v = nv; self._dessiner()
+    def set_couleur(self, c):
+        if c != self.couleur: self.couleur = c; self._dessiner()
+    def activer(self, s):
+        self.actif = s; self.config(cursor="hand2" if s else ""); self._dessiner()
+    def _x(self, val): return self.x0 + (val - self.mini) / (self.maxi - self.mini) * (self.x1 - self.x0)
+    def _val(self, x):
+        t = max(0.0, min(1.0, (x - self.x0) / (self.x1 - self.x0)))
+        return max(self.mini, min(self.maxi, self.mini + round(t * (self.maxi - self.mini) / self.pas) * self.pas))
+    def _presse(self, e):
+        if not self.actif: return
+        if self.plage:
+            d0, d1 = abs(e.x - self._x(self.v[0])), abs(e.x - self._x(self.v[1]))
+            self.idx = 0 if (d0 < d1 or (d0 == d1 and e.x < self._x(self.v[0]))) else 1
+        else: self.idx = 0
+        self._bouge(e)
+    def _bouge(self, e):
+        if not self.actif: return
+        val, nv = self._val(e.x), list(self.v)
+        nv[self.idx] = val
+        if self.plage:
+            if self.idx == 0 and nv[0] > nv[1]: nv[1] = nv[0]
+            if self.idx == 1 and nv[1] < nv[0]: nv[0] = nv[1]
+        if nv != self.v:
+            self.v = nv; self._dessiner()
+            if self.commande: self.commande(self.get())
+    def _dessiner(self):
+        self.delete("all")
+        coul = self.couleur or P["mal"]; y = 18
+        if not self.actif: coul = melanger(coul, fond_parent(self), 0.55)
+        arrondi(self, self.x0 - 4, y - 4, self.x1 + 4, y + 4, 4, fill=P["tuile"], outline="")
+        a = self._x(self.v[0]) if self.plage else self.x0
+        b = self._x(self.v[-1])
+        arrondi(self, a - 4 if self.plage else self.x0 - 4, y - 4, b + 4, y + 4, 4, fill=coul, outline="")
+        for x in ([self._x(v) for v in self.v] if self.plage else [b]):
+            self.create_oval(x - 11, y - 11, x + 11, y + 11, fill=coul, outline=fond_parent(self), width=3)
+        txt = (f"{self.v[0]} à {self.v[1]}" if self.v[0] != self.v[1] else str(self.v[0])) if self.plage else self.fmt(self.v[0])
+        self.create_text(self.l - 4, y, text=txt, anchor="e", fill=P["texte"] if self.actif else P["texte2"], font=police("chiffres", 15, True))
 
 
 class Clavier(tk.Frame):
@@ -780,7 +844,7 @@ def mots_chaine(liste_triee, graine, n=100):
 
 
 class TuileAction(tk.Canvas):
-    """Grande tuile d'action colorée (ex. « Partie rapide », « Créer un salon »)."""
+    """Grande tuile d'action colorée (ex. « Créer un salon », « Rejoindre un salon »)."""
     def __init__(self, parent, titre, sous_titre, commande, fond, texte, largeur=360, hauteur=112):
         super().__init__(parent, width=largeur, height=hauteur, bg=fond_parent(parent), highlightthickness=0, cursor="hand2")
         self.args = (titre, sous_titre, fond, texte, largeur, hauteur); self.commande, self.survol = commande, False

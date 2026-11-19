@@ -195,6 +195,7 @@ const SVG = {
   couronne: '<path d="M3 18h18l-2-10-5 5-2-7-2 7-5-5z"/>',
   stats: '<path d="M6 20v-7M12 20V6M18 20v-10"/>',
   crayon: '<path d="M4 20h4L19 9l-4-4L4 16z M14 6l4 4"/>',
+  cadenas: '<rect x="5" y="11" width="14" height="10" rx="2.5" fill="currentColor"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
 };
 const svg = (nom, taille) => `<svg viewBox="0 0 24 24"${taille ? ` style="width:${taille}px;height:${taille}px"` : ""}>${SVG[nom]}</svg>`;
 const icone = (nom, onclick, cadre = false, titre = "") => h("button.icone" + (cadre ? ".cadre" : ""), { onclick, html: svg(nom), "aria-label": titre || nom, title: titre });
@@ -221,8 +222,8 @@ function grille(lignes, colonnes, taille, mini = false) {
   g.cases = cases; return g;
 }
 function logo(taille = 88, ecart = 14) {
-  const etats = ["bien", "saisie", "mal", "saisie", "bien"];
-  return h("div.logo", { style: { gap: ecart + "px" } }, [..."SMOUT"].map((ch, i) => { const t = tuile(taille); t.maj(ch, etats[i] === "saisie" ? "" : etats[i]); if (etats[i] === "saisie") t.classList.add("saisie"); t.style.boxShadow = "none"; return t; }));
+  const etats = ["mal", "mal", "mal", "bien", "mal"];  // comme MOTUS : U bien placé, le reste mal placé
+  return h("div.logo", { style: { gap: ecart + "px" } }, [..."SMOUT"].map((ch, i) => { const t = tuile(taille); t.maj(ch, etats[i]); t.style.boxShadow = "none"; return t; }));
 }
 function avatar(nom, taille = 44, index = 0, onclick = null) {
   return h("div.avatar", { onclick, style: { width: taille + "px", height: taille + "px", background: COULEURS_AVATAR[index % 6], cursor: onclick ? "pointer" : null, fontSize: Math.round(taille * 0.42) + "px" } }, (nom || "?").charAt(0).toUpperCase());
@@ -252,8 +253,28 @@ function stepper(mini, maxi, valeur, pas, onchange, fmt = String) {
   e.activer = s => { e.actif = s; m.disabled = !s; p.disabled = !s; v.style.color = s ? "" : "var(--texte2)"; };
   e.append(m, v, p); e.set(valeur); return e;
 }
-function choix(titre, desc, onclick, largeur) {
-  const b = h("button.choix", { onclick: () => !b.disabled && onclick(), style: { width: largeur ? largeur + "px" : null } }, h("div.t", {}, titre), h("div.d", {}, desc));
+function curseur(mini, maxi, valeur, pas, onchange, fmt = String) {
+  const inp = h("input", { type: "range", min: mini, max: maxi, step: pas, value: valeur }), v = h("span.val");
+  const e = h("div.curseur", {}, inp, v); e.valeur = valeur; e.actif = true;
+  const aff = () => { v.textContent = fmt(e.valeur); inp.style.setProperty("--p", `${(e.valeur - mini) / (maxi - mini) * 100}%`); };
+  inp.addEventListener("input", () => { e.valeur = +inp.value; aff(); onchange && onchange(e.valeur); });
+  e.set = n => { e.valeur = n; inp.value = n; aff(); };
+  e.activer = s => { e.actif = s; inp.disabled = !s; };
+  aff(); return e;
+}
+/* plage à deux poignées (ex. nombre de lettres) : une poignée qui dépasse l'autre la pousse */
+function plage(mini, maxi, [a, b], onchange) {
+  const mk = x => h("input", { type: "range", min: mini, max: maxi, step: 1, value: x }), lo = mk(a), hi = mk(b), v = h("span.val");
+  const rempli = h("div.rempli"), e = h("div.curseur.plage", {}, h("div.duo", {}, h("div.piste", {}, rempli), lo, hi), v); e.actif = true;
+  const aff = () => { v.textContent = e.vmin === e.vmax ? String(e.vmin) : `${e.vmin} à ${e.vmax}`; rempli.style.setProperty("--pa", `${(e.vmin - mini) / (maxi - mini) * 100}%`); rempli.style.setProperty("--pb", `${(e.vmax - mini) / (maxi - mini) * 100}%`); };
+  lo.addEventListener("input", () => { e.vmin = +lo.value; if (e.vmin > e.vmax) { e.vmax = e.vmin; hi.value = e.vmax; } aff(); onchange && onchange(); });
+  hi.addEventListener("input", () => { e.vmax = +hi.value; if (e.vmax < e.vmin) { e.vmin = e.vmax; lo.value = e.vmin; } aff(); onchange && onchange(); });
+  e.set = (x, y) => { e.vmin = x; e.vmax = y; lo.value = x; hi.value = y; aff(); };
+  e.activer = s => { e.actif = s; lo.disabled = hi.disabled = !s; };
+  e.set(a, b); return e;
+}
+function choix(titre, desc, onclick, largeur, couleur, ico) {
+  const b = h("button.choix" + (couleur ? ".mode" : ""), { onclick: () => !b.disabled && onclick(), style: { width: largeur ? largeur + "px" : null, "--mc": couleur || null } }, h("div.t", {}, titre), h("div.d", {}, desc), ico ? h("span.ico", { html: svg(ico, 24) }) : null);
   b.sel = s => b.classList.toggle("sel", s); return b;
 }
 function caseACocher(texte, valeur, onchange) {
@@ -299,7 +320,7 @@ const hauteurFenetre = () => Math.max(560, window.innerHeight);
 let themeActuel = D.theme_defaut;
 function chargerTheme() {
   const c = lireConfig();
-  for (let [n, t] of Object.entries(c.custom_themes || {})) { if (THEMES[n] && THEMES[n].type !== "PERSO") n += " PERSO"; THEMES[n] = Object.assign({}, t, { type: "PERSO" }); }  // ne jamais écraser un thème intégré
+  for (let [n, t] of Object.entries(c.custom_themes || {})) { if (THEMES[n] && THEMES[n].type !== "PERSO") n += " PERSO"; THEMES[n] = Object.assign({}, THEMES[D.theme_defaut], t, { type: "PERSO" }); }  // ne jamais écraser un thème intégré ; clés manquantes : celles du thème par défaut
   themeActuel = THEMES[c.theme] ? c.theme : D.theme_defaut;
   appliquerTheme(themeActuel);
 }
@@ -548,17 +569,16 @@ function majStatuts(statut, lettres, res) {
 /* ------------------------------------------------------------------ paramètres */
 function parametres() {
   const c = configSolo(), cf = lireConfig();
-  const cE = chips([4, 5, 6, 7, 8], c.nb_essais), cMin = chips([6, 7, 8, 9, 10], c.nb_lettres_min, v => { if (v > cMax.valeur) cMax.set(v); }),
-    cMax = chips([6, 7, 8, 9, 10], c.nb_lettres_max, v => { if (v < cMin.valeur) cMin.set(v); });
+  const cE = curseur(4, 8, c.nb_essais, 1, null), cL = plage(6, 10, [c.nb_lettres_min, c.nb_lettres_max]);
   const cDiff = caseACocher("Mode difficile (lettres trouvées obligatoires)", !!c.difficile), cDalt = caseACocher("Mode daltonien (orange et bleu)", !!cf.daltonien);
   const lab = t => h("div.gras", { style: { fontSize: "17px", margin: "0 0 10px" } }, t);
   ecran(entete("", menuSolo), h("div", { style: { padding: "0 6vw" } },
     h("div.titre", { style: { fontSize: "46px", margin: "0 0 6px" } }, "Paramètres"),
     h("div.t2", { style: { fontSize: "16px", marginBottom: "24px" } }, "Réglages des parties normales et du marathon (le mot du jour se joue toujours en 7 essais)."),
-    h("div.panneau", { style: { padding: "30px", maxWidth: "620px" } }, lab("Nombre d'essais"), cE, h("div", { style: { height: "22px" } }), lab("Longueur minimale des mots"), cMin, h("div", { style: { height: "22px" } }), lab("Longueur maximale des mots"), cMax,
+    h("div.panneau", { style: { padding: "30px", maxWidth: "620px" } }, lab("Nombre d'essais"), cE, h("div", { style: { height: "22px" } }), lab("Longueur des mots"), cL,
       h("div", { style: { height: "22px" } }), cDiff, h("div", { style: { height: "10px" } }), cDalt,
       h("div", { style: { height: "26px" } }), bouton("Enregistrer", () => {
-        majConfig({ nb_essais: cE.valeur, nb_lettres_min: cMin.valeur, nb_lettres_max: cMax.valeur, difficile: cDiff.valeur, daltonien: cDalt.valeur });
+        majConfig({ nb_essais: cE.valeur, nb_lettres_min: cL.vmin, nb_lettres_max: cL.vmax, difficile: cDiff.valeur, daltonien: cDalt.valeur });
         appliquerTheme(themeActuel); menuSolo(); }, { grand: true, largeur: 560 }))));
 }
 
@@ -586,6 +606,7 @@ function dessinerApercu(cv, p, x0, y0, taille, ecart) {
   }
 }
 function themes(choix) {
+  const yAvant = document.querySelector(".carte-theme") ? window.scrollY : 0;  // choisir un thème ne ramène pas en haut de page
   if (typeof choix !== "string" || !THEMES[choix]) choix = themeActuel;  // appelée aussi comme gestionnaire de clic
   const t = THEMES[choix], p = calculerPalette(t);
   const cv = h("canvas", { width: 294, height: 330, style: { borderRadius: "14px", margin: "14px 0 18px" } });
@@ -609,10 +630,12 @@ function themes(choix) {
     if (cat === "PERSO") g.append(h("button.carte-ajout", { onclick: () => nbPerso < 4 && createurTheme(), style: { cursor: nbPerso < 4 ? "pointer" : "default" } }, nbPerso < 4 ? "+ Créer mon thème" : "Limite de 4 thèmes perso"));
     liste.append(g);
   }
+  btn.style.width = "100%";
   ecran(entete("", accueil), h("div", { style: { padding: "0 4vw 30px" } },
     h("div.titre", { style: { fontSize: "46px", margin: "0 0 22px" } }, "Thèmes"),
-    h("div.ligne", { style: { alignItems: "flex-start", gap: "26px", flexWrap: "wrap" } },
-      h("div.panneau.centre", { style: { padding: "28px", width: "350px" } }, h("div.caps", {}, `Aperçu · ${nomTheme(choix)}`), cv, btn), liste)));
+    h("div.ligne.themes-corps", {},
+      h("div.panneau.centre.theme-apercu", {}, h("div.caps", {}, `Aperçu · ${nomTheme(choix)}`), cv, btn), liste)));
+  if (yAvant) window.scrollTo(0, yAvant);
 }
 function supprimerTheme(n) {
   delete THEMES[n]; if (themeActuel === n) changerTheme(D.theme_defaut);
@@ -771,16 +794,24 @@ function barreHaut(onRetour, droite = "") {
   const e = h("div.barre-haut", {}, icone("retour", onRetour, true, "Retour"), h("div.titre", { style: { fontSize: "24px" } }, "SMOUT"), d); e.droite = d; return e;
 }
 
-/* ---------- liste des salons */
+/* ---------- Multijoueur : créer ou rejoindre */
+const pseudoDefini = () => pseudo() && pseudo() !== "ANONYME";
+const pseudoOk = retour => { if (pseudoDefini()) return true; changerPseudo(retour); return false; };
+async function rejoindre(c, motDePasse, silencieux = false, score = null) {
+  const joueur = { name: pseudo(), score: score || 0, last_seen: SV }; const preuve = await preuveSalon(c, motDePasse);
+  if (preuve) joueur.preuve = preuve;
+  if (!(await FB.ok("PUT", `lobbies/${c}/players/${FB.uid}`, joueur))) { if (!silencieux) alert("Salon introuvable"); return false; }
+  const d = await FB.get(`lobbies/${c}`) || {};
+  if (Object.keys(d.players || {}).length > 4) { await FB.ok("DELETE", `lobbies/${c}/players/${FB.uid}`); alert("Ce salon est déjà complet (maximum 4 joueurs)."); return true; }
+  M.estHote = false; M.lobby = c; M.score = score || 0; M.reprise = score !== null; M.vuOk = Date.now();
+  Object.assign(M.reglages, { password: motDePasse, visible: (d.settings || {}).visible !== false });
+  M.demarrerBattement(); salon();
+  return true;
+}
 async function multiAccueil() {
   M.gen++;
-  const aPseudo = () => pseudo() && pseudo() !== "ANONYME";
   const puce = h("button.puce-pseudo", { onclick: () => changerPseudo(multiAccueil), title: "Changer de pseudo" },
-    aPseudo() ? avatar(pseudo(), 30, 0) : null, h("span", {}, aPseudo() ? capitaliser(pseudo()) : "Choisir un pseudo"), h("span.crayon", { html: svg("crayon", 16) }));
-  const code = h("input.champ.mono", { placeholder: "CODE", inputmode: "numeric", style: { flex: 1, minWidth: "0", height: "52px", fontSize: "22px" }, maxlength: 4 });
-  code.addEventListener("input", () => { code.value = code.value.replace(/\D/g, "").slice(0, 4); });
-  code.addEventListener("keydown", e => e.key === "Enter" && code.value && tenterRejoindre(code.value));
-  const liste = h("div", { style: { width: "min(748px, 94vw)" } });
+    pseudoDefini() ? avatar(pseudo(), 30, 0) : null, h("span", {}, pseudoDefini() ? capitaliser(pseudo()) : "Choisir un pseudo"), h("span.crayon", { html: svg("crayon", 16) }));
   const zoneReprise = h("div");
   function afficherReprise() {
     zoneReprise.innerHTML = ""; const pe = lireConfig().partie_en_cours;
@@ -793,16 +824,23 @@ async function multiAccueil() {
     if (!(await FB.jeton())) return alert("Connexion au serveur impossible.");
     if (!(await rejoindre(pe.code, pe.mdp || "", true, Number(pe.score) || 0))) { M.oublier(); afficherReprise(); alert("Cette partie est terminée ou le salon n'existe plus."); }
   }
-  async function partieRapide() {
-    if (!pseudoOk()) return;
-    if (!(await FB.jeton())) return alert("Connexion au serveur impossible.");
-    const idx = await FB.get("index") || {}, maintenant = FB.maintenant() * 1000;
-    const cands = Object.entries(idx).filter(([, v]) => v && v.visible && !v.prive && v.status === "waiting" && v.version === VERSION_JEU && (v.nb || 1) < 4 && maintenant - (v.maj || 0) < 30000)
-      .sort((a, b) => (b[1].nb || 1) - (a[1].nb || 1) || (b[1].maj || 0) - (a[1].maj || 0));
-    for (const [c] of cands) if (await rejoindre(c, "", true)) return;
-    creerSalon(true);
-  }
-  const pseudoOk = () => { if (aPseudo()) return true; changerPseudo(multiAccueil); return false; };
+  const tuileAction = (cls, t, st, f) => h("button.action." + cls, { onclick: f }, h("div.t", {}, t), h("div.s", {}, st));
+  ecran(h("div.entete", {}, icone("retour", accueil, false, "Retour"), h("div.milieu", { style: { color: "var(--texte)", fontWeight: 600, fontSize: "18px" } }, "Multijoueur"), puce),
+    h("div.centre", { style: { flex: 1, justifyContent: "center", paddingBottom: "60px" } }, h("div", { style: { width: "min(800px, 94vw)" } },
+      zoneReprise,
+      h("div.actions", {},
+        tuileAction("a-creer", "Créer un salon", "Choisis le mode et invite tes amis", () => pseudoOk(multiAccueil) && creerSalon()),
+        tuileAction("a-rejoindre", "Rejoindre un salon", "Avec un code ou depuis la liste", () => pseudoOk(multiAccueil) && rejoindreSalon())))));
+  afficherReprise();
+}
+
+/* ---------- rejoindre un salon : code ou liste des salons publics */
+async function rejoindreSalon() {
+  M.gen++;
+  const code = h("input.champ.mono", { placeholder: "CODE", inputmode: "numeric", style: { flex: 1, minWidth: "0", height: "52px", fontSize: "22px" }, maxlength: 4 });
+  code.addEventListener("input", () => { code.value = code.value.replace(/\D/g, "").slice(0, 4); });
+  code.addEventListener("keydown", e => e.key === "Enter" && code.value && tenterRejoindre(code.value));
+  const liste = h("div", { style: { width: "100%" } });
   // mot de passe
   const mdp = h("input.champ", { type: "password", style: { width: "400px", maxWidth: "80vw" } });
   const erreurMdp = h("div.gras", { style: { color: "var(--danger)", minHeight: "22px", marginTop: "8px", fontSize: "14px" } });
@@ -812,14 +850,10 @@ async function multiAccueil() {
   let vueMdp = null;
   mdp.addEventListener("keydown", e => e.key === "Enter" && verifierMdp());
   async function verifierMdp() { if (!(await rejoindre(codeCible, mdp.value.trim(), true))) erreurMdp.textContent = "Mot de passe incorrect"; }
-  const tuileAction = (cls, t, st, f) => h("button.action." + cls, { onclick: f }, h("div.t", {}, t), h("div.s", {}, st));
-  ecran(h("div.entete", {}, icone("retour", accueil, false, "Retour"), h("div.milieu", { style: { color: "var(--texte)", fontWeight: 600, fontSize: "18px" } }, "Multijoueur"), puce),
-    h("div.centre", {}, h("div", { style: { width: "min(748px, 94vw)", paddingTop: "18px" } },
-      zoneReprise,
-      h("div.actions", {},
-        tuileAction("a-rapide", "Partie rapide", "Joue tout de suite avec d'autres joueurs", partieRapide),
-        tuileAction("a-creer", "Créer un salon", "Choisis le mode et invite tes amis", () => pseudoOk() && creerSalon())),
-      h("div.ligne.rejoindre", {}, h("span.gras", {}, "Rejoindre avec un code"), code,
+  ecran(h("div.entete", {}, icone("retour", multiAccueil, false, "Retour")),
+    h("div.centre", {}, h("div", { style: { width: "min(748px, 94vw)" } },
+      h("div.titre", { style: { fontSize: "min(46px, 10vw)", margin: "6px 0 20px" } }, "Rejoindre un salon"),
+      h("div.ligne.rejoindre", { style: { marginTop: "0" } }, h("span.gras", {}, "Code du salon"), code,
         bouton("Rejoindre", () => code.value && tenterRejoindre(code.value), { variante: "tuile-b", largeur: 130, hauteur: 52 })),
       h("div.ligne", { style: { margin: "30px 0 10px" } }, h("div.caps", {}, "Salons publics"), h("div", { style: { marginLeft: "auto" } }, icone("rafraichir", charger, false, "Actualiser"))),
       liste)));
@@ -835,14 +869,13 @@ async function multiAccueil() {
       const age = FB.maintenant() * 1000 - (v.maj || 0);
       if (age > DELAI_ABANDON_MS + 10000) { M.supprimerSalon(c); continue; }  // salon abandonné : n'importe quel joueur le supprime
       if (v.visible && v.status === "waiting" && v.version === VERSION_JEU && age < 30000) {
-        liste.append(h("button.carte-salon", { onclick: () => tenterRejoindre(c) }, h("div", {}, h("div.t", {}, `Salon de ${capitaliser(v.hote || "ANONYME")}`), h("div.s", {}, `Code ${c}` + (v.prive ? "  ·  protégé par mot de passe" : ""))), h("div.d", {}, `${v.nb || 1}/4`)));
+        liste.append(h("button.carte-salon", { onclick: () => tenterRejoindre(c) }, h("div", {}, h("div.t", {}, `Salon de ${capitaliser(v.hote || "ANONYME")}`), h("div.s", {}, `Code ${c}` + (v.prive ? "  ·  mot de passe" : ""))), h("div.d", {}, `${v.nb || 1}/4`)));
         n++;
       }
     }
     if (!n) liste.append(h("div.t2", { style: { padding: "10px 0", fontSize: "16px" } }, "Aucun salon public pour le moment. Crée le tien !"));
   }
   async function tenterRejoindre(c) {
-    if (!pseudoOk()) return;
     if (!(await FB.jeton())) return alert("Connexion au serveur impossible.");
     const idx = await FB.get(`index/${c}`);
     if (!idx || FB.maintenant() * 1000 - (idx.maj || 0) > 30000) return alert("Salon introuvable");
@@ -851,35 +884,22 @@ async function multiAccueil() {
     codeCible = c;
     if (idx.prive) { mdp.value = ""; erreurMdp.textContent = ""; vueMdp.montrer(); mdp.focus(); } else rejoindre(c, "");
   }
-  async function rejoindre(c, motDePasse, silencieux = false, score = null) {
-    const joueur = { name: pseudo(), score: score || 0, last_seen: SV }; const preuve = await preuveSalon(c, motDePasse);
-    if (preuve) joueur.preuve = preuve;
-    if (!(await FB.ok("PUT", `lobbies/${c}/players/${FB.uid}`, joueur))) { if (!silencieux) alert("Salon introuvable"); return false; }
-    const d = await FB.get(`lobbies/${c}`) || {};
-    if (Object.keys(d.players || {}).length > 4) { await FB.ok("DELETE", `lobbies/${c}/players/${FB.uid}`); alert("Ce salon est déjà complet (maximum 4 joueurs)."); return true; }
-    M.estHote = false; M.lobby = c; M.score = score || 0; M.reprise = score !== null; M.vuOk = Date.now();
-    Object.assign(M.reglages, { password: motDePasse, visible: (d.settings || {}).visible !== false });
-    M.demarrerBattement(); salon();
-    return true;
-  }
-  afficherReprise(); FB.jeton().then(charger);
+  FB.jeton().then(charger);
 }
 
 /* ---------- création */
-function creerSalon(direct = false) {
+function creerSalon() {
   let pub = true;
-  const cPub = choix("Public", "Visible dans la liste des salons", () => setVis(true), 306), cPri = choix("Privé", "Seulement avec le code", () => setVis(false), 306);
+  const cPub = choix("Public", "Visible dans la liste des salons", () => setVis(true), 306, "var(--succes)"), cPri = choix("Privé", "Seulement avec le code", () => setVis(false), 306, "var(--mal)", "cadenas");
   const setVis = v => { pub = v; cPub.sel(v); cPri.sel(!v); };
   const champ = h("input.champ.cache", { placeholder: "Mot de passe", style: { width: "100%", marginTop: "10px" } });
-  const note = h("div.t2.cache", { style: { fontSize: "13px", marginTop: "8px" } }, "Le mot de passe n'est jamais enregistré : il faut le transmettre aux autres joueurs.");
-  const caseMdp = caseACocher("Protéger par un mot de passe", false, v => { champ.classList.toggle("cache", !v); note.classList.toggle("cache", !v); if (v) champ.focus(); else champ.value = ""; });
+  const caseMdp = caseACocher("Mot de passe", false, v => { champ.classList.toggle("cache", !v); if (v) champ.focus(); else champ.value = ""; });
   ecran(h("div.entete", {}, icone("retour", multiAccueil, false, "Retour")), h("div.centre", {}, h("div", { style: { width: "min(700px, 94vw)" } },
-    h("div.titre", { style: { fontSize: "46px", margin: "14px 0 24px" } }, "Créer un salon"),
+    h("div.titre", { style: { fontSize: "min(46px, 10vw)", margin: "14px 0 24px" } }, "Créer un salon"),
     h("div.panneau", { style: { padding: "30px" } }, h("div.gras", { style: { fontSize: "18px", marginBottom: "12px" } }, "Visibilité"),
-      h("div.ligne", { style: { gap: "12px", flexWrap: "wrap" } }, cPub, cPri), h("div", { style: { height: "26px" } }), caseMdp, champ, note,
+      h("div.ligne", { style: { gap: "12px", flexWrap: "wrap" } }, cPub, cPri), h("div", { style: { height: "26px" } }), caseMdp, champ,
       h("div", { style: { marginTop: "24px" } }, bouton("Créer le salon", valider, { grand: true, largeur: 632 }))))));
   setVis(true);
-  if (direct) valider();  // partie rapide : salon public sans mot de passe
   async function valider() {
     Object.assign(M.reglages, { password: caseMdp.valeur ? champ.value.trim() : "", visible: pub, game_mode: "CLASSIQUE", rounds: 3, essais: 8, min: 6, max: 7, timer: 180 });
     if (!(await FB.jeton())) return alert("Connexion au serveur impossible.");
@@ -904,29 +924,27 @@ function creerSalon(direct = false) {
 function salon() {
   const gen = ++M.gen; let modeActif = M.reglages.game_mode || "CLASSIQUE";
   const barre = barreHaut(() => { M.quitter(); multiAccueil(); });
-  const titre = h("div.titre", { style: { fontSize: "42px" } }, "Salon"), statut = h("div.t2", { style: { fontSize: "17px", marginTop: "4px" } });
+  const titre = h("div.titre", { style: { fontSize: "34px" } }, "Salon"), statut = h("div.t2", { style: { fontSize: "15px", marginTop: "2px" } });
   const lblCode = h("div.caps", {}, "Code du salon");
   const boite = h("div.code-boite", {}, h("div", {}, lblCode, h("div.chiffres", { style: { fontSize: "40px", color: "var(--mal)" } }, M.lobby)),
     icone("copier", () => { navigator.clipboard?.writeText(M.lobby); lblCode.textContent = "Code copié ✓"; setTimeout(() => lblCode.textContent = "Code du salon", 1500); }, true, "Copier le code"));
   const slots = [0, 1, 2, 3].map(() => h("div.joueur"));
   const cartes = {};
-  const gm = h("div.grille-modes", {}, MODES.map(([m, n, d]) => { const c = cartes[m] = choix(n, d, () => setMode(m)); c.classList.add("mode"); c.style.setProperty("--mc", COULEURS_MODES[m]); return c; }));
+  const gm = h("div.grille-modes", {}, MODES.map(([m, n]) => { const c = cartes[m] = choix(n, "", () => setMode(m)); c.classList.add("mode"); c.style.setProperty("--mc", COULEURS_MODES[m]); return c; }));
   // bandeau du mode choisi : nom, règle, résumé des réglages (lisible aussi par les joueurs qui ne sont pas l'hôte)
   const bNom = h("div.n"), bRegle = h("div.r"), bResume = h("div.resume");
   const bandeau = h("div.bandeau-mode", {}, h("div.caps", {}, "Mode de jeu"), bNom, bRegle, bResume);
   const R0 = M.reglages;  // réglages en cours (conservés après « Rejouer dans ce salon »)
-  const cMin = chips([6, 7, 8, 9, 10], R0.min ?? 6, v => { if (v > cMax.valeur) cMax.set(v); sync(); }), cMax = chips([6, 7, 8, 9, 10], R0.max ?? 7, v => { if (v < cMin.valeur) cMin.set(v); sync(); });
-  const cRounds = chips([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], R0.rounds ?? 3, sync), sEssais = stepper(4, 10, R0.essais ?? 8, 1, sync), sTemps = stepper(15, 600, R0.timer ?? 180, 15, sync, mmss);
+  const cRounds = curseur(1, 10, R0.rounds ?? 3, 1, sync), sEssais = curseur(4, 10, R0.essais ?? 8, 1, sync), sTemps = curseur(15, 600, R0.timer ?? 180, 15, sync, mmss);
+  const cLettres = plage(6, 10, [R0.min ?? 6, R0.max ?? 7], sync);
   const lancer = bouton("Lancer la partie", lancerPartie, { grand: true, largeur: 9999 }); lancer.style.width = "100%"; lancer.disabled = true;
-  const lab = t => h("div.t2.gras", { style: { fontSize: "14px", margin: "18px 0 8px", textTransform: "uppercase", letterSpacing: ".06em" } }, t);
   const reglage = (t, w) => h("div.reglage", {}, h("div.t2.gras", {}, t), w);
-  const zoneHote = h("div", {}, lab("Choisir le mode"), gm, lab("Réglages"),
-    h("div.reglages", {}, reglage("Lettres", h("div.ligne", { style: { gap: "6px", flexWrap: "wrap" } }, cMin, h("span.t2", {}, "à"), cMax)), reglage("Manches", cRounds),
-      h("div.ligne", { style: { gap: "28px", flexWrap: "wrap" } }, reglage("Essais", sEssais), reglage("Temps par manche", sTemps))));
+  const regle = h("div.regle"), rTemps = h("div.t2.gras"), rManches = reglage("Manches", cRounds);
+  const zoneHote = h("div", {}, gm, regle, h("div.reglages", {}, rManches, h("div.reglage", {}, rTemps, sTemps), reglage("Essais", sEssais), reglage("Lettres", cLettres)));
   const noteInvite = h("div.t2", { style: { fontSize: "14px", marginTop: "14px" } }, "L'hôte choisit le mode et les réglages.");
-  const panneauPartie = h("div.panneau.salon-partie", { style: { flex: 1, minWidth: "min(300px, 100%)", padding: "22px" } }, bandeau, zoneHote, noteInvite, h("div", { style: { marginTop: "22px" } }, lancer));
+  const panneauPartie = h("div.panneau.salon-partie", { style: { flex: 1, minWidth: "min(300px, 100%)", padding: "22px" } }, bandeau, zoneHote, noteInvite, h("div", { style: { marginTop: "20px" } }, lancer));
   ecran(barre, h("div", { style: { padding: "18px 4vw 30px" } },
-    h("div.ligne", { style: { flexWrap: "wrap", gap: "16px", alignItems: "flex-start" } }, h("div", {}, titre, statut), h("div", { style: { marginLeft: "auto" } }, boite)),
+    h("div.ligne.salon-tete", {}, h("div", { style: { minWidth: "0" } }, titre, statut), h("div", { style: { marginLeft: "auto" } }, boite)),
     h("div.ligne", { style: { marginTop: "20px", gap: "20px", alignItems: "flex-start", flexWrap: "wrap" } },
       h("div.panneau", { style: { width: "320px", maxWidth: "100%" } }, h("div.gras", { style: { fontSize: "18px", marginBottom: "4px" } }, "Joueurs"), slots),
       panneauPartie)));
@@ -935,14 +953,15 @@ function salon() {
     for (const [m, c] of Object.entries(cartes)) c.sel(m === modeActif);
     const coul = COULEURS_MODES[modeActif] || COULEURS_MODES.CLASSIQUE;
     panneauPartie.style.setProperty("--mc", coul);
-    bNom.textContent = NOM_MODE[modeActif] || modeActif; bRegle.textContent = REGLES_MODES[modeActif] || "";
+    bNom.textContent = NOM_MODE[modeActif] || modeActif; bRegle.textContent = regle.textContent = REGLES_MODES[modeActif] || "";
     const v = valeurs(), rush = RUSHS.includes(modeActif);
+    rManches.classList.toggle("cache", rush); rTemps.textContent = rush ? "Temps de jeu" : "Temps par manche";
     bResume.innerHTML = "";
     bResume.append(...[rush ? `${mmss(v.timer)} de jeu` : `${v.rounds} manche${v.rounds > 1 ? "s" : ""}${modeActif === "ELIMINATION" ? " max" : ""}`, rush ? null : `${mmss(v.timer)} par manche`,
       rush ? null : `${v.essais} essais`, v.min === v.max ? `${v.min} lettres` : `${v.min} à ${v.max} lettres`].filter(Boolean).map(x => h("span", {}, x)));
     if (M.estHote) lancer.textContent = M.nbJoueurs > 1 ? `Lancer · ${NOM_MODE[modeActif]}` : "Il faut au moins 2 joueurs";
   }
-  function valeurs() { return { rounds: cRounds.valeur, essais: sEssais.valeur, min: cMin.valeur, max: cMax.valeur, timer: sTemps.valeur }; }
+  function valeurs() { return { rounds: cRounds.valeur, essais: sEssais.valeur, min: cLettres.vmin, max: cLettres.vmax, timer: sTemps.valeur }; }
   function sync() {
     if (!M.estHote || gen !== M.gen) return;
     FB.patch(`lobbies/${M.lobby}/settings`, Object.assign({ game_mode: modeActif, host_id: FB.uid, visible: M.reglages.visible, version: VERSION_JEU }, valeurs()));
@@ -950,11 +969,11 @@ function salon() {
   function setMode(m) {
     if (!M.estHote || modeActif === m) return;
     modeActif = m; M.reglages.game_mode = m;
-    sEssais.set(8); cMin.set(6); cMax.set(7);
+    sEssais.set(8); cLettres.set(6, 7);
     const [t, r] = { MYSTERE: [180, 3], RUSH: [120, 1], BLAST: [60, 3], PRECISION: [180, 3], CLASSIQUE: [180, 3], ELIMINATION: [90, 10], CHAINE: [150, 1], COOP: [180, 3] }[m];
     sTemps.set(t); cRounds.set(r); majModes(); sync();
   }
-  [cMin, cMax, cRounds, sEssais, sTemps].forEach(w => { const s0 = w.set; w.set = v => { s0(v); majModes(); }; });  // le bandeau suit les réglages
+  [cLettres, cRounds, sEssais, sTemps].forEach(w => { const s0 = w.set; w.set = (...a) => { s0(...a); majModes(); }; });  // le bandeau suit les réglages
   function dessinerJoueur(slot, i, nom, hote, deco, moi) {
     slot.className = "joueur" + (nom ? " plein" : ""); slot.innerHTML = ""; slot.style.setProperty("--jc", COULEURS_AVATAR[i % 6]);
     if (!nom) { slot.append(h("div.avatar", { style: { width: "36px", height: "36px", background: "var(--vide)" } }), h("span.n", { style: { color: "var(--texte-absent)" } }, "Place libre")); return; }
@@ -978,7 +997,7 @@ function salon() {
         barre.droite.textContent = M.estHote ? "Vous êtes l'hôte" : "L'hôte règle la partie";
         if (!M.estHote) {  // l'hôte garde ses propres réglages (la base peut avoir un temps de retard)
           modeActif = s.game_mode || "CLASSIQUE"; M.reglages.game_mode = modeActif;
-          cRounds.set(s.rounds ?? 3); sEssais.set(s.essais ?? 8); cMin.set(s.min ?? 6); cMax.set(s.max ?? 7); sTemps.set(s.timer ?? 180);
+          cRounds.set(s.rounds ?? 3); sEssais.set(s.essais ?? 8); cLettres.set(s.min ?? 6, s.max ?? 7); sTemps.set(s.timer ?? 180);
         }
         majModes();
         if (d.status === "playing") { Object.assign(M.reglages, s); M.reglages.round_num = s.current_round || 1; partie(); return; }
@@ -986,8 +1005,8 @@ function salon() {
         slots.forEach((sl, i) => { const pid = pids[i]; if (pid) dessinerJoueur(sl, i, p[pid].name, pid === hid, serverNow > 0 && (serverNow - (p[pid].last_seen || 0)) / 1000 > 12, pid === FB.uid); else dessinerJoueur(sl, i); });
         const n = pids.length;
         statut.textContent = `En attente des joueurs · ${n} sur 4` + (M.reglages.visible ? "" : "  ·  salon privé");
-        [cRounds, sEssais, cMin, cMax, sTemps].forEach(w => w.activer(M.estHote)); Object.values(cartes).forEach(c => c.disabled = !M.estHote);
-        zoneHote.classList.toggle("cache", !M.estHote); noteInvite.classList.toggle("cache", M.estHote);
+        [cRounds, sEssais, cLettres, sTemps].forEach(w => w.activer(M.estHote)); Object.values(cartes).forEach(c => c.disabled = !M.estHote);
+        zoneHote.classList.toggle("cache", !M.estHote); noteInvite.classList.toggle("cache", M.estHote); bandeau.classList.toggle("cache", M.estHote);
         if (M.estHote) { lancer.className = "btn grand lancer"; lancer.disabled = n < 2; majModes(); }
         else { lancer.className = "btn grand discret"; lancer.textContent = "En attente du lancement par l'hôte…"; lancer.disabled = true; }
       }

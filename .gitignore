@@ -14,3 +14,4 @@ _site/
 
 # Banc de test
 tests/web/node_modules
+tests/web/package-lock.json

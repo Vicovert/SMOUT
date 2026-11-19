@@ -65,6 +65,10 @@ const res = []; const ok = (nom, c, info = "") => { res.push(!!c); console.log((
   await p.evaluate(() => [...document.querySelectorAll(".carte-theme")].find(x => x.textContent.includes("Ocean")).click()); await sleep(200);
   await p.evaluate(() => [...document.querySelectorAll("button")].find(x => x.textContent === "Appliquer ce thème").click()); await sleep(200);
   ok("téléphone : thème appliqué et mémorisé", await p.evaluate(() => themeActuel === "OCEAN" || lireConfig().theme === "OCEAN" || /ocean/i.test(lireConfig().theme)), await p.evaluate(() => lireConfig().theme));
+  await p.evaluate(() => themes()); await sleep(300); await p.evaluate(() => window.scrollTo(0, 900)); await sleep(200);
+  ok("téléphone : l'aperçu des thèmes suit le défilement", await p.evaluate(() => Math.round(document.querySelector(".theme-apercu").getBoundingClientRect().top) <= 2));
+  await p.evaluate(() => [...document.querySelectorAll(".carte-theme")].find(x => x.textContent.includes("Sakura")).click()); await sleep(300);
+  ok("téléphone : choisir un thème ne ramène pas en haut", await p.evaluate(() => window.scrollY > 800 && /sakura/i.test(document.querySelector(".theme-apercu").innerText)));
   await p.evaluate(() => accueil()); await sleep(100);
   await p.tap(".avatar"); await sleep(200); ok("téléphone : l'avatar ouvre le pseudo", (await texte(p)).includes("Ton pseudo"));
   // téléphone : nouveaux écrans

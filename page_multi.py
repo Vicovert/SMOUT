@@ -52,7 +52,7 @@ class AuthFirebase:
 
 # ===================================================================== thème
 import design
-from design import (P, police, etiquette, espacer, Tuile, Bouton, Panneau, Icone, Avatar, Clavier, Stat, Chips, CarteChoix,
+from design import (Curseur, P, police, etiquette, espacer, Tuile, Bouton, Panneau, Icone, Avatar, Clavier, Stat, Chips, CarteChoix,
                     Champ, TuileAction, Interrupteur, Superposition, Stepper, CarteSalon, Defilant, arrondi, melanger, fenetre_aide)
 
 BG = ACCENT1 = ACCENT2 = MUTED = KEY_BG = TXT1 = None
@@ -151,7 +151,7 @@ class PageMulti(tk.Frame):
         self.container = tk.Frame(self, bg=P["fond"])
         self.container.pack(side="left", fill="both", expand=True)
         self.container.grid_rowconfigure(0, weight=1); self.container.grid_columnconfigure(0, weight=1)
-        self.frames = {F.__name__: F(parent=self.container, controller=self) for F in (PageAccueil, PageHostSetup, PageLobby, PageJeu, PageScoreFinal)}
+        self.frames = {F.__name__: F(parent=self.container, controller=self) for F in (PageAccueil, PageRejoindre, PageHostSetup, PageLobby, PageJeu, PageScoreFinal)}
         for f in self.frames.values(): f.grid(row=0, column=0, sticky="nsew")
         self.vu_ok, self.salon_perdu = 0, False
         self.reponses_reseau = queue.Queue(); self.pomper_reponses()
@@ -293,7 +293,8 @@ class PageMulti(tk.Frame):
         for f in self.frames.values(): (setattr(f, "active_sync", False) if hasattr(f, "active_sync") else None)
         f = self.frames[name]; f.tkraise()
         f.focus_set()
-        if name == "PageAccueil": f.charger_liste()
+        if name == "PageAccueil": f.afficher_reprise()
+        elif name == "PageRejoindre": f.charger_liste()
         elif name == "PageLobby": f.entrer_lobby()
         elif name == "PageJeu": f.initialiser_partie()
         elif name == "PageScoreFinal": f.afficher_vainqueur()
@@ -333,7 +334,7 @@ def barre_haut(parent, on_retour, droite_texte=""):
 
 
 class PageAccueil(tk.Frame):
-    """Multijoueur : pseudo, créer un salon, rejoindre par code, salons publics."""
+    """Multijoueur : pseudo, puis « Créer un salon » ou « Rejoindre un salon »."""
     def __init__(self, parent, controller):
         super().__init__(parent, bg=P["fond"]); self.controller = controller
         h = tk.Frame(self, bg=P["fond"]); h.pack(fill="x", padx=28, pady=(18, 0))
@@ -345,37 +346,11 @@ class PageAccueil(tk.Frame):
         self.champ_pseudo.set(self.controller.pseudo if self.controller.pseudo != "ANONYME" else "")
         self.champ_pseudo.var.trace_add("write", self.format_p); self.champ_pseudo.pack(side="left")
         self.sv_pseudo = self.champ_pseudo.var
-        c = tk.Frame(self, bg=P["fond"]); c.pack(pady=(18, 10))
-        self.zone_reprise = tk.Frame(c, bg=P["fond"]); self.zone_reprise.pack(anchor="w", fill="x")
-        actions = tk.Frame(c, bg=P["fond"]); actions.pack(anchor="w")
-        TuileAction(actions, "Partie rapide", "Joue tout de suite avec d'autres joueurs", self.partie_rapide, P["bien"], P["sur_bien"], largeur=367).pack(side="left", padx=(0, 14))
-        TuileAction(actions, "Créer un salon", "Choisis le mode et invite tes amis", self.creer, P["mal"], P["sur_mal"], largeur=367).pack(side="left")
-        rj = Panneau(c, padding=12, largeur=748); rj.pack(anchor="w", pady=(14, 0)); ri = rj.interieur
-        etiquette(ri, "Rejoindre avec un code", "texte", 16, gras=True).pack(side="left", padx=(6, 14))
-        self.champ_code = Champ(ri, largeur=300, hauteur=50, texte_aide="CODE", mono=True, taille=22)
-        self.champ_code.pack(side="left", padx=(0, 12)); self.champ_code.bind_entree(self.valider)
-        self.champ_code.var.trace_add("write", lambda *a: self._filtrer_code())
-        self.e = self.champ_code.e
-        Bouton(ri, "Rejoindre", self.valider, largeur=150, hauteur=50, variante="tuile", taille=16).pack(side="left")
-        tete = tk.Frame(c, bg=P["fond"]); tete.pack(fill="x", pady=(28, 10))
-        etiquette(tete, espacer("Salons publics"), "texte", 14, P["texte2"], True).pack(side="left")
-        Icone(tete, "rafraichir", self.charger_liste, 34).pack(side="right")
-        self.liste = Defilant(c, largeur=748, hauteur=380); self.liste.pack(fill="x")
-        self.lf = self.liste.interieur
-        # mot de passe
-        self.pass_view = Superposition(self, largeur=460); i = self.pass_view.interieur
-        etiquette(i, "Salon protégé", "titre", 28).pack(anchor="w")
-        etiquette(i, "Entre le mot de passe donné par l'hôte.", "texte", 15, P["texte2"]).pack(anchor="w", pady=(4, 14))
-        self.champ_pw = Champ(i, largeur=400, hauteur=52, masque=True); self.champ_pw.pack(anchor="w")
-        self.e_pw = self.champ_pw.e; self.champ_pw.bind_entree(self.check_pw)
-        self.lbl_pw = etiquette(i, "", "texte", 14, P["danger"], True); self.lbl_pw.pack(anchor="w", pady=(8, 0))
-        bf = tk.Frame(i, bg=i["bg"]); bf.pack(anchor="e", pady=(12, 0))
-        Bouton(bf, "Annuler", self.pass_view.cacher, largeur=130, variante="discret").pack(side="left", padx=10)
-        Bouton(bf, "Rejoindre", self.check_pw, largeur=150).pack(side="left")
-
-    def _filtrer_code(self):
-        v = "".join(ch for ch in self.champ_code.get() if ch.isdigit())[:4]
-        if v != self.champ_code.get(): self.champ_code.set(v)
+        c = tk.Frame(self, bg=P["fond"]); c.place(relx=0.5, rely=0.46, anchor="center")
+        self.zone_reprise = tk.Frame(c, bg=P["fond"]); self.zone_reprise.pack(fill="x")
+        actions = tk.Frame(c, bg=P["fond"]); actions.pack()
+        TuileAction(actions, "Créer un salon", "Choisis le mode et invite tes amis", self.creer, P["mal"], P["sur_mal"], largeur=390, hauteur=170).pack(side="left", padx=(0, 16))
+        TuileAction(actions, "Rejoindre un salon", "Avec un code ou depuis la liste", self.rejoindre_page, P["bien"], P["sur_bien"], largeur=390, hauteur=170).pack(side="left")
 
     def format_p(self, *args):
         v = "".join([c.upper() for c in self.sv_pseudo.get() if c.isalnum()])[:15]
@@ -393,11 +368,14 @@ class PageAccueil(tk.Frame):
     def creer(self):
         if self.pseudo_ok() and self.connecte(): self.controller.show_frame("PageHostSetup")
 
+    def rejoindre_page(self):
+        if self.pseudo_ok(): self.controller.show_frame("PageRejoindre")
+
     def afficher_reprise(self):
         for w in self.zone_reprise.winfo_children(): w.destroy()
         pe = design.lire_config().get("partie_en_cours")
         if not pe or time.time() - pe.get("t", 0) > 900: return
-        p = Panneau(self.zone_reprise, padding=14, largeur=748, contour=P["mal"]); p.pack(anchor="w", pady=(0, 16))
+        p = Panneau(self.zone_reprise, padding=14, largeur=796, contour=P["mal"]); p.pack(pady=(0, 18))
         i = p.interieur
         etiquette(i, f"Partie interrompue · salon {pe['code']}", "texte", 16, gras=True).pack(side="left", padx=(4, 0))
         Bouton(i, "Ignorer", lambda: (self.controller.oublier_partie(), self.afficher_reprise()), largeur=110, hauteur=44, variante="discret").pack(side="right")
@@ -405,24 +383,49 @@ class PageAccueil(tk.Frame):
 
     def reprendre(self, pe):
         if not self.connecte(): return
-        if not self.rejoindre(pe["code"], pe.get("mdp", ""), silencieux=True, score=int(pe.get("score", 0) or 0)):
+        if not self.controller.frames["PageRejoindre"].rejoindre(pe["code"], pe.get("mdp", ""), silencieux=True, score=int(pe.get("score", 0) or 0)):
             self.controller.oublier_partie(); self.afficher_reprise()
             tkm.showwarning("SMOUT", "Cette partie est terminée ou le salon n'existe plus.")
 
-    def partie_rapide(self):
-        """Rejoint le salon public (sans mot de passe) le plus rempli, sinon en crée un."""
-        if not (self.pseudo_ok() and self.connecte()): return
-        idx = self.controller.fb_get("index") or {}
-        maintenant = self.maintenant_ms()
-        candidats = sorted(((v.get("nb", 1), v.get("maj", 0), c) for c, v in idx.items() if isinstance(v, dict) and v.get("visible") and not v.get("prive")
-                            and v.get("status") == "waiting" and v.get("version") == VERSION_JEU and v.get("nb", 1) < 4 and maintenant - (v.get("maj") or 0) < 30000), reverse=True)
-        for _, _, code in candidats:
-            if self.rejoindre(code, "", silencieux=True): return
-        self.controller.settings_config.update({"password": "", "visible": True})
-        self.controller.is_host, self.controller.lobby_code = True, ""; self.controller.show_frame("PageLobby")
+
+class PageRejoindre(tk.Frame):
+    """Rejoindre un salon : code à 4 chiffres ou liste des salons publics."""
+    def __init__(self, parent, controller):
+        super().__init__(parent, bg=P["fond"]); self.controller = controller
+        h = tk.Frame(self, bg=P["fond"]); h.pack(fill="x", padx=28, pady=(18, 0))
+        Icone(h, "retour", lambda: controller.show_frame("PageAccueil")).pack(side="left")
+        c = tk.Frame(self, bg=P["fond"]); c.pack(pady=(6, 0))
+        etiquette(c, "Rejoindre un salon", "titre", 46).pack(anchor="w", pady=(8, 20))
+        rj = Panneau(c, padding=14, largeur=748); rj.pack(anchor="w"); ri = rj.interieur
+        etiquette(ri, "Code du salon", "texte", 16, gras=True).pack(side="left", padx=(6, 14))
+        self.champ_code = Champ(ri, largeur=300, hauteur=50, texte_aide="CODE", mono=True, taille=22)
+        self.champ_code.pack(side="left", padx=(0, 12)); self.champ_code.bind_entree(self.valider)
+        self.champ_code.var.trace_add("write", lambda *a: self._filtrer_code())
+        self.e = self.champ_code.e
+        Bouton(ri, "Rejoindre", self.valider, largeur=150, hauteur=50, variante="tuile", taille=16).pack(side="left")
+        tete = tk.Frame(c, bg=P["fond"]); tete.pack(fill="x", pady=(28, 10))
+        etiquette(tete, espacer("Salons publics"), "texte", 14, P["texte2"], True).pack(side="left")
+        Icone(tete, "rafraichir", self.charger_liste, 34).pack(side="right")
+        self.liste = Defilant(c, largeur=748, hauteur=400); self.liste.pack(fill="x")
+        self.lf = self.liste.interieur
+        # mot de passe
+        self.pass_view = Superposition(self, largeur=460); i = self.pass_view.interieur
+        etiquette(i, "Salon protégé", "titre", 28).pack(anchor="w")
+        etiquette(i, "Entre le mot de passe donné par l'hôte.", "texte", 15, P["texte2"]).pack(anchor="w", pady=(4, 14))
+        self.champ_pw = Champ(i, largeur=400, hauteur=52, masque=True); self.champ_pw.pack(anchor="w")
+        self.e_pw = self.champ_pw.e; self.champ_pw.bind_entree(self.check_pw)
+        self.lbl_pw = etiquette(i, "", "texte", 14, P["danger"], True); self.lbl_pw.pack(anchor="w", pady=(8, 0))
+        bf = tk.Frame(i, bg=i["bg"]); bf.pack(anchor="e", pady=(12, 0))
+        Bouton(bf, "Annuler", self.pass_view.cacher, largeur=130, variante="discret").pack(side="left", padx=10)
+        Bouton(bf, "Rejoindre", self.check_pw, largeur=150).pack(side="left")
+
+    def _filtrer_code(self):
+        v = "".join(ch for ch in self.champ_code.get() if ch.isdigit())[:4]
+        if v != self.champ_code.get(): self.champ_code.set(v)
+
+    def pseudo_ok(self): return self.controller.frames["PageAccueil"].pseudo_ok()
 
     def charger_liste(self):
-        self.afficher_reprise()
         self.champ_code.set("")
         for w in self.lf.winfo_children(): w.destroy()
         etiquette(self.lf, "Chargement…", "texte", 15, P["texte2"]).pack(anchor="w", pady=10)
@@ -448,7 +451,7 @@ class PageAccueil(tk.Frame):
                 threading.Thread(target=self.controller.supprimer_salon, args=(code,), daemon=True).start(); continue
             if val.get("visible") and val.get("status") == "waiting" and val.get("version") == VERSION_JEU and age < 30000:
                 titre = f"Salon de {val.get('hote', 'ANONYME').capitalize()}"
-                sous = f"Code {code}" + ("  ·  protégé par mot de passe" if val.get("prive") else "")
+                sous = f"Code {code}" + ("  ·  mot de passe" if val.get("prive") else "")
                 CarteSalon(self.lf, titre, sous, f"{val.get('nb', 1)}/4", lambda c=code: self.tenter_join(c)).pack(pady=(0, 12), anchor="w")
                 n += 1
         if not n:
@@ -512,20 +515,19 @@ class PageHostSetup(tk.Frame):
         i = p.interieur
         etiquette(i, "Visibilité", "texte", 18, gras=True).pack(anchor="w", pady=(0, 12))
         v = tk.Frame(i, bg=i["bg"]); v.pack(anchor="w")
-        self.c_pub = CarteChoix(v, "Public", "Visible dans la liste des salons", lambda: self.set_vis(True), largeur=306, hauteur=74); self.c_pub.pack(side="left")
-        self.c_pri = CarteChoix(v, "Privé", "Seulement avec le code", lambda: self.set_vis(False), largeur=306, hauteur=74); self.c_pri.pack(side="left", padx=12)
-        self.inter = Interrupteur(i, "Protéger par un mot de passe", False, self._mdp, largeur=600); self.inter.pack(anchor="w", pady=(26, 10))
+        self.c_pub = CarteChoix(v, "Public", "Visible dans la liste des salons", lambda: self.set_vis(True), largeur=306, hauteur=74, couleur=P["succes"]); self.c_pub.pack(side="left")
+        self.c_pri = CarteChoix(v, "Privé", "Seulement avec le code", lambda: self.set_vis(False), largeur=306, hauteur=74, couleur=P["mal"], icone="cadenas"); self.c_pri.pack(side="left", padx=12)
+        self.inter = Interrupteur(i, "Mot de passe", False, self._mdp, largeur=600); self.inter.pack(anchor="w", pady=(26, 10))
         self.champ_mdp = Champ(i, largeur=632, hauteur=52, texte_aide="Mot de passe")
         self.e_pass = self.champ_mdp.e
-        self.note = etiquette(i, "Le mot de passe n'est jamais enregistré : il faut le transmettre aux autres joueurs.", "texte", 13, P["texte2"])
         self.btn = Bouton(i, "Créer le salon", self.valider, largeur=632, hauteur=56, taille=17); self.btn.pack(pady=(24, 0))
         self.set_vis(True)
 
     def _mdp(self, actif):
         if actif:
-            self.champ_mdp.pack(anchor="w", before=self.btn); self.note.pack(anchor="w", pady=(8, 0), before=self.btn); self.champ_mdp.focus()
+            self.champ_mdp.pack(anchor="w", before=self.btn); self.champ_mdp.focus()
         else:
-            self.champ_mdp.set(""); self.champ_mdp.pack_forget(); self.note.pack_forget()
+            self.champ_mdp.set(""); self.champ_mdp.pack_forget()
 
     def set_vis(self, v):
         self.is_pub = v; self.c_pub.set_selection(v); self.c_pri.set_selection(not v)
@@ -537,72 +539,59 @@ class PageHostSetup(tk.Frame):
 
 
 class PageLobby(tk.Frame):
-    """Salle d'attente : joueurs, code, réglages de la partie (modifiables par l'hôte)."""
+    """Salle d'attente : joueurs, code, mode et réglages de la partie (modifiables par l'hôte)."""
     def __init__(self, parent, controller):
         super().__init__(parent, bg=P["fond"]); self.controller, self.active_sync = controller, False
         self.active_mode = "CLASSIQUE"
         self.lbl_role = barre_haut(self, self.quitter, "")
         zone = Defilant(self, hauteur=200); zone.pack(fill="both", expand=True)
-        corps = tk.Frame(zone.interieur, bg=P["fond"]); corps.pack(fill="both", expand=True, padx=60, pady=(18, 20))
+        corps = tk.Frame(zone.interieur, bg=P["fond"]); corps.pack(fill="both", expand=True, padx=60, pady=(6, 16))
         tete = tk.Frame(corps, bg=P["fond"]); tete.pack(fill="x")
         tg = tk.Frame(tete, bg=P["fond"]); tg.pack(side="left", anchor="n")
-        self.lbl_titre = etiquette(tg, "Salon", "titre", 42); self.lbl_titre.pack(anchor="w")
-        self.lbl_status = etiquette(tg, "", "texte", 17, P["texte2"]); self.lbl_status.pack(anchor="w", pady=(4, 0))
+        self.lbl_titre = etiquette(tg, "Salon", "titre", 34); self.lbl_titre.pack(anchor="w")
+        self.lbl_status = etiquette(tg, "", "texte", 15, P["texte2"]); self.lbl_status.pack(anchor="w", pady=(2, 0))
         # code
-        self.boite_code = Panneau(tete, padding=18, rayon=14, contour=P["mal"], tirets=True); self.boite_code.pack(side="right", anchor="n")
+        self.boite_code = Panneau(tete, padding=14, rayon=14, contour=P["mal"], tirets=True); self.boite_code.pack(side="right", anchor="n")
         bc = self.boite_code.interieur
         gauche = tk.Frame(bc, bg=bc["bg"]); gauche.pack(side="left")
-        self.lbl_code_titre = etiquette(gauche, espacer("Code du salon"), "texte", 12, P["texte2"], True); self.lbl_code_titre.pack(anchor="w")
-        self.lbl_code = etiquette(gauche, "----", "chiffres", 40, P["mal"]); self.lbl_code.pack(anchor="w")
-        self.btn_copier = Icone(bc, "copier", self.copier, 46, cadre=True); self.btn_copier.pack(side="left", padx=(16, 0))
+        self.lbl_code_titre = etiquette(gauche, espacer("Code du salon"), "texte", 11, P["texte2"], True); self.lbl_code_titre.pack(anchor="w")
+        self.lbl_code = etiquette(gauche, "----", "chiffres", 32, P["mal"]); self.lbl_code.pack(anchor="w")
+        self.btn_copier = Icone(bc, "copier", self.copier, 42, cadre=True); self.btn_copier.pack(side="left", padx=(14, 0))
         # colonnes
-        cols = tk.Frame(corps, bg=P["fond"]); cols.pack(fill="x", pady=(20, 0))
-        pj = Panneau(cols, padding=24, largeur=340); pj.pack(side="left", anchor="n")
-        etiquette(pj.interieur, "Joueurs", "texte", 18, gras=True).pack(anchor="w", pady=(0, 12))
+        cols = tk.Frame(corps, bg=P["fond"]); cols.pack(fill="x", pady=(14, 0))
+        pj = Panneau(cols, padding=20, largeur=332); pj.pack(side="left", anchor="n")
+        etiquette(pj.interieur, "Joueurs", "texte", 17, gras=True).pack(anchor="w", pady=(0, 6))
         self.player_slots = []
         for i in range(4):
-            c = tk.Canvas(pj.interieur, width=292, height=62, bg=P["panneau"], highlightthickness=0); c.pack(pady=4)
+            c = tk.Canvas(pj.interieur, width=292, height=62, bg=P["panneau"], highlightthickness=0); c.pack(pady=3)
             self.player_slots.append(c)
-        ps = Panneau(cols, padding=26); ps.pack(side="left", anchor="n", padx=(24, 0), fill="x", expand=True)
-        i = ps.interieur
-        # bandeau du mode choisi : nom, règle, résumé des réglages (lisible aussi par les invités)
-        self.bandeau = tk.Canvas(i, width=632, height=118, bg=i["bg"], highlightthickness=0); self.bandeau.pack(anchor="w")
-        self.zone_hote = tk.Frame(i, bg=i["bg"]); self.zone_hote.pack(anchor="w")
-        zh = self.zone_hote
-        etiquette(zh, espacer("Choisir le mode"), "texte", 12, P["texte2"], True).pack(anchor="w", pady=(14, 8))
+        ps = Panneau(cols, padding=24); ps.pack(side="left", anchor="n", padx=(22, 0), fill="x", expand=True)
+        i = ps.interieur; self.panneau_partie = i
+        # --- hôte : mode (pastilles), règle en une ligne, réglages à curseurs
+        self.zone_hote = tk.Frame(i, bg=i["bg"]); zh = self.zone_hote
         gm = tk.Frame(zh, bg=i["bg"]); gm.pack(anchor="w")
         self.cartes_mode = {}
         for k, (m, nom, desc) in enumerate(MODES):
-            cc = CarteChoix(gm, nom, desc, lambda m=m: self.set_mode(m), largeur=152, hauteur=56, couleur=COULEURS_MODES[m])
+            cc = CarteChoix(gm, nom, "", lambda m=m: self.set_mode(m), largeur=150, hauteur=44, couleur=COULEURS_MODES[m])
             cc.grid(row=k // 4, column=k % 4, padx=(0, 8), pady=(0, 8)); self.cartes_mode[m] = cc
-        etiquette(zh, espacer("Réglages"), "texte", 12, P["texte2"], True).pack(anchor="w", pady=(6, 8))
-        lg = tk.Frame(zh, bg=i["bg"]); lg.pack(anchor="w")
-        etiquette(lg, "Lettres", "texte", 15, P["texte2"], True, width=8, anchor="w").pack(side="left")
-        self.c_min = Chips(lg, range(6, 11), 6, self._min, largeur=40, hauteur=38); self.c_min.pack(side="left")
-        etiquette(lg, "à", "texte", 15, P["texte2"]).pack(side="left", padx=(0, 8))
-        self.c_max = Chips(lg, range(6, 11), 7, self._max, largeur=40, hauteur=38); self.c_max.pack(side="left")
-        lr = tk.Frame(zh, bg=i["bg"]); lr.pack(anchor="w", pady=(10, 0))
-        etiquette(lr, "Manches", "texte", 15, P["texte2"], True, width=8, anchor="w").pack(side="left")
-        self.c_rounds = Chips(lr, range(1, 11), 3, lambda v: self.sync_params(), largeur=40, hauteur=38); self.c_rounds.pack(side="left")
-        st = tk.Frame(zh, bg=i["bg"]); st.pack(anchor="w", pady=(12, 0))
-        f1 = tk.Frame(st, bg=i["bg"]); f1.pack(side="left", padx=(0, 40))
-        etiquette(f1, "Essais", "texte", 15, P["texte2"], True).pack(anchor="w", pady=(0, 8))
-        self.s_essais = Stepper(f1, 4, 10, 8, 1, lambda v: self.sync_params(), largeur_valeur=60); self.s_essais.pack(anchor="w")
-        f2 = tk.Frame(st, bg=i["bg"]); f2.pack(side="left")
-        etiquette(f2, "Temps par manche", "texte", 15, P["texte2"], True).pack(anchor="w", pady=(0, 8))
-        self.s_time = Stepper(f2, 15, 600, 180, 15, lambda v: self.sync_params(), formater=mm_ss, largeur_valeur=100); self.s_time.pack(anchor="w")
-        self.lbl_invite = etiquette(i, "L'hôte choisit le mode et les réglages.", "texte", 15, P["texte2"])
-        self.btn_lancer = Bouton(i, "Lancer la partie", self.lancer, largeur=632, hauteur=54, taille=17); self.btn_lancer.pack(anchor="w", pady=(18, 0))
+        self.lbl_regle = etiquette(zh, "", "texte", 14, COULEURS_MODES["CLASSIQUE"], True, wraplength=620, justify="left"); self.lbl_regle.pack(anchor="w", pady=(2, 14))
+        self.lignes_reglage = {}
+        def ligne(cle, libelle, fabrique):
+            f = tk.Frame(zh, bg=i["bg"]); f.pack(anchor="w", pady=2)
+            lb = etiquette(f, libelle, "texte", 15, P["texte2"], True, width=16, anchor="w"); lb.pack(side="left")
+            w = fabrique(f); w.pack(side="left"); self.lignes_reglage[cle] = (f, lb); return w
+        self.c_rounds = ligne("rounds", "Manches", lambda f: Curseur(f, 1, 10, 3, 1, lambda v: self.sync_params()))
+        self.s_time = ligne("timer", "Temps par manche", lambda f: Curseur(f, 15, 600, 180, 15, lambda v: self.sync_params(), formater=mm_ss))
+        self.s_essais = ligne("essais", "Essais", lambda f: Curseur(f, 4, 10, 8, 1, lambda v: self.sync_params()))
+        self.c_lettres = ligne("lettres", "Lettres", lambda f: Curseur(f, 6, 10, (6, 7), 1, lambda v: self.sync_params(), plage=True))
+        # --- invité : bandeau du mode choisi par l'hôte + résumé
+        self.zone_invite = tk.Frame(i, bg=i["bg"])
+        self.bandeau = tk.Canvas(self.zone_invite, width=632, height=118, bg=i["bg"], highlightthickness=0); self.bandeau.pack(anchor="w")
+        etiquette(self.zone_invite, "L'hôte choisit le mode et les réglages.", "texte", 14, P["texte2"]).pack(anchor="w", pady=(10, 0))
+        self.btn_lancer = Bouton(i, "Lancer la partie", self.lancer, largeur=632, hauteur=54, taille=17); self.btn_lancer.pack(anchor="w", pady=(16, 0))
         self._maj_bandeau()
 
     # --- réglages ---
-    def _min(self, v):
-        if v > self.c_max.get(): self.c_max.set_valeur(v)
-        self.sync_params(); self._maj_bandeau()
-    def _max(self, v):
-        if v < self.c_min.get(): self.c_min.set_valeur(v)
-        self.sync_params(); self._maj_bandeau()
-
     def copier(self):
         try:
             self.clipboard_clear(); self.clipboard_append(self.controller.code_affiche)
@@ -616,7 +605,7 @@ class PageLobby(tk.Frame):
         self.active_mode = mode
         self.controller.settings_config["game_mode"] = mode
         # 8 essais et 6 à 7 lettres par défaut pour chaque mode
-        self.s_essais.set_valeur(8); self.c_min.set_valeur(6); self.c_max.set_valeur(7)
+        self.s_essais.set_valeur(8); self.c_lettres.set_valeur(6, 7)
         temps, manches = {"MYSTERE": (180, 3), "RUSH": (120, 1), "BLAST": (60, 3), "PRECISION": (180, 3), "CLASSIQUE": (180, 3),
                           "ELIMINATION": (90, 10), "CHAINE": (150, 1), "COOP": (180, 3)}[mode]
         self.s_time.set_valeur(temps); self.c_rounds.set_valeur(manches)
@@ -629,30 +618,36 @@ class PageLobby(tk.Frame):
         self._maj_bandeau()
 
     def _maj_bandeau(self):
-        """Bandeau coloré du mode choisi + résumé des réglages ; les pastilles et le bouton prennent la couleur du mode."""
+        """Couleur du mode partout (pastille, curseurs, bouton), règle en une ligne ; bandeau + résumé pour les invités."""
         mode = self.active_mode; mc = COULEURS_MODES.get(mode, COULEURS_MODES["CLASSIQUE"]); v = self.valeurs()
-        sig = (mode, tuple(sorted(v.items())))
+        sig = (mode, tuple(sorted(v.items())), self.controller.is_host)
         if getattr(self, "_sig_bandeau", None) == sig: return
         self._sig_bandeau = sig
+        rush = mode in RUSHS
+        self.lbl_regle.config(text=REGLES_MODES.get(mode, ""), fg=mc)
+        f, _ = self.lignes_reglage["rounds"]
+        if rush: f.pack_forget()
+        elif not f.winfo_ismapped(): f.pack(anchor="w", pady=2, before=self.lignes_reglage["timer"][0])
+        self.lignes_reglage["timer"][1].config(text="Temps de jeu" if rush else "Temps par manche")
+        for w in (self.c_rounds, self.s_time, self.s_essais, self.c_lettres): w.set_couleur(mc)
+        self.btn_lancer.set_couleur(mc)
         b = self.bandeau; b.delete("all"); W, H = 632, 118
         arrondi(b, 0, 0, W, H, 14, fill=mc, outline="")
         b.create_text(18, 18, text=espacer("Mode de jeu"), anchor="w", fill=melanger(SOMBRE, mc, 0.35), font=police("texte", 10, True))
         b.create_text(18, 44, text=NOM_MODE.get(mode, mode), anchor="w", fill=SOMBRE, font=police("titre", 26))
         b.create_text(18, 70, text=REGLES_MODES.get(mode, ""), anchor="w", fill=SOMBRE, font=police("texte", 13))
-        rush = mode in RUSHS
         morceaux = [f"{mm_ss(v['timer'])} de jeu" if rush else f"{v['rounds']} manche{'s' if v['rounds'] > 1 else ''}{' max' if mode == 'ELIMINATION' else ''}",
                     None if rush else f"{mm_ss(v['timer'])} par manche", None if rush else f"{v['essais']} essais",
                     f"{v['min']} lettres" if v["min"] == v["max"] else f"{v['min']} à {v['max']} lettres"]
         x = 18
         for t in [m for m in morceaux if m]:
-            f = police("texte", 11, True); w = tkfont.Font(font=f).measure(t) + 16
-            arrondi(b, x, 86, x + w, 108, 7, fill=melanger(mc, SOMBRE, 0.16), outline=""); b.create_text(x + w / 2, 97, text=t, fill=SOMBRE, font=f); x += w + 6
-        for ch in (self.c_min, self.c_max, self.c_rounds): ch.set_couleur(mc)
-        self.btn_lancer.set_couleur(mc)
+            fo = police("texte", 11, True); w = tkfont.Font(font=fo).measure(t) + 16
+            arrondi(b, x, 86, x + w, 108, 7, fill=melanger(mc, SOMBRE, 0.16), outline=""); b.create_text(x + w / 2, 97, text=t, fill=SOMBRE, font=fo); x += w + 6
         if self.controller.is_host: self.btn_lancer.set_text(f"Lancer · {NOM_MODE.get(mode, mode)}" if self.controller.nb_joueurs > 1 else "Il faut au moins 2 joueurs")
 
     def valeurs(self):
-        return {"rounds": self.c_rounds.get(), "essais": self.s_essais.get(), "min": self.c_min.get(), "max": self.c_max.get(), "timer": self.s_time.get()}
+        mi, ma = self.c_lettres.get()
+        return {"rounds": self.c_rounds.get(), "essais": self.s_essais.get(), "min": mi, "max": ma, "timer": self.s_time.get()}
 
     def sync_params(self):
         if hasattr(self, "bandeau"): self._maj_bandeau()
@@ -749,7 +744,7 @@ class PageLobby(tk.Frame):
             self.update_mode_ui(self.active_mode)
             if not self.controller.is_host:
                 self.c_rounds.set_valeur(s.get("rounds", 3)); self.s_essais.set_valeur(s.get("essais", 8))
-                self.c_min.set_valeur(s.get("min", 6)); self.c_max.set_valeur(s.get("max", 7)); self.s_time.set_valeur(s.get("timer", 180))
+                self.c_lettres.set_valeur(s.get("min", 6), s.get("max", 7)); self.s_time.set_valeur(s.get("timer", 180))
 
             if d.get("status") == "playing":
                 self.active_sync = False
@@ -767,12 +762,12 @@ class PageLobby(tk.Frame):
             n = len(p)
             self.lbl_status.config(text=f"En attente des joueurs · {n} sur 4" + ("  ·  salon privé" if not self.controller.settings_config.get("visible", True) else ""))
             hote = self.controller.is_host
-            for sw in [self.c_rounds, self.s_essais, self.c_min, self.c_max, self.s_time] + list(self.cartes_mode.values()): sw.activer(hote)
+            for sw in [self.c_rounds, self.s_essais, self.c_lettres, self.s_time] + list(self.cartes_mode.values()): sw.activer(hote)
             self._maj_bandeau()
             if hote != getattr(self, "_vue_hote", None):  # l'hôte règle la partie, les invités voient le résumé
                 self._vue_hote = hote
-                if hote: self.lbl_invite.pack_forget(); self.zone_hote.pack(anchor="w", after=self.bandeau)
-                else: self.zone_hote.pack_forget(); self.lbl_invite.pack(anchor="w", pady=(12, 0), after=self.bandeau)
+                if hote: self.zone_invite.pack_forget(); self.zone_hote.pack(anchor="w", before=self.btn_lancer)
+                else: self.zone_hote.pack_forget(); self.zone_invite.pack(anchor="w", before=self.btn_lancer)
             if hote:
                 self.btn_lancer.set_variante("principal"); self._sig_bandeau = None; self._maj_bandeau()
                 self.btn_lancer.activer(n > 1)

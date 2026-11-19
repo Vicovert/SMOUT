@@ -23,6 +23,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   await a.evaluate(() => [...document.querySelectorAll("button")].find(x => x.textContent === "Créer le salon").click()); await sleep(1500);
   const code = await a.evaluate(() => M.lobby);
   const bo = await page("BOB", 390, 844); await bo.evaluate(() => multiAccueil()); await sleep(800);
+  await bo.evaluate(() => document.querySelector("button.a-rejoindre").click()); await sleep(1200); await bo.screenshot({ path: "/tmp/s_rejoindre_390.png" });
   await bo.type('input[placeholder="CODE"]', code); await bo.keyboard.press("Enter"); await sleep(2500);
   await a.evaluate(() => [...document.querySelectorAll(".choix.mode")].find(x => x.textContent.includes("Élimination")).click()); await sleep(2000);
   await a.screenshot({ path: "/tmp/s_salon_hote_390.png", fullPage: true }); await bo.screenshot({ path: "/tmp/s_salon_invite_390.png", fullPage: true });
