@@ -37,6 +37,13 @@ def rush():  # Chaîne / Rush : le score final est le total des mots trouvés pa
     if not all(v > 0 for v in p[0].values()): echec(f"un score nul : {p[0]}")
 
 
+def elimination():  # BOB est éliminé d'emblée (0) ; entre les deux autres, le plus lent sort avant l'autre : 1 et 2, dans un ordre ou dans l'autre
+    p = parties()
+    if len(p) != 1: echec(f"une partie attendue, obtenu {p}")
+    s = p[0]
+    if s.get("BOB") != 0 or sorted(s.values()) != [0, 1, 2]: echec(f"Élimination : {s}")
+
+
 def blast():  # chaque manche distribue 4 + 3 points aux deux premiers ; qui ne trouve pas marque 0
     p = parties()
     if len(p) != 1: echec(f"une partie attendue, obtenu {p}")
@@ -48,7 +55,7 @@ REGLES = {
     "c1": lambda: exact({"ALICE": 32, "BOB": 32}),      # Précision : 16 points par mot trouvé du 1er coup, 2 manches
     "c2": blast,
     "c3": lambda: exact({"BOB": 1, "ALICE": 1}, {"BOB": 1, "ALICE": 1}),
-    "c4": lambda: exact({"ALICE": 1, "BOB": 0, "CHLOE": 2}),   # Élimination : 1 point par manche survécue
+    "c4": elimination,   # Élimination : 1 point par manche survécue
     "c5": lambda: exact({"BOB": 2, "ALICE": 2}),        # Coopératif : 1 point par manche trouvée pour tous
     "c6": rush,
     "c8": lambda: exact({"ALICE": 3, "BOB": 3}),

@@ -2,7 +2,12 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
-## 8.4
+## 8.5
+- Reprend les 8.3 et 8.4 (jamais publiées : leur CI a échoué sur les nouvelles vérifications de scores) avec les correctifs.
+- Élimination : le contrôle de score accepte les deux ordres (BOB = 0, les autres = 1 et 2), car le plus lent est éliminé au hasard des temps.
+- CI : le journal de la 1re tentative est conservé (`/tmp/essai1`) avant la relance, pour diagnostiquer les échecs ponctuels (un `Traceback` isolé à l'étape « Solo PC » a été vu une fois, non reproductible).
+
+## 8.4 (non publiée, incluse dans la 8.5)
 - Reprend la 8.3 (jamais publiée : son CI a échoué sur la nouvelle vérification des scores) avec le correctif.
 - Vérification des scores : référence = scores relevés par l'hôte (avant « Rejouer », qui remet les scores à 0) ; cohérence entre joueurs contrôlée sur les scores finaux seulement.
 
