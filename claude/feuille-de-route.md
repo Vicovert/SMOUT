@@ -2,7 +2,11 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
-## 8.3
+## 8.4
+- Reprend la 8.3 (jamais publiée : son CI a échoué sur la nouvelle vérification des scores) avec le correctif.
+- Vérification des scores : référence = scores relevés par l'hôte (avant « Rejouer », qui remet les scores à 0) ; cohérence entre joueurs contrôlée sur les scores finaux seulement.
+
+## 8.3 (non publiée, incluse dans la 8.4)
 - Banc de tests : 5 parties croisées PC ↔ web ajoutées (Mystère ×2, Rush ×2, Précision avec défaite), de sorte que les 8 modes multijoueur sont couverts.
 - Vérification automatique des scores (`tests/verif_scores.py`) : chaque partie croisée est contrôlée selon la règle de son mode, et tous les joueurs doivent voir les mêmes scores.
 - CI : délai maximal du workflow de release porté à 75 min (suite plus longue).

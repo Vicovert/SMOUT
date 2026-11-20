@@ -9,11 +9,14 @@ avec = [r for r in robots if r.get("resultats")]
 
 
 def parties():
-    """Résultats de chaque partie, identiques chez tous les joueurs (sinon ÉCHEC)."""
+    """Résultats de chaque partie, lus par l'hôte (premier robot) : il les lit avant de relancer « Rejouer », qui remet les scores à 0.
+    Les autres joueurs peuvent lire plus tard, donc la cohérence entre joueurs n'est contrôlée que sur la dernière partie."""
     if not avec: return []
-    ref = avec[0]["resultats"]
+    hote = robots[0]
+    if not hote.get("resultats"): echec("l'hôte n'a pas relevé de résultats")
+    ref = hote["resultats"]
     for r in avec[1:]:
-        if r["resultats"] != ref: echec(f"les joueurs ne voient pas les mêmes scores : {ref} / {r['resultats']}")
+        if r["resultats"][-1] != ref[-1]: echec(f"les joueurs ne voient pas les mêmes scores finaux : {ref[-1]} / {r['resultats'][-1]}")
     return ref
 
 
