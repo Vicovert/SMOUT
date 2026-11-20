@@ -33,7 +33,7 @@ const res = []; const ok = (n, c, i = "") => { res.push(!!c); console.log((c ? "
     ok(`${l}px salon créé`, await p.evaluate(() => !!M.lobby && M.estHote));
     ok(`${l}px salon : curseurs (manches, temps, essais, lettres) et plus de pastilles de lettres`, await p.evaluate(() => document.querySelectorAll(".salon-partie input[type=range]").length === 5 && !document.querySelector(".salon-partie .chips")));
     ok(`${l}px salon : un curseur modifie le réglage`, await p.evaluate(() => { const i = document.querySelector(".salon-partie .curseur input"); i.value = 5; i.dispatchEvent(new Event("input")); return document.querySelector(".salon-partie .curseur .val").textContent === "5"; }));
-    ok(`${l}px salon : 8 modes`, await p.evaluate(() => document.querySelectorAll(".choix").length >= 8));
+    ok(`${l}px salon : 9 modes dont Mot piégé`, await p.evaluate(() => document.querySelectorAll(".choix").length >= 9 && document.body.innerText.includes("Mot piégé")));
     ok(`${l}px salon : rien ne dépasse`, !(await deb()).length, (await deb()).join(" "));
     await p.screenshot({ path: `/tmp/wm_salon_${l}.png`, fullPage: true });
     await p.evaluate(() => M.quitter()); await sleep(800); await p.close();

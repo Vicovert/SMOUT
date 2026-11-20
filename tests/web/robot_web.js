@@ -9,7 +9,8 @@ const db = async () => (await (await fetch("http://127.0.0.1:9000/__admin.json")
 let b, p;
 async function fin(ok) {
   R.ok = ok && !R.erreurs.length;
-  try { const d = await db(); R.scores_base = Object.fromEntries(Object.values(d.v7.lobbies[R.code].players).map(x => [x.name, x.score])); } catch (e) {}
+  try { const d = await db(); const lb = d.v7.lobbies[R.code]; R.scores_base = Object.fromEntries(Object.values(lb.players).map(x => [x.name, x.score]));
+    if (lb.piege_recap) { R.recap_piege = lb.piege_recap; R.uids = Object.fromEntries(Object.entries(lb.players).map(([u, v]) => [u, v.name])); } } catch (e) {}
   fs.writeFileSync(S.sortie, JSON.stringify(R, null, 1)); log("fin", R.ok ? "OK" : "ÉCHEC");
   try { await p.evaluate(() => M.quitter()); await sleep(1500); await b.close(); } catch (e) {}
   process.exit(0);
@@ -17,6 +18,50 @@ async function fin(ok) {
 const ev = (f, ...a) => p.evaluate(f, ...a);
 async function attendre(f, t = 60000, ...a) { const end = Date.now() + t; while (Date.now() < end) { try { if (await ev(f, ...a)) return true; } catch (e) {} await sleep(200); } return false; }
 async function clicTexte(sel, txt) { return ev((s, t) => { const e = [...document.querySelectorAll(s)].find(x => x.textContent.includes(t) && !x.closest(".cache")); if (!e) return false; e.click(); return true; }, sel, txt); }
+// Mot piégé : choisit le mot de sa cible (S.choix : valide | invalide | rien), puis devine le sien (S.jeu : gagne | perd)
+async function jeuPiege(manche) {
+  const [mi, ma] = await ev(() => [M.reglages.min || 6, M.reglages.max || 7]);
+  const txt = () => ev(() => document.body.innerText), msg = () => ev(() => document.querySelector(".msg")?.textContent || "");
+  const enChoix = () => ev(() => document.body.innerText.includes("Choisis le mot que")), enDevine = () => ev(() => (document.querySelector(".milieu")?.textContent || "").includes("mot choisi par"));
+  if (!(await attendre(() => /Choisis le mot que|Mot envoyé|Temps écoulé|mot choisi par|Tu regardes/.test(document.body.innerText), 30000))) { log("ÉCHEC pas de phase de choix"); return fin(false); }
+  let choix = S.choix || "valide"; if (!(await enChoix())) { choix = "deja"; log(`manche ${manche} : mot de sa cible déjà choisi (reprise)`); }
+  const effacer = async n => { for (let i = 0; i < n; i++) await p.keyboard.press("Backspace"); };
+  if (choix === "invalide") {  // trop court, puis inconnu : refusés avec un message, sans rien envoyer
+    for (const essai of ["ab", "z".repeat(mi)]) {
+      await p.keyboard.type(essai, { delay: 15 }); await p.keyboard.press("Enter"); await sleep(400);
+      const m = await msg(); (R.refus_choix ||= []).push(m); log("mot", essai, "refusé :", m);
+      if (!(await enChoix())) { log("ÉCHEC mot invalide accepté"); return fin(false); }
+      await effacer(essai.length);
+    }
+  }
+  if (choix === "valide" || choix === "invalide") {
+    const mot = await ev((mi, ma) => { const l = MOTS.multiListe.filter(m => m.length >= mi && m.length <= ma && /^[A-Z]+$/.test(m)); return l[Math.floor(Math.random() * l.length)]; }, mi, ma);
+    await p.keyboard.type(mot.toLowerCase(), { delay: 15 }); await p.keyboard.press("Enter");
+    if (!(await attendre(() => !document.body.innerText.includes("Choisis le mot que"), 20000))) { log("ÉCHEC envoi du mot choisi"); return fin(false); }
+    (R.choisis ||= []).push(mot); log(`manche ${manche} : mot choisi pour sa cible`, mot);
+  } else if (choix === "rien") log(`manche ${manche} : ne choisit rien (mot au hasard à la fin du décompte)`);
+  if (S.planter_apres_choix === manche) { log("PLANTAGE simulé après le choix"); R.config = await ev(() => localStorage.getItem("smout_config")); fs.writeFileSync(S.sortie, JSON.stringify(Object.assign(R, { ok: true, plante: true }))); b.process().kill("SIGKILL"); process.exit(0); }
+  if (!(await attendre(() => (document.querySelector(".milieu")?.textContent || "").includes("mot choisi par") || /Manche terminée|Bien joué|Tu regardes/.test(document.body.innerText), 90000))) { log("ÉCHEC pas de mot à deviner"); return fin(false); }
+  if (!(await enDevine())) return;
+  const uid = await ev(() => FB.uid), pid = await ev(() => M.reglages.piege_id), code = R.code;
+  const secret = (await db()).v7.pieges[code][pid][uid].mot;  // le robot « triche » via l'admin du faux serveur
+  R.mots.push(secret);
+  const essais = await ev(() => M.reglages.essais || 6);
+  const coups = (S.jeu || "gagne") === "gagne" ? [secret]
+    : await ev((m, n) => [...MOTS.multiBanque].filter(x => x.length === m.length && x[0] === m[0] && x !== m).sort().slice(0, n), secret, essais);
+  let trouve = false, nb = 0;
+  for (let k = 0; k < coups.length; k++) {
+    await p.keyboard.type(coups[k].slice(1).toLowerCase(), { delay: 15 }); await p.keyboard.press("Enter");
+    let verdict = "";
+    for (let i = 0; i < 750 && !verdict; i++) { verdict = ((((await db()).v7.lobbies[code].piege_verdicts || {})[uid] || {})[`e${k}`]) || ""; if (!verdict) await sleep(200); }
+    if (!verdict) { log("ÉCHEC pas de verdict pour", coups[k]); return fin(false); }
+    nb = k + 1; if (/^B+$/.test(verdict)) trouve = true;
+    await sleep(900);
+    if (await ev(() => /Manche terminée|Bien joué/.test(document.body.innerText))) break;
+  }
+  (R.devinettes ||= []).push([secret, trouve ? nb : 0]);
+  log(`manche ${manche} : mot`, secret, trouve ? "trouvé en" : "pas trouvé ·", nb);
+}
 (async () => {
   b = await puppeteer.launch({ executablePath: process.env.CHROME || "/usr/bin/google-chrome", headless: "new", args: ["--no-sandbox"] });
   p = await b.newPage(); await p.setViewport({ width: S.largeur || 1200, height: S.hauteur || 860 });
@@ -83,7 +128,7 @@ async function clicTexte(sel, txt) { return ev((s, t) => { const e = [...documen
     if (S.role === "host") {
       if (!(await attendre(n => M.nbJoueurs >= n && document.querySelector(".joueur"), 120000, S.nb || 2))) { log("ÉCHEC joueurs manquants"); return fin(false); }
       if (partie === 1) {
-        if (S.mode !== "CLASSIQUE") await clicTexte(".choix", ({ BLAST: "Blast", PRECISION: "Précision", MYSTERE: "Mystère", RUSH: "Rush", ELIMINATION: "Élimination", CHAINE: "Chaîne", COOP: "Coopératif" })[S.mode]);
+        if (S.mode !== "CLASSIQUE") await clicTexte(".choix", ({ BLAST: "Blast", PRECISION: "Précision", MYSTERE: "Mystère", RUSH: "Rush", ELIMINATION: "Élimination", CHAINE: "Chaîne", COOP: "Coopératif", PIEGE: "Mot piégé" })[S.mode]);
         await sleep(300);
         const regler = (i, v) => ev((i, v) => { const x = document.querySelectorAll(".salon-partie input[type=range]")[i]; x.value = v; x.dispatchEvent(new Event("input")); }, i, v);
         await regler(0, S.manches || 1);
@@ -98,15 +143,16 @@ async function clicTexte(sel, txt) { return ev((s, t) => { const e = [...documen
     if (S.role === "reprise") { await attendre(() => document.querySelector(".clavier") && document.querySelector(".stat .v"), 90000); debut = await ev(() => +document.querySelector(".stat .v").textContent || 1); log("reprend à la manche", debut); }
     for (let manche = debut; manche <= (S.manches || 1); manche++) {
       if (manche > 1 && await ev(() => !!document.querySelector(".podium"))) { log("partie terminée avant la manche", manche); break; }
-      if (!(await attendre(m => (document.querySelector(".clavier") || document.body.innerText.includes("Tu es éliminé")) && document.querySelector(".stat .v")?.textContent === String(m) && M.dernierMot, 90000, manche))) { log("ÉCHEC manche pas commencée", manche); return fin(false); }
+      if (!(await attendre(m => (document.querySelector(".clavier") || document.body.innerText.includes("Tu es éliminé")) && document.querySelector(".stat .v")?.textContent === String(m) && (M.reglages.game_mode === "PIEGE" || M.dernierMot), 90000, manche))) { log("ÉCHEC manche pas commencée", manche, JSON.stringify(await ev(() => ({ t: document.body.innerText.slice(0, 200), clavier: !!document.querySelector(".clavier"), v: document.querySelector(".stat .v")?.textContent, mot: M.dernierMot })))); return fin(false); }
       if (await ev(() => document.body.innerText.includes("Tu es éliminé"))) { log(`manche ${manche} : éliminé, spectateur`); R.elimine = manche; await attendre(m => document.querySelector(".podium") || +document.querySelector(".stat .v").textContent > m, 300000, manche); continue; }
       await sleep(1200);
-      const mot = await ev(() => M.dernierMot); R.mots.push(mot);
+      const mot = S.mode === "PIEGE" ? "" : await ev(() => M.dernierMot); if (mot) R.mots.push(mot);
       if (S.capture_jeu && manche === 1) { await p.keyboard.type("ab"); await sleep(200); await p.screenshot({ path: S.capture_jeu }); await p.keyboard.press("Backspace"); await p.keyboard.press("Backspace");
         R.deborde = await ev(() => { const w = document.documentElement.clientWidth; return [...document.querySelectorAll("body *")].filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && (r.right > w + 1 || r.left < -1); }).slice(0, 4).map(e => e.className); }); log("débordements", JSON.stringify(R.deborde)); } log(`partie ${partie} manche ${manche} mot ${mot}`);
       if (S.planter_manche === manche) { log("PLANTAGE simulé"); R.config = await ev(() => localStorage.getItem("smout_config")); fs.writeFileSync(S.sortie, JSON.stringify(Object.assign(R, { ok: true, plante: true }))); b.process().kill("SIGKILL"); process.exit(0); }
       const jeu = S.jeu || "gagne";
-      if (jeu === "gagne") { await p.keyboard.type(mot.slice(1).toLowerCase(), { delay: 15 }); await p.keyboard.press("Enter"); }
+      if (S.mode === "PIEGE") await jeuPiege(manche);
+      else if (jeu === "gagne") { await p.keyboard.type(mot.slice(1).toLowerCase(), { delay: 15 }); await p.keyboard.press("Enter"); }
       else if (jeu === "perd") {
         const faux = await ev((m, mys) => [...MOTS.multiBanque].filter(x => x.length === m.length && x !== m && (mys || x[0] === m[0])).sort().slice(0, 12), mot, S.mode === "MYSTERE");
         const essais = await ev(() => M.reglages.essais || 6);

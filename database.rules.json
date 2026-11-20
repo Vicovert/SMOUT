@@ -127,6 +127,30 @@
           ".validate": "newData.isString() && newData.val().length <= 64"
         }
       },
+      "pieges": {
+        "$code": {
+          ".write": "auth != null && !newData.exists() && !root.child('v7/lobbies/' + $code).exists()",
+          "$id": {
+            "$cible": {
+              ".read": "auth != null && auth.uid !== $cible && root.child('v7/lobbies/' + $code + '/settings/piege_de/' + auth.uid).exists()",
+              ".write": "auth != null && !data.exists() && auth.uid !== $cible && $id === root.child('v7/lobbies/' + $code + '/settings/piege_id').val() && (auth.uid === root.child('v7/lobbies/' + $code + '/settings/piege_de/' + $cible).val() || (root.child('v7/lobbies/' + $code + '/settings/piege_de/' + auth.uid).exists() && now > root.child('v7/lobbies/' + $code + '/settings/piege_fin_choix').val()))",
+              ".validate": "newData.hasChildren(['mot', 'de']) && newData.child('mot').val().length >= root.child('v7/lobbies/' + $code + '/settings/min').val() && newData.child('mot').val().length <= root.child('v7/lobbies/' + $code + '/settings/max').val()",
+              "mot": {
+                ".validate": "newData.isString() && newData.val().matches(/^[A-Z]+$/)"
+              },
+              "de": {
+                ".validate": "newData.isString()"
+              },
+              "auto": {
+                ".validate": "newData.isBoolean()"
+              },
+              "$autre": {
+                ".validate": false
+              }
+            }
+          }
+        }
+      },
       "lobbies": {
         "$code": {
           ".read": "auth != null && data.child('players/' + auth.uid).exists()",
@@ -140,6 +164,11 @@
             "host_id": {
               ".write": "auth != null && newData.val() === auth.uid && data.parent().parent().child('players/' + auth.uid).exists() && (!data.parent().parent().child('players/' + data.val()).exists() || data.parent().parent().child('players/' + data.val() + '/last_seen').val() < now - 15000)",
               ".validate": "newData.isString()"
+            },
+            "piege_de": {
+              "$cible": {
+                ".validate": "newData.isString() && newData.val() !== $cible"
+              }
             }
           },
           "players": {
@@ -172,6 +201,36 @@
             "$round": {
               "$uid": {
                 ".write": "auth != null && auth.uid === $uid"
+              }
+            }
+          },
+          "piege_pret": {
+            "$cible": {
+              ".write": "auth != null && auth.uid !== $cible && root.child('v7/lobbies/' + $code + '/settings/piege_de/' + auth.uid).exists()",
+              ".validate": "newData.hasChildren(['n', 'p'])"
+            }
+          },
+          "piege_essais": {
+            "$cible": {
+              "$k": {
+                ".write": "auth != null && auth.uid === $cible && !data.exists()",
+                ".validate": "newData.isString() && newData.val().matches(/^[A-Z]+$/)"
+              }
+            }
+          },
+          "piege_verdicts": {
+            "$cible": {
+              "$k": {
+                ".write": "auth != null && auth.uid !== $cible && !data.exists() && root.child('v7/lobbies/' + $code + '/settings/piege_de/' + auth.uid).exists()",
+                ".validate": "newData.isString() && newData.val().matches(/^[BMA]+$/)"
+              }
+            }
+          },
+          "piege_recap": {
+            "$r": {
+              "$cible": {
+                ".write": "auth != null && auth.uid !== $cible && !data.exists() && root.child('v7/lobbies/' + $code + '/settings/piege_de/' + auth.uid).exists()",
+                ".validate": "newData.hasChildren(['de', 'mot'])"
               }
             }
           },

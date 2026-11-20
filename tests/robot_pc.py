@@ -4,6 +4,9 @@ import sys, os, time, json, urllib.request, traceback, random
 repo, S = sys.argv[1], json.loads(sys.argv[2])
 if S.get("home"): os.environ["HOME"] = S["home"]  # reprise : même dossier de configuration que le robot qui a planté
 if S.get("attente_reprise"): time.sleep(S["attente_reprise"])
+if S.get("apres_fichier"):  # reprise : démarre quand le robot qui plante a écrit son rapport
+    while not os.path.exists(S["apres_fichier"]): time.sleep(0.5)
+    time.sleep(2)
 os.chdir(repo); sys.path.insert(0, repo)
 import requests
 class Sess(requests.Session):
@@ -44,13 +47,57 @@ def attendre(c, t=60):
     return False
 def fin(ok=True):
     R["ok"] = ok and not erreurs
-    try: R["scores_base"] = {v["name"]: v.get("score") for v in db()["v7"]["lobbies"][A.lobby_code]["players"].values()}
+    try:
+        lb = db()["v7"]["lobbies"][A.lobby_code]
+        R["scores_base"] = {v["name"]: v.get("score") for v in lb["players"].values()}
+        if lb.get("piege_recap"): R["recap_piege"] = lb["piege_recap"]; R["uids"] = {u: v["name"] for u, v in lb["players"].items()}
     except Exception: pass
     json.dump(R, open(S["sortie"], "w"), ensure_ascii=False, indent=1); log("fin", "OK" if R["ok"] else "ÉCHEC")
     try: A.quitter_lobby_logic(True); pump(1.5)
     except Exception: pass
     sys.exit(0)
 J, lob = A.frames["PageJeu"], A.frames["PageLobby"]
+def capture(nom_img):  # S["captures"] = dossier : capture de l'écran (Xvfb) aux moments clés
+    if not S.get("captures"): return
+    import subprocess; pump(0.8); os.makedirs(S["captures"], exist_ok=True)
+    subprocess.run(["import", "-window", "root", os.path.join(S["captures"], f"{nom_img}.png")], check=False)
+def jeu_piege(manche):
+    """Mot piégé : choisit le mot de sa cible (S["choix"] : valide | invalide | rien), puis devine le sien (S["jeu"] : gagne | perd)."""
+    conf = A.settings_config; mi, ma = int(conf["min"]), int(conf["max"])
+    if not attendre(lambda: J.phase in ("choix", "attente", "devine", "spectateur"), 30): log("ÉCHEC pas de phase de choix"); fin(False)
+    choix = S.get("choix", "valide") if J.phase == "choix" else "deja"
+    if choix == "deja": log(f"manche {manche} : mot de sa cible déjà choisi (reprise)")
+    if choix == "invalide":  # trop court, puis inconnu : refusés avec un message, sans rien envoyer
+        for essai in ("AB", "ZZZZZZZZZZ"[:mi]):
+            J.choix = list(essai); J.valider(); pump(0.3)
+            m = J.lbl_msg.cget("text"); R.setdefault("refus_choix", []).append(m); log(f"mot {essai} refusé :", m)
+            if J.phase != "choix": log("ÉCHEC mot invalide accepté"); fin(False)
+        J.choix = []
+    if manche == 1 and J.phase == "choix": J.choix = list("PIEG"); J.piege_rendre_choix(); capture("choix"); J.choix = []
+    if choix in ("valide", "invalide"):
+        mots = sorted(m for m in A.liste_mots if mi <= len(m) <= ma and m.isalpha() and m.isascii())
+        mot = random.choice(mots); J.choix = list(mot); J.valider()
+        if not attendre(lambda: J.phase != "choix", 20): log("ÉCHEC envoi du mot choisi"); fin(False)
+        R.setdefault("choisis", []).append(mot); log(f"manche {manche} : mot choisi pour sa cible", mot)
+    elif choix == "rien": log(f"manche {manche} : ne choisit rien (mot au hasard à la fin du décompte)")
+    if S.get("planter_apres_choix") == manche:
+        log("PLANTAGE simulé après le choix"); json.dump(dict(R, ok=True, plante=True), open(S["sortie"], "w"), ensure_ascii=False); os._exit(0)
+    if not attendre(lambda: J.phase == "devine" or J.fini_local, 90): log("ÉCHEC pas de mot à deviner"); fin(False)
+    if J.fini_local: return
+    secret = db()["v7"]["pieges"][A.lobby_code][J.piege_id][A.player_id]["mot"]  # le robot « triche » via l'admin du faux serveur
+    R["mots"].append(secret)
+    if S.get("jeu", "gagne") == "gagne": coups = [secret]
+    else: coups = sorted(m for m in A.banque_verif if len(m) == len(secret) and m[0] == secret[0] and m != secret and m.isascii())[:int(conf["essais"])]
+    for w in coups:
+        J.tape = list(w); J.valider()
+        if not attendre(lambda: J.attente_verdict is None, 150): log("ÉCHEC pas de verdict pour", w); fin(False)
+        if manche == 1 and J.ligne == 1: capture("devine")
+        if J.fini_local: break
+    if manche == 1: capture("fin_de_paire")
+    vs = ((db()["v7"]["lobbies"][A.lobby_code].get("piege_verdicts") or {}).get(A.player_id) or {})
+    trouve = any(set(v) == {"B"} for v in vs.values())
+    R.setdefault("devinettes", []).append([secret, J.ligne + 1 if trouve else 0])
+    log(f"manche {manche} : mot", secret, "trouvé en" if trouve else "pas trouvé ·", J.ligne + 1)
 try:
     if S["role"] == "reprise":
         pe = design.lire_config().get("partie_en_cours")
@@ -91,7 +138,7 @@ try:
                 lob.c_rounds.set_valeur(S.get("manches", 1))
                 if S.get("timer"): lob.s_time.set_valeur(S["timer"])
                 if S.get("essais"): lob.s_essais.set_valeur(S["essais"])
-                lob.sync_params()
+                lob.sync_params(); capture("salon")
             pump(1.5); lob.lancer(); log("partie lancée", partie)
         debut = 1
         if S["role"] == "reprise":
@@ -106,8 +153,9 @@ try:
                 attendre(lambda: (J.active_sync and int(J.round_actuel) > manche) or A.frames["PageScoreFinal"].active_sync, 300); continue
             if S.get("planter_manche") == manche:
                 log("PLANTAGE simulé"); json.dump(dict(R, ok=True, plante=True), open(S["sortie"], "w"), ensure_ascii=False); os._exit(0)
-            jeu = S.get("jeu", "gagne")
-            if jeu == "gagne":
+            jeu = S.get("jeu", "gagne") if S["mode"] != "PIEGE" else "piege"
+            if jeu == "piege": jeu_piege(manche)
+            elif jeu == "gagne":
                 J.tape = list(J.mot[1:]) if S["mode"] == "MYSTERE" else list(J.mot); J.valider()
             elif jeu == "perd":
                 faux = [m for m in sorted(A.banque_verif) if len(m) == len(J.mot) and m != J.mot and (S["mode"] == "MYSTERE" or m[0] == J.mot[0])]
@@ -129,6 +177,7 @@ try:
         if not attendre(lambda: A.frames["PageScoreFinal"].active_sync, 90): log("ÉCHEC pas de résultats"); fin(False)
         pump(2.5)
         R.setdefault("resultats", []).append({v["name"]: v.get("score") for v in db()["v7"]["lobbies"][A.lobby_code]["players"].values()})
+        capture("resultats")
         log("résultats", R["resultats"][-1])
         if partie < S.get("parties", 1):
             if A.is_host: A.frames["PageScoreFinal"].retour_lobby_host()

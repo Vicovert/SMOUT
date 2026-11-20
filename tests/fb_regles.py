@@ -50,7 +50,12 @@ def peut_lire(uid, p):
     if p == ["v7", "index"] or (len(p) >= 3 and p[1] == "index"): return True
     if len(p) >= 3 and p[1] == "lobbies":
         return existe(lire(DATA, ["v7", "lobbies", p[2], "players", uid]))
+    if len(p) >= 5 and p[1] == "pieges":  # mot piégé : lisible par les participants de la manche, sauf par celui qui doit le deviner
+        return uid != p[4] and participant(DATA, p[2], uid)
     return False
+
+def participant(D, code, uid):
+    return lire(D, ["v7", "lobbies", code, "settings", "piege_de", uid]) is not None
 
 def regle_ecriture(uid, niveau, D, N):
     """niveau = chemin d'une règle .write ; D = données actuelles, N = nouvelles données (racine complète)."""
@@ -66,6 +71,15 @@ def regle_ecriture(uid, niveau, D, N):
         if not re.fullmatch(r"[0-9]{4}", code): return False
         lob = lire(D, ["v7", "lobbies", code])
         return not existe(lob) or (lire(lob, ["settings", "host_id"]) == uid)
+    if len(niveau) == 3 and niveau[1] == "pieges":  # nettoyage des mots d'un salon disparu
+        return not existe(lire(N, niveau)) and not existe(lire(D, ["v7", "lobbies", niveau[2]]))
+    if len(niveau) == 5 and niveau[1] == "pieges":
+        code, pid, cible = niveau[2], niveau[3], niveau[4]
+        reg = lire(D, ["v7", "lobbies", code, "settings"]) or {}
+        if existe(lire(D, niveau)) or uid == cible or pid != reg.get("piege_id"): return False
+        if uid == (reg.get("piege_de") or {}).get(cible): return True
+        fin = reg.get("piege_fin_choix")
+        return participant(D, code, uid) and isinstance(fin, (int, float)) and maintenant() > fin
     if len(niveau) >= 3 and niveau[1] == "lobbies":
         code = niveau[2]; d_lob = lire(D, ["v7", "lobbies", code]) or {}; n_lob = lire(N, ["v7", "lobbies", code]) or {}
         if len(niveau) == 3:
@@ -91,6 +105,10 @@ def regle_ecriture(uid, niveau, D, N):
             return not existe(n) and existe(d) and (d.get("last_seen") or 0) < maintenant() - 25000
         if len(sous) == 2 and sous[0] in ("match_data", "fini_states"): return uid == sous[1]
         if len(sous) == 3 and sous[0] == "round_wins": return uid == sous[2]
+        if len(sous) == 2 and sous[0] == "piege_pret": return uid != sous[1] and participant(D, code, uid)
+        if len(sous) == 3 and sous[0] == "piege_essais": return uid == sous[1] and not existe(lire(d_lob, sous))
+        if len(sous) == 3 and sous[0] == "piege_verdicts": return uid != sous[1] and not existe(lire(d_lob, sous)) and participant(D, code, uid)
+        if len(sous) == 3 and sous[0] == "piege_recap": return uid != sous[2] and not existe(lire(d_lob, sous)) and participant(D, code, uid)
     return False
 
 def valider(N, cible):
@@ -107,6 +125,23 @@ def valider(N, cible):
             if s is not None and not all(k in s for k in ("essais", "min", "max", "rounds", "host_id", "timer", "version")): return False
             for pid, p in (lob.get("players") or {}).items():
                 if not isinstance(p, dict) or "name" not in p or "score" not in p: return False
+            for t, c in ((s or {}).get("piege_de") or {}).items():
+                if not isinstance(c, str) or c == t: return False
+            sous = cible[3:]
+            v = lire(lob, sous) if sous else None
+            if sous[:1] == ["piege_pret"] and len(sous) >= 2 and existe(lire(lob, sous[:2])) and not all(k in lire(lob, sous[:2]) for k in ("n", "p")): return False
+            if sous[:1] == ["piege_essais"] and len(sous) == 3 and v is not None and not (isinstance(v, str) and re.fullmatch(r"[A-Z]+", v)): return False
+            if sous[:1] == ["piege_verdicts"] and len(sous) == 3 and v is not None and not (isinstance(v, str) and re.fullmatch(r"[BMA]+", v)): return False
+            if sous[:1] == ["piege_recap"] and len(sous) >= 3 and existe(lire(lob, sous[:3])) and not all(k in lire(lob, sous[:3]) for k in ("de", "mot")): return False
+    if len(cible) >= 5 and cible[1] == "pieges":
+        n = lire(N, cible[:5])
+        if existe(n):
+            reg = lire(N, ["v7", "lobbies", cible[2], "settings"]) or {}
+            if not isinstance(n, dict) or set(n) - {"mot", "de", "auto"} or "mot" not in n or "de" not in n: return False
+            m = n["mot"]
+            if not isinstance(m, str) or not re.fullmatch(r"[A-Z]+", m) or not isinstance(n["de"], str): return False
+            if not (reg.get("min", 0) <= len(m) <= reg.get("max", 0)): return False
+            if "auto" in n and not isinstance(n["auto"], bool): return False
     return True
 
 def autorise(uid, ecritures):

@@ -2,6 +2,15 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
+## 8.6
+- Nouveau mode multijoueur « Mot piégé » (bleu `#5B7CFA`) : chacun choisit en secret (30 s, mot au hasard sinon) le mot que son voisin devra deviner, puis devine celui qu'on lui a choisi. Paires tirées au lancement, décalage différent à chaque manche, 2 joueurs minimum.
+- Barème : chaque paire distribue autant de points que d'essais ; le devineur a le barème Précision, le choisisseur les essais ratés (0 si mot au hasard).
+- Confidentialité par les règles Firebase (`v7/pieges`, mot jamais lisible par sa cible) : les essais sont évalués par le choisisseur, ou par un autre joueur s'il est parti, qui révèle le mot en fin de paire. **Règles à republier dans la console** (compatibles 8.5).
+- `VERSION_JEU` passe à 8.6 : les clients 8.5 ne jouent plus avec les 8.6.
+- Web : portage strictement équivalent (`smout.js`) ; PC : `page_multi.py`.
+- Tests : 33 cas de règles, 3 parties PC, 3 parties croisées PC ↔ web (choix invalide, mot au hasard, joueur parti, évaluation de secours), robot web étendu. Suite complète 24/24.
+- Limites connues : l'hôte peut déjà écrire n'importe quel score ; à 2 joueurs, si l'un part, la paire de l'autre est annulée.
+
 ## 8.5
 - Reprend les 8.3 et 8.4 (jamais publiées : leur CI a échoué sur les nouvelles vérifications de scores) avec les correctifs.
 - Élimination : le contrôle de score accepte les deux ordres (BOB = 0, les autres = 1 et 2), car le plus lent est éliminé au hasard des temps.

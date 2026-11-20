@@ -40,5 +40,17 @@ etape "Croisé : Rush 30 s, hôte web, 2 manches"
 DUREE=300 $S c12 'web:{"nom":"BOB","role":"host","mode":"RUSH","manches":2,"nb":2,"jeu":"rush","timer":30}' 'pc:{"nom":"ALICE","role":"join","hote":"BOB","mode":"RUSH","manches":2,"jeu":"rush"}' 2>&1 | tee /tmp/t_c12.txt; $PY "$ICI/verif_scores.py" c12 | tee -a /tmp/t_c12.txt; verifier /tmp/t_c12.txt
 etape "Croisé : Précision, hôte web (le joueur PC perd)"
 DUREE=240 $S c13 'web:{"nom":"BOB","role":"host","mode":"PRECISION","manches":2,"nb":2}' 'pc:{"nom":"ALICE","role":"join","hote":"BOB","mode":"PRECISION","manches":2,"jeu":"perd"}' 2>&1 | tee /tmp/t_c13.txt; $PY "$ICI/verif_scores.py" c13 | tee -a /tmp/t_c13.txt; verifier /tmp/t_c13.txt
+etape "Mot piégé PC : choix valide et invalide, devinette réussie et ratée"
+DUREE=300 $S p1 'pc:{"nom":"ALICE","role":"host","mode":"PIEGE","manches":2,"nb":2}' 'pc:{"nom":"BOB","role":"join","hote":"ALICE","mode":"PIEGE","manches":2,"choix":"invalide","jeu":"perd"}' 2>&1 | tee /tmp/t_p1.txt; $PY "$ICI/verif_scores.py" p1 | tee -a /tmp/t_p1.txt; verifier /tmp/t_p1.txt
+etape "Mot piégé PC : 3 joueurs, mot au hasard après 30 s, un joueur part (évaluation de secours)"
+DUREE=330 PAUSE=5 $S p2 'pc:{"nom":"ALICE","role":"host","mode":"PIEGE","manches":2,"nb":3}' 'pc:{"nom":"BOB","role":"join","hote":"ALICE","mode":"PIEGE","manches":2,"choix":"rien"}' 'pc:{"nom":"CHLOE","role":"join","hote":"ALICE","mode":"PIEGE","manches":2,"planter_apres_choix":1}' 2>&1 | tee /tmp/t_p2.txt; $PY "$ICI/verif_scores.py" p2 | tee -a /tmp/t_p2.txt; verifier /tmp/t_p2.txt
+etape "Croisé : Mot piégé, hôte PC, joueur web (choix invalide puis valide, devinette ratée)"
+DUREE=300 $S q1 'pc:{"nom":"ALICE","role":"host","mode":"PIEGE","manches":2,"nb":2}' 'web:{"nom":"BOB","role":"join","hote":"ALICE","mode":"PIEGE","manches":2,"choix":"invalide","jeu":"perd"}' 2>&1 | tee /tmp/t_q1.txt; $PY "$ICI/verif_scores.py" q1 | tee -a /tmp/t_q1.txt; verifier /tmp/t_q1.txt
+etape "Croisé : Mot piégé, hôte web, joueur PC (mot au hasard après 30 s, devinette ratée côté PC)"
+DUREE=330 $S q2 'web:{"nom":"BOB","role":"host","mode":"PIEGE","manches":2,"nb":2,"choix":"rien"}' 'pc:{"nom":"ALICE","role":"join","hote":"BOB","mode":"PIEGE","manches":2,"jeu":"perd"}' 2>&1 | tee /tmp/t_q2.txt; $PY "$ICI/verif_scores.py" q2 | tee -a /tmp/t_q2.txt; verifier /tmp/t_q2.txt
+etape "Croisé : Mot piégé à 3, hôte PC, un joueur web part après son choix (évaluation de secours), mot au hasard"
+DUREE=330 PAUSE=5 $S q3 'pc:{"nom":"ALICE","role":"host","mode":"PIEGE","manches":2,"nb":3}' 'web:{"nom":"BOB","role":"join","hote":"ALICE","mode":"PIEGE","manches":2,"choix":"rien"}' 'web:{"nom":"CHLOE","role":"join","hote":"ALICE","mode":"PIEGE","manches":2,"planter_apres_choix":1}' 2>&1 | tee /tmp/t_q3.txt; $PY "$ICI/verif_scores.py" q3 | tee -a /tmp/t_q3.txt; verifier /tmp/t_q3.txt
+etape "Mot piégé PC : le joueur plante après son choix et reprend la partie"
+DUREE=400 $S p3 'pc:{"nom":"ALICE","role":"host","mode":"PIEGE","manches":2,"nb":2}' 'pc:{"nom":"BOB","role":"join","hote":"ALICE","mode":"PIEGE","manches":2,"jeu":"perd","planter_apres_choix":2}' 'pc:{"nom":"BOB","role":"reprise","mode":"PIEGE","manches":2,"jeu":"perd","home":"/tmp/hp32","apres_fichier":"/tmp/sc/p3/r2.json"}' 2>&1 | tee /tmp/t_p3.txt; $PY "$ICI/verif_scores.py" p3 | tee -a /tmp/t_p3.txt; verifier /tmp/t_p3.txt
 echo; if [ $ECHECS -eq 0 ]; then echo "TOUS LES TESTS SONT PASSÉS"; else echo "$ECHECS ÉTAPE(S) EN ÉCHEC"; fi
 exit $([ $ECHECS -eq 0 ] && echo 0 || echo 1)

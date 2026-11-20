@@ -8,7 +8,7 @@ import tkinter.font as tkfont
 FIREBASE_URL = "https://smout-multi-default-rtdb.europe-west1.firebasedatabase.app/"
 FIREBASE_API_KEY = "AIzaSyCUliQiMhKmHZzxrMK6k35Gt0z7zBfZP3g"  # clé web publique (normal qu'elle soit dans le client)
 RACINE = "v7"            # données du protocole 7 (PC et web) ; /v5 reste pour les 5.x/6.x
-VERSION_JEU = "8.0"      # version du protocole multi : seuls les joueurs 8.x jouent ensemble (PC et navigateur)
+VERSION_JEU = "8.6"      # version du protocole multi : 8.6 ajoute le mode Mot piégé, seuls les joueurs 8.6+ jouent ensemble (PC et navigateur)
 DELAI_ABANDON_MS = 120000  # un salon dont plus personne ne donne signe de vie depuis 2 min peut être supprimé par n'importe qui
 
 def preuve_salon(code, mot_de_passe):
@@ -67,16 +67,18 @@ MODES = [
     ("ELIMINATION", "Élimination", "Le dernier est éliminé"),
     ("CHAINE", "Chaîne", "Les mots s'enchaînent"),
     ("COOP", "Coopératif", "Une grille pour tous"),
+    ("PIEGE", "Mot piégé", "Choisis le mot d'un autre"),
 ]
 NOM_MODE = {m: n for m, n, _ in MODES}
 RUSHS = ("RUSH", "CHAINE")  # modes « un maximum de mots avant la fin du temps »
 # chaque mode a sa couleur (identique à COULEURS_MODES de smout.js) et une règle en une phrase
-COULEURS_MODES = {"CLASSIQUE": "#F5B83D", "BLAST": "#FF6B6B", "PRECISION": "#4CC9F0", "MYSTERE": "#A78BFA", "RUSH": "#FF8FC7", "ELIMINATION": "#FF9F43", "CHAINE": "#2DD4BF", "COOP": "#7ED957"}
+COULEURS_MODES = {"CLASSIQUE": "#F5B83D", "BLAST": "#FF6B6B", "PRECISION": "#4CC9F0", "MYSTERE": "#A78BFA", "RUSH": "#FF8FC7", "ELIMINATION": "#FF9F43", "CHAINE": "#2DD4BF", "COOP": "#7ED957", "PIEGE": "#5B7CFA"}
 REGLES_MODES = {
     "CLASSIQUE": "Chacun cherche le mot : 1 point par mot trouvé.", "BLAST": "Les plus rapides marquent le plus de points à chaque manche.",
     "PRECISION": "Moins tu utilises d'essais, plus tu marques.", "MYSTERE": "Même la première lettre est cachée.",
     "RUSH": "Un maximum de mots avant la fin du temps.", "ELIMINATION": "Qui ne trouve pas, ou le plus lent, est éliminé. Le dernier gagne.",
-    "CHAINE": "Chaque mot commence par la dernière lettre du précédent.", "COOP": "Une seule grille pour l'équipe, essais partagés."}
+    "CHAINE": "Chaque mot commence par la dernière lettre du précédent.", "COOP": "Une seule grille pour l'équipe, essais partagés.",
+    "PIEGE": "Choisis en secret le mot qu'un autre joueur devra deviner."}
 SOMBRE = "#14182A"  # texte sur les couleurs de mode
 
 
@@ -104,6 +106,59 @@ def fusion_coop(md, essais):
             if isinstance(v, dict) and v.get("c"): tout.append((v.get("t") if isinstance(v.get("t"), (int, float)) else 9e15, pid, int(k), v))
     tout.sort(key=lambda x: (x[0], x[1], x[2]))
     return tout[:essais]
+
+PIEGE_CHOIX_S = 30  # Mot piégé : secondes pour choisir le mot de sa cible
+
+
+def piege_paires(ordre, joueurs, manche):
+    """Mot piégé : {cible: choisisseur} pour la manche (même calcul sur PC et sur le web).
+    Ordre circulaire tiré au lancement ; le décalage change à chaque manche pour varier les adversaires."""
+    part = [u for u in (ordre or []) if u in joueurs] + sorted(u for u in joueurs if u not in (ordre or []))
+    n = len(part)
+    if n < 2: return {}
+    d = 1 + (int(manche) - 1) % (n - 1)
+    return {part[i]: part[(i - d) % n] for i in range(n)}
+
+
+def piege_reglages(ordre, joueurs, manche, graine, debut):
+    """Réglages d'une manche de Mot piégé (écrits par l'hôte) : paires, identifiant de manche, fin du choix (ms, heure serveur)."""
+    return {"piege_ordre": list(ordre), "piege_de": piege_paires(ordre, joueurs, manche), "piege_id": f"p{graine}",
+            "piege_fin_choix": int((debut + PIEGE_CHOIX_S) * 1000)}
+
+
+def piege_points_paire(essais_max, k):
+    """(points du devineur, points du choisisseur) pour une paire : k = essai gagnant (1…), 0 si le mot n'est pas trouvé.
+    Chaque paire distribue essais_max points : le devineur a le barème Précision, le choisisseur les essais ratés."""
+    if k <= 0: return 0, essais_max
+    base = max(1, essais_max - (k - 1))
+    return (base * 2 if k == 1 else base), k - 1
+
+
+def piege_points(recap, uid, essais_max):
+    """Total d'un joueur sur toutes les manches, recalculé à partir du récapitulatif (aucun point compté deux fois)."""
+    total = 0
+    for r in (recap or {}).values():
+        for cible, x in (r or {}).items() if isinstance(r, dict) else []:
+            if not isinstance(x, dict): continue
+            dev, cho = piege_points_paire(int(essais_max), int(x.get("essais") or 0))
+            if cible == uid: total += dev
+            if x.get("de") == uid and not x.get("auto"): total += cho
+    return total
+
+
+def piege_lignes_recap(recap_manche, de_map, noms):
+    """Lignes « Alice → Bob : MOT · trouvé en 3 » d'une manche (récap de fin de manche et écran final)."""
+    lignes = []
+    if de_map is None: de_map = {c: x.get("de") for c, x in (recap_manche or {}).items() if isinstance(x, dict)}
+    for cible, cho in sorted(de_map.items(), key=lambda x: noms.get(x[1], "")):
+        x = (recap_manche or {}).get(cible)
+        a, b = noms.get(cho, "?").capitalize(), noms.get(cible, "?").capitalize()
+        if not isinstance(x, dict): lignes.append(f"{a} → {b} : paire annulée"); continue
+        k = int(x.get("essais") or 0)
+        res = f"trouvé en {k}" if k else "pas trouvé"
+        lignes.append(f"{a} → {b} : {x.get('mot', '?')} · {res}" + (" (mot au hasard)" if x.get("auto") else ""))
+    return lignes
+
 
 def apply_theme_multi(theme_data):
     """Met à jour les couleurs globales du jeu"""
@@ -266,6 +321,7 @@ class PageMulti(tk.Frame):
         """Supprime un salon vide ou abandonné, son secret et son annonce (refusé par la base si le salon est encore actif)."""
         if self.fb_ok("delete", f"lobbies/{code}"):
             self.fb_ok("delete", f"secrets/{code}")
+            self.fb_ok("delete", f"pieges/{code}")
             self.fb_ok("delete", f"index/{code}")
             return True
         return False
@@ -572,8 +628,8 @@ class PageLobby(tk.Frame):
         gm = tk.Frame(zh, bg=i["bg"]); gm.pack(anchor="w")
         self.cartes_mode = {}
         for k, (m, nom, desc) in enumerate(MODES):
-            cc = CarteChoix(gm, nom, "", lambda m=m: self.set_mode(m), largeur=150, hauteur=44, couleur=COULEURS_MODES[m])
-            cc.grid(row=k // 4, column=k % 4, padx=(0, 8), pady=(0, 8)); self.cartes_mode[m] = cc
+            cc = CarteChoix(gm, nom, "", lambda m=m: self.set_mode(m), largeur=200, hauteur=44, couleur=COULEURS_MODES[m])
+            cc.grid(row=k // 3, column=k % 3, padx=(0, 8), pady=(0, 8)); self.cartes_mode[m] = cc
         self.lbl_regle = etiquette(zh, "", "texte", 14, COULEURS_MODES["CLASSIQUE"], True, wraplength=620, justify="left"); self.lbl_regle.pack(anchor="w", pady=(2, 14))
         self.lignes_reglage = {}
         def ligne(cle, libelle, fabrique):
@@ -607,7 +663,7 @@ class PageLobby(tk.Frame):
         # 8 essais et 6 à 7 lettres par défaut pour chaque mode
         self.s_essais.set_valeur(8); self.c_lettres.set_valeur(6, 7)
         temps, manches = {"MYSTERE": (180, 3), "RUSH": (120, 1), "BLAST": (60, 3), "PRECISION": (180, 3), "CLASSIQUE": (180, 3),
-                          "ELIMINATION": (90, 10), "CHAINE": (150, 1), "COOP": (180, 3)}[mode]
+                          "ELIMINATION": (90, 10), "CHAINE": (150, 1), "COOP": (180, 3), "PIEGE": (180, 3)}[mode]
         self.s_time.set_valeur(temps); self.c_rounds.set_valeur(manches)
         self.update_mode_ui(mode)
         self.sync_params()
@@ -628,7 +684,7 @@ class PageLobby(tk.Frame):
         f, _ = self.lignes_reglage["rounds"]
         if rush: f.pack_forget()
         elif not f.winfo_ismapped(): f.pack(anchor="w", pady=2, before=self.lignes_reglage["timer"][0])
-        self.lignes_reglage["timer"][1].config(text="Temps de jeu" if rush else "Temps par manche")
+        self.lignes_reglage["timer"][1].config(text="Temps de jeu" if rush else "Temps pour deviner" if mode == "PIEGE" else "Temps par manche")
         for w in (self.c_rounds, self.s_time, self.s_essais, self.c_lettres): w.set_couleur(mc)
         self.btn_lancer.set_couleur(mc)
         b = self.bandeau; b.delete("all"); W, H = 632, 118
@@ -637,7 +693,8 @@ class PageLobby(tk.Frame):
         b.create_text(18, 44, text=NOM_MODE.get(mode, mode), anchor="w", fill=SOMBRE, font=police("titre", 26))
         b.create_text(18, 70, text=REGLES_MODES.get(mode, ""), anchor="w", fill=SOMBRE, font=police("texte", 13))
         morceaux = [f"{mm_ss(v['timer'])} de jeu" if rush else f"{v['rounds']} manche{'s' if v['rounds'] > 1 else ''}{' max' if mode == 'ELIMINATION' else ''}",
-                    None if rush else f"{mm_ss(v['timer'])} par manche", None if rush else f"{v['essais']} essais",
+                    f"{PIEGE_CHOIX_S} s pour choisir" if mode == "PIEGE" else None,
+                    None if rush else f"{mm_ss(v['timer'])} {'pour deviner' if mode == 'PIEGE' else 'par manche'}", None if rush else f"{v['essais']} essais",
                     f"{v['min']} lettres" if v["min"] == v["max"] else f"{v['min']} à {v['max']} lettres"]
         x = 18
         for t in [m for m in morceaux if m]:
@@ -793,9 +850,15 @@ class PageLobby(tk.Frame):
             "visible": sc.get("visible", True),
             "start_time": time.time() + self.controller.server_time_offset
         }
+        if mode == "PIEGE":  # ordre circulaire tiré au hasard, puis paires « qui choisit pour qui » de la 1re manche
+            d = self.controller.lire_salon() or {}
+            joueurs = list((d.get("players") or {}).keys()) or [self.controller.player_id]
+            ordre = random.sample(joueurs, len(joueurs))
+            new_settings.update(piege_reglages(ordre, joueurs, 1, rush_seed, new_settings["start_time"]))
         self.controller.settings_config.update(new_settings)
         self.controller.statut_salon = "playing"; self.controller.maj_index()
-        self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", {"status": "playing", "settings": new_settings, "match_data": None, "fini_states": None, "round_wins": None, "rush_recap": None})
+        self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", {"status": "playing", "settings": new_settings, "match_data": None, "fini_states": None, "round_wins": None, "rush_recap": None,
+                                                                           "piege_pret": None, "piege_essais": None, "piege_verdicts": None, "piege_recap": None})
 
 
 class Adversaire(tk.Frame):
@@ -911,6 +974,8 @@ class PageJeu(tk.Frame):
                 self.controller.current_score = int(self.round_actuel) - 1
                 self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}", {"score": self.controller.current_score})
         self.coop_n, self.coop_attente, self.coop_md, self.coop_sig = 0, [], {}, None
+        self.piege = mode == "PIEGE"
+        if self.piege: self.piege_init(conf)
 
         self.ligne, self.fini_local, self.temps_restant = 0, False, conf.get("timer", 180)
         self.tape = [] if mode == "MYSTERE" else [self.mot[0]]
@@ -934,6 +999,7 @@ class PageJeu(tk.Frame):
                 a.pack(anchor="w", pady=(0, 26))
                 self.adv_widgets[pid] = a; self.adv_grids[pid] = a.grille; self.adv_last_word_len[pid] = len(self.mot)
 
+        if self.piege: self.piege_demarrer(dm)
         gen = self.sync_gen
         self.active_sync, self.timer_actif = True, True; self.update_timer(gen)
         threading.Thread(target=self.bg_sync, args=(gen,), daemon=True).start(); self.ui_loop(gen)
@@ -1038,6 +1104,7 @@ class PageJeu(tk.Frame):
             if deco: etat, coul = "Déconnecté", P["danger"]
             elif mode == "ELIMINATION" and pid in (s.get("elimines") or []): etat, coul = "Éliminé", P["texte2"]
             elif mode == "COOP": etat, coul = f"{len(items)} proposition" + ("s" if len(items) > 1 else ""), P["texte2"]
+            elif mode == "PIEGE" and not fs.get(pid): etat, coul = self.piege_etat_adv(pid, d, len(items)), P["texte2"]
             elif mode in RUSHS:
                 adv_idx = pdat.get("rush_index", pdat.get("score", 0)) or 0
                 etat, coul = f"Mot n° {adv_idx + 1}", P["texte2"]
@@ -1050,10 +1117,15 @@ class PageJeu(tk.Frame):
             a.lbl_etat.config(text=etat, fg=coul or P["texte2"])
 
         if mode == "COOP": self.coop_md = md; self.rendre_coop()
+        if self.piege: self.piege_tick(d, s, p, active_pids, fs)
         round_over = (sum(1 for pid in active_pids if fs.get(pid)) >= len(active_pids)) or (self.temps_restant <= 0)
+        if self.piege and round_over and not self.piege_recaps_complets(d, active_pids): round_over = False
         fc = sum(1 for pid in active_pids if fs.get(pid))
         if round_over: self.timer_actif = False
         for pid in list(self.adv_grids.keys()):
+            if self.piege:  # chaque joueur devine un mot de longueur différente
+                n_adv = ((d.get("piege_pret") or {}).get(pid) or {}).get("n")
+                if isinstance(n_adv, int) and self.adv_last_word_len.get(pid) != n_adv: self.recreer_grille_adv(pid, n_adv)
             if mode in RUSHS and hasattr(self, "rush_words"):
                 adv_idx = p.get(pid, {}).get("rush_index", p.get(pid, {}).get("score", 0))
                 if adv_idx < len(self.rush_words):
@@ -1100,6 +1172,9 @@ class PageJeu(tk.Frame):
             if not self.btn_def.winfo_ismapped(): self.btn_def.pack(side="left")
             if round_over:
                 msg_text = f"Le mot était {self.mot}"
+                if self.piege:
+                    noms = {pid: v.get("name", "?") for pid, v in p.items()}
+                    msg_text = "\n".join(piege_lignes_recap(((d.get("piege_recap") or {}).get(f"r{self.round_actuel}") or {}), self.piege_de, noms))
                 if mode == "BLAST":
                     sorted_wins = self.points_blast(d)
                     pts_map = {0: 4, 1: 3, 2: 2, 3: 1}
@@ -1119,10 +1194,248 @@ class PageJeu(tk.Frame):
                 t = ("Tu es éliminé : tu regardes la fin de la partie\n" if self.elimine else "") + f"En attente des autres joueurs ({fc}/{len(active_pids)})"
                 if self.lbl_msg.cget("text") != t: self.lbl_msg.config(text=t, fg=P["texte2"])
 
+    # --- Mot piégé : chaque joueur choisit le mot de sa cible, puis devine celui qu'on lui a choisi ---------------------
+    # Le mot n'est jamais lisible par celui qui le devine (règles Firebase) : ses essais sont évalués par son
+    # choisisseur, ou, s'il est parti, par le premier autre joueur présent, qui révèle aussi le mot en fin de paire.
+    def piege_init(self, conf):
+        me = self.controller.player_id
+        self.piege_de = dict(conf.get("piege_de") or {})
+        self.piege_id = conf.get("piege_id", "")
+        self.piege_fin = float(conf.get("piege_fin_choix") or 0) / 1000
+        self.piege_cible = next((t for t, c in self.piege_de.items() if c == me), None)
+        self.piege_mots, self.piege_lectures, self.piege_envoyes, self.piege_recaps = {}, {}, set(), set()
+        self.piege_secours, self.piege_essais_txt, self.piege_pret_envoye = set(), {}, {}
+        self.choix, self.choix_envoi, self.attente_verdict, self.mot_reel = [], False, None, ""
+        self.piege_premiere, self.piege_n, self.piege_attente_recap = "", 0, None
+        self.phase = "choix" if (self.piege_cible and me in self.piege_de) else "spectateur"
+        self.mot = "?" * int(conf.get("max", 7)); self.controller.dernier_mot = ""
+
+    def piege_noms(self, d=None):
+        d = d or self.last_sync_data or self.controller.lire_salon() or {}
+        return {pid: v.get("name", "?") for pid, v in (d.get("players") or {}).items()}
+
+    def piege_vider(self):
+        for w in self.moi_side.winfo_children(): w.destroy()
+        self.labels_moi = []
+
+    def piege_demarrer(self, d):
+        me, d = self.controller.player_id, d or {}
+        if self.phase == "spectateur":
+            self.piege_vider(); self.fini_local = True
+            self.controller.fb_put(f"lobbies/{self.controller.lobby_code}/fini_states/{me}", True)
+            self.lbl_msg.config(text="Tu regardes cette manche", fg=P["texte2"]); return
+        pret = d.get("piege_pret") or {}
+        if pret.get(self.piege_cible): self.phase = "attente"  # reprise : le mot de notre cible est déjà choisi
+        if self.phase == "attente" and isinstance(pret.get(me), dict): self.piege_devine(pret[me], d)
+        elif self.phase == "attente": self.piege_construire_attente()
+        else: self.piege_construire_choix(d)
+
+    def piege_construire_choix(self, d=None):
+        self.piege_vider()
+        conf = self.controller.settings_config; mi, ma = int(conf.get("min", 6)), int(conf.get("max", 7))
+        nom = self.piege_noms(d).get(self.piege_cible, "?").capitalize()
+        self.lbl_info.config(text=f"{NOM_MODE['PIEGE']} · choisis le mot de {nom}")
+        etiquette(self.moi_side, f"Choisis le mot que {nom} devra deviner", "texte", 19, gras=True).pack()
+        etiquette(self.moi_side, (f"{mi} lettres" if mi == ma else f"{mi} à {ma} lettres") + " · un mot du dictionnaire · gardé secret",
+                  "texte", 14, P["texte2"]).pack(pady=(2, 10))
+        rg = tk.Frame(self.moi_side, bg=P["fond"]); rg.pack()
+        taille, _ = self.get_grid_sizes()
+        self.labels_choix = [Tuile(rg, taille) for _ in range(ma)]
+        for c, t in enumerate(self.labels_choix): t.grid(row=0, column=c, padx=4, pady=4)
+        self.labels_moi, self.ligne = [self.labels_choix], 0
+        self.piege_rendre_choix()
+
+    def piege_rendre_choix(self):
+        for i, t in enumerate(getattr(self, "labels_choix", [])):
+            txt = self.choix[i] if i < len(self.choix) else ""
+            if t.cget("text") != txt: t.config(text=txt, bg=BG)
+            t.set_curseur(i == len(self.choix) and not self.choix_envoi)
+
+    def piege_construire_attente(self, texte="Mot envoyé ✓"):
+        self.piege_vider()
+        etiquette(self.moi_side, texte, "titre", 26).pack(pady=(30, 6))
+        etiquette(self.moi_side, "En attente du mot que l'on t'a préparé…", "texte", 15, P["texte2"]).pack()
+
+    def piege_mot_hasard(self):
+        conf = self.controller.settings_config; mi, ma = int(conf.get("min", 6)), int(conf.get("max", 7))
+        return random.choice([m for m in self.controller.liste_mots if mi <= len(m) <= ma and m.isalpha() and m.isascii()] or self.controller.liste_mots)
+
+    def valider_choix(self):
+        if self.choix_envoi: return
+        conf = self.controller.settings_config; mi, ma = int(conf.get("min", 6)), int(conf.get("max", 7))
+        mot = "".join(self.choix)
+        if not mi <= len(mot) <= ma:
+            self.message_temp(f"Le mot doit faire {mi} lettres" if mi == ma else f"Le mot doit faire de {mi} à {ma} lettres", P["danger"], 1800); return
+        if mot not in self.controller.banque_verif: self.message_temp("Mot inconnu", P["danger"]); return
+        self.piege_envoyer(self.piege_cible, mot, self.controller.player_id, False)
+
+    def piege_envoyer(self, cible, mot, de, auto):
+        """Enregistre le mot secret de « cible » puis annonce sa longueur et sa 1re lettre (comme dans les autres modes)."""
+        ctl, code, pid, gen = self.controller, self.controller.lobby_code, self.piege_id, self.sync_gen
+        moi_choix = cible == self.piege_cible and de == ctl.player_id
+        if moi_choix: self.choix_envoi = True; self.piege_rendre_choix()
+        def worker():
+            ok = ctl.fb_ok("put", f"pieges/{code}/{pid}/{cible}", {"mot": mot, "de": de, "auto": auto})
+            if ok: ctl.fb_ok("put", f"lobbies/{code}/piege_pret/{cible}", {"n": len(mot), "p": mot[0]})
+            ctl.reponses_reseau.put((lambda r: self.piege_envoye(r, cible, mot, de, auto, moi_choix, gen), ok))
+        threading.Thread(target=worker, daemon=True).start()
+
+    def piege_envoye(self, ok, cible, mot, de, auto, moi_choix, gen):
+        if gen != self.sync_gen: return
+        if ok: self.piege_mots[cible] = {"mot": mot, "de": de, "auto": auto}
+        if not moi_choix or self.phase != "choix": return
+        maintenant = time.time() + self.controller.server_time_offset
+        if ok or maintenant > self.piege_fin:  # refusé après la fin du décompte : un mot au hasard a déjà été attribué
+            self.phase = "attente"
+            self.piege_construire_attente("Temps écoulé : mot tiré au hasard" if (auto or not ok) else "Mot envoyé ✓")
+        else:
+            self.choix_envoi = False; self.piege_rendre_choix(); self.message_temp("Envoi impossible, réessaie", P["danger"], 1800)
+
+    def piege_devine(self, info, d):
+        me, conf = self.controller.player_id, self.controller.settings_config
+        n, prem = int(info.get("n") or 0), str(info.get("p") or "?")[:1]
+        self.piege_vider(); self.phase = "devine"; self.piege_n, self.piege_premiere = n, prem
+        self.mot = prem + "?" * (n - 1)
+        self.ligne, self.tape, self.attente_verdict = 0, [prem], None
+        self.statut_lettres = {l: None for l in ALPHABET}
+        self.labels_moi = self.creer_grille(self.moi_side, "", True)
+        nom = self.piege_noms(d).get(self.piege_de.get(me), "?").capitalize()
+        self.lbl_info.config(text=f"{NOM_MODE['PIEGE']} · mot choisi par {nom} · {n} lettres")
+        essais = ((d.get("piege_essais") or {}).get(me)) or {}
+        for k in range(int(conf.get("essais", 8))):  # reprise : on rejoue les essais déjà envoyés
+            t = essais.get(f"e{k}") if isinstance(essais, dict) else None
+            if not isinstance(t, str): break
+            self.piege_essais_txt[k] = t; self.ligne, self.tape, self.attente_verdict = k, list(t), k
+            if not self.piege_appliquer_verdict(d) or self.fini_local: break
+        self.maj_clavier(); self.maj_affichage()
+        if self.attente_verdict is not None:
+            for case in self.labels_moi[self.attente_verdict]: case.set_curseur(False)
+            self.lbl_msg.config(text="Vérification…", fg=P["texte2"])
+
+    def valider_piege(self):
+        if self.attente_verdict is not None or len(self.tape) != self.piege_n: return
+        t = "".join(self.tape)
+        if t not in self.controller.banque_verif: self.message_temp("Mot inconnu", P["danger"]); return
+        k, me = self.ligne, self.controller.player_id
+        self.piege_essais_txt[k], self.attente_verdict = t, k
+        self.controller.fb_put(f"lobbies/{self.controller.lobby_code}/piege_essais/{me}/e{k}", t)
+        for case in self.labels_moi[k]: case.set_curseur(False)
+        self.lbl_msg.config(text="Vérification…", fg=P["texte2"])
+
+    def piege_appliquer_verdict(self, d):
+        """Applique le verdict (couleurs) de l'essai en attente, s'il est arrivé. Renvoie True s'il a été appliqué."""
+        k, me = self.attente_verdict, self.controller.player_id
+        if k is None: return False
+        v = (((d.get("piege_verdicts") or {}).get(me)) or {}).get(f"e{k}")
+        t = list(self.piege_essais_txt.get(k, ""))
+        if not isinstance(v, str) or len(v) != self.piege_n or len(t) != self.piege_n: return False
+        res = [{"B": "bien", "M": "mal"}.get(c, "absent") for c in v]
+        self.attente_verdict = None
+        self.maj_statuts(t, res)
+        for i, e in enumerate(res): self.labels_moi[k][i].config(text=t[i], bg=P[e])
+        for case in self.labels_moi[k]: case.set_curseur(False)
+        self.controller.fb_put(f"lobbies/{self.controller.lobby_code}/match_data/{me}/{k}", {"c": list(v), "l": t})
+        if self.lbl_msg.cget("text") == "Vérification…": self.lbl_msg.config(text="")
+        if set(v) == {"B"}:
+            self.mot_reel = self.mot = self.controller.dernier_mot = "".join(t); self.finir_round(True)
+        elif k >= int(self.controller.settings_config.get("essais", 8)) - 1: self.finir_round(False)
+        else: self.ligne, self.tape = k + 1, [self.piege_premiere]; self.maj_affichage()
+        return True
+
+    def piege_mot(self, cible):
+        """Mot secret de « cible » (pour l'évaluer) : en cache, sinon lu en arrière-plan (refusé par la base si c'est le nôtre)."""
+        if cible in self.piege_mots: return self.piege_mots[cible]
+        if time.time() - self.piege_lectures.get(cible, 0) > 1.5:
+            self.piege_lectures[cible] = time.time(); gen = self.sync_gen
+            def recu(x):
+                if gen == self.sync_gen and isinstance(x, dict) and isinstance(x.get("mot"), str): self.piege_mots[cible] = x
+            self.controller.fb_get_async(f"pieges/{self.controller.lobby_code}/{self.piege_id}/{cible}", recu)
+        return None
+
+    def piege_evaluateur(self, cible, actifs):
+        """Qui évalue les essais de « cible » : son choisisseur s'il est là, sinon le premier autre participant présent."""
+        c = self.piege_de.get(cible)
+        if c in actifs: return c
+        return next(iter(sorted(u for u in actifs if u != cible and u in self.piege_de)), None)
+
+    def piege_tick(self, d, s, p, actifs, fs):
+        me, code = self.controller.player_id, self.controller.lobby_code
+        essais_max = int(s.get("essais", 8))
+        maintenant = time.time() + self.controller.server_time_offset
+        pret = d.get("piege_pret") or {}
+        recap_r = ((d.get("piege_recap") or {}).get(f"r{self.round_actuel}")) or {}
+        # 1. notre choix : mot au hasard à la fin du décompte
+        if self.phase == "choix" and not self.choix_envoi and maintenant > self.piege_fin:
+            if pret.get(self.piege_cible): self.phase = "attente"; self.piege_construire_attente("Temps écoulé : mot tiré au hasard")
+            else: self.piege_envoyer(self.piege_cible, self.piege_mot_hasard(), me, True)
+        # 2. notre mot est prêt et le nôtre est choisi : place à la devinette
+        if self.phase == "attente" and isinstance(pret.get(me), dict): self.piege_devine(pret[me], d)
+        # 3. verdict de notre dernier essai
+        if self.phase == "devine" and self.attente_verdict is not None and not self.fini_local: self.piege_appliquer_verdict(d)
+        # 4. mot au hasard pour un choisisseur parti avant d'avoir choisi
+        if maintenant > self.piege_fin + 5:
+            for t, c in self.piege_de.items():
+                if t in pret or t not in actifs or t in self.piege_secours: continue
+                if self.piege_evaluateur(t, [u for u in actifs if u != c]) == me:
+                    self.piege_secours.add(t); self.piege_envoyer(t, self.piege_mot_hasard(), c, True)
+        # 5. évaluation des essais des cibles dont on a la charge, puis révélation du mot en fin de paire
+        tous_essais, tous_verdicts = d.get("piege_essais") or {}, d.get("piege_verdicts") or {}
+        num = lambda k: int(str(k)[1:]) if str(k)[1:].isdigit() else 99
+        for t, c in self.piege_de.items():
+            if t == me or t not in p or t in recap_r or t in self.piege_recaps: continue
+            if self.piege_evaluateur(t, actifs) != me: continue
+            sec = self.piege_mot(t)
+            if not sec: continue
+            mot = sec["mot"]
+            if t not in pret and time.time() - self.piege_pret_envoye.get(t, 0) > 3:  # annonce perdue : on la renvoie
+                self.piege_pret_envoye[t] = time.time()
+                self.controller.fb_put(f"lobbies/{code}/piege_pret/{t}", {"n": len(mot), "p": mot[0]})
+            et = tous_essais.get(t) if isinstance(tous_essais.get(t), dict) else {}
+            vt = dict(tous_verdicts.get(t) or {}) if isinstance(tous_verdicts.get(t), dict) else {}
+            for k in sorted(et, key=num):
+                g = et[k]
+                if k in vt or (t, k) in self.piege_envoyes or not isinstance(g, str) or len(g) != len(mot): continue
+                v = "".join(en_codes(design.evaluer(list(g), mot)))
+                self.controller.fb_put(f"lobbies/{code}/piege_verdicts/{t}/{k}", v); self.piege_envoyes.add((t, k)); vt[k] = v
+            gagne = next((num(k) + 1 for k in sorted(vt, key=num) if set(vt[k]) == {"B"}), 0)
+            if gagne or len(vt) >= essais_max or fs.get(t) or self.temps_restant <= 0:
+                self.piege_recaps.add(t)
+                self.controller.fb_put(f"lobbies/{code}/piege_recap/r{self.round_actuel}/{t}", {"de": c, "mot": mot, "essais": gagne, "auto": bool(sec.get("auto"))})
+        # 6. notre mot révélé et notre score (recalculé à partir du récapitulatif de toutes les manches)
+        mien = recap_r.get(me)
+        if isinstance(mien, dict) and isinstance(mien.get("mot"), str) and not self.mot_reel:
+            self.mot_reel = self.mot = self.controller.dernier_mot = mien["mot"]
+        total = piege_points(d.get("piege_recap"), me, essais_max)
+        if total != self.controller.current_score:
+            self.controller.current_score = total; self.s_score.set(nombre(total))
+            self.controller.fb_patch(f"lobbies/{code}/players/{me}", {"score": total})
+
+    def piege_recaps_complets(self, d, actifs):
+        """La manche ne se clôt qu'une fois chaque mot révélé (8 s de délai au plus, si un évaluateur manque)."""
+        recap_r = ((d.get("piege_recap") or {}).get(f"r{self.round_actuel}")) or {}
+        attendus = [t for t in self.piege_de if t in actifs and self.piege_evaluateur(t, actifs) and t not in recap_r]
+        if not attendus: return True
+        if self.piege_attente_recap is None: self.piege_attente_recap = time.time()
+        return time.time() - self.piege_attente_recap > 8
+
+    def piege_etat_adv(self, pid, d, nb_essais):
+        """État d'un adversaire pendant une manche de Mot piégé."""
+        pret = d.get("piege_pret") or {}
+        if pid not in self.piege_de: return "Spectateur"
+        sa_cible = next((t for t, c in self.piege_de.items() if c == pid), None)
+        if sa_cible and sa_cible not in pret and time.time() + self.controller.server_time_offset < self.piege_fin + 5: return "Choisit un mot…"
+        if pid not in pret: return "Attend son mot…"
+        return f"Essai {min(nb_essais + 1, int(self.controller.settings_config.get('essais', 8)))}"
+
     def update_timer(self, gen):
         if not self.timer_actif or gen != self.sync_gen: return
-        self.temps_restant = max(0, int(int(self.controller.settings_config.get("timer", 180)) - ((time.time() + self.controller.server_time_offset) - self.start_time_round)))
-        self.s_temps.set(mm_ss(self.temps_restant), P["texte"] if self.temps_restant > 30 else P["danger"])
+        maintenant = time.time() + self.controller.server_time_offset
+        duree = int(self.controller.settings_config.get("timer", 180)) + (PIEGE_CHOIX_S if self.piege else 0)
+        self.temps_restant = max(0, int(duree - (maintenant - self.start_time_round)))
+        if self.piege and self.phase == "choix":  # Mot piégé : décompte du choix du mot
+            reste = max(0, int(self.piege_fin - maintenant))
+            self.s_temps.set(mm_ss(reste), P["texte"] if reste > 10 else P["danger"])
+        else: self.s_temps.set(mm_ss(self.temps_restant), P["texte"] if self.temps_restant > 30 else P["danger"])
         if self.temps_restant <= 0:
             if not self.fini_local: self.finir_round(False)
             self.timer_actif = False
@@ -1134,6 +1447,10 @@ class PageJeu(tk.Frame):
 
     def valider(self):
         if self.fini_local: return
+        if self.piege:
+            if self.phase == "choix": self.valider_choix()
+            elif self.phase == "devine": self.valider_piege()
+            return
         mode = self.controller.settings_config.get("game_mode", "CLASSIQUE")
         req_len = len(self.mot) - 1 if mode == "MYSTERE" else len(self.mot)
         if len(self.tape) != req_len: return
@@ -1282,6 +1599,11 @@ class PageJeu(tk.Frame):
 
     def ajouter_lettre(self, char):
         if self.fini_local: return
+        if self.piege and self.phase != "devine":
+            if self.phase == "choix" and not self.choix_envoi and len(self.choix) < int(self.controller.settings_config.get("max", 7)):
+                self.choix.append(char); self.piege_rendre_choix()
+            return
+        if self.piege and self.attente_verdict is not None: return
         max_l = self.get_max_tape()
         if len(self.tape) > max_l: self.tape = self.tape[:max_l]
         if len(self.tape) < max_l: self.tape.append(char)
@@ -1289,6 +1611,10 @@ class PageJeu(tk.Frame):
 
     def effacer(self):
         if self.fini_local: return
+        if self.piege and self.phase != "devine":
+            if self.phase == "choix" and not self.choix_envoi and self.choix: self.choix.pop(); self.piege_rendre_choix()
+            return
+        if self.piege and self.attente_verdict is not None: return
         max_l = self.get_max_tape()
         if len(self.tape) > max_l: self.tape = self.tape[:max_l]
         min_len = 0 if self.controller.settings_config.get("game_mode") == "MYSTERE" else 1
@@ -1297,7 +1623,8 @@ class PageJeu(tk.Frame):
 
     def finir_round(self, vic):
         self.fini_local = True
-        for case in self.labels_moi[min(self.ligne, len(self.labels_moi) - 1)]: case.set_curseur(False)
+        if self.labels_moi:
+            for case in self.labels_moi[min(self.ligne, len(self.labels_moi) - 1)]: case.set_curseur(False)
         self.winfo_toplevel().unbind("<Key>")
         mode = self.controller.settings_config.get("game_mode", "CLASSIQUE")
         if vic:
@@ -1337,14 +1664,24 @@ class PageJeu(tk.Frame):
             if len(vivants) <= 1:
                 self.controller.statut_salon = "finished"
                 self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", fin); return
+        if mode == "PIEGE" and int(s["current_round"]) < int(s["rounds"]):
+            p = d.get("players") or {}; now_ms = max([v.get("last_seen", 0) for v in p.values()] + [0])
+            actifs = [pid for pid, v in p.items() if now_ms - v.get("last_seen", 0) <= 15000]
+            if len(actifs) < 2:  # plus assez de joueurs pour former des paires
+                self.controller.statut_salon = "finished"
+                self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", fin); return
         if int(s["current_round"]) < int(s["rounds"]):
             s.update({
                 "rush_seed": random.randint(1000, 999999),
                 "current_round": int(s["current_round"]) + 1,
                 "start_time": time.time() + self.controller.server_time_offset
             })
+            maj = {"settings": s, "status": "playing", "match_data": None, "fini_states": None}
+            if mode == "PIEGE":
+                s.update(piege_reglages(s.get("piege_ordre") or [], actifs, s["current_round"], s["rush_seed"], s["start_time"]))
+                maj.update({"piege_pret": None, "piege_essais": None, "piege_verdicts": None})
             self.controller.settings_config.update(s)
-            self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", {"settings": s, "status": "playing", "match_data": None, "fini_states": None})
+            self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", maj)
         else:
             self.controller.statut_salon = "finished"
             self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", fin)
@@ -1358,6 +1695,9 @@ class PageJeu(tk.Frame):
 
     def maj_affichage(self):
         if self.fini_local: return
+        if getattr(self, "piege", False) and self.phase != "devine":
+            if self.phase == "choix": self.piege_rendre_choix()
+            return
         max_l = self.get_max_tape()
         if len(self.tape) > max_l: self.tape = self.tape[:max_l]
         mode = self.controller.settings_config.get("game_mode", "CLASSIQUE")
@@ -1431,6 +1771,12 @@ class PageScoreFinal(tk.Frame):
     def quitter_depuis_score(self): self.active_sync = False; self.controller.quitter_lobby_logic(); self.controller.controller.creer_menu_accueil()
 
     def recap_rush(self, d):
+        if d.get("settings", {}).get("game_mode") == "PIEGE":
+            rec, lignes = d.get("piege_recap") or {}, []
+            noms = {pid: v.get("name", "?") for pid, v in (d.get("players") or {}).items()}
+            for k in sorted(rec, key=lambda k: int(k[1:]) if k[1:].isdigit() else 0):
+                lignes += [f"Manche {k[1:]}"] + piege_lignes_recap(rec[k], None, noms)
+            return lignes
         recap_data = d.get("rush_recap")
         if d.get("settings", {}).get("game_mode") not in RUSHS or not recap_data: return []
         lignes = []
@@ -1460,7 +1806,7 @@ class PageScoreFinal(tk.Frame):
         mode = d.get("settings", {}).get("game_mode", "CLASSIQUE")
         self.lbl_haut.config(text=(f"Salon de {hote.capitalize()} · " if hote else "") + f"{NOM_MODE.get(mode, mode)} · Partie terminée")
         c = tk.Frame(self.corps, bg=P["fond"]); c.pack(pady=(18, 0))
-        mot = getattr(self.controller, "dernier_mot", "")
+        mot = getattr(self.controller, "dernier_mot", "") if mode != "PIEGE" else ""
         if mot:
             etiquette(c, "Le dernier mot était", "texte", 17, P["texte2"]).pack()
             tl = tk.Frame(c, bg=P["fond"]); tl.pack(pady=(8, 12))
@@ -1531,8 +1877,13 @@ class PageScoreFinal(tk.Frame):
         if not self.active_sync or gen != self.fin_gen: return
         if d and d.get("status") == "waiting": self.active_sync = False; self.controller.current_score = 0; self.controller.show_frame("PageLobby")
         else:
-            if d and not self.lbl_rush_recap.cget("text"):
+            if d and self.lbl_rush_recap.cget("text") != "\n".join(self.recap_rush(d)):
                 self.maj_rush_recap(d)
+            if d and d.get("settings", {}).get("game_mode") == "PIEGE":  # dernier mot révélé après la fin : score à jour
+                total = piege_points(d.get("piege_recap"), self.controller.player_id, int(d["settings"].get("essais", 8)))
+                if total != self.controller.current_score:
+                    self.controller.current_score = total
+                    self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}", {"score": total})
             self.after(1000, lambda: self.ecouter_fin(gen))
 
     def retour_lobby_host(self):

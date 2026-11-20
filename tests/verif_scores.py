@@ -51,6 +51,19 @@ def blast():  # chaque manche distribue 4 + 3 points aux deux premiers ; qui ne 
     if s.get("DAVID") != 0 or s.get("BOB", 0) + s.get("ALICE", 0) != 14: echec(f"Blast : {s}")
 
 
+def piege(attendu):  # Mot piégé : scores exacts, et identiques au total recalculé depuis le récapitulatif (« qui a choisi quoi pour qui »)
+    exact(attendu)
+    src = open(__file__.replace("tests/verif_scores.py", "page_multi.py")).read()
+    ns = {}; exec(src[src.index("def piege_points_paire"):src.index("def piege_lignes_recap")], ns)
+    hote = robots[0]
+    if not hote.get("recap_piege"): echec("pas de récapitulatif de Mot piégé")
+    uids = {}
+    for r in robots: uids.update(r.get("uids") or {})  # un joueur peut être parti avant que l'hôte ne relève les noms
+    calc = {nom: ns["piege_points"](hote["recap_piege"], uid, 8) for uid, nom in uids.items()}
+    final = parties()[-1]
+    if any(calc.get(nom, 0) != v for nom, v in final.items()): echec(f"scores {final} ≠ récapitulatif {calc}")
+
+
 REGLES = {
     "c1": lambda: exact({"ALICE": 32, "BOB": 32}),      # Précision : 16 points par mot trouvé du 1er coup, 2 manches
     "c2": blast,
@@ -64,6 +77,12 @@ REGLES = {
     "c11": rush,
     "c12": rush,
     "c13": lambda: exact({"BOB": 32, "ALICE": 0}),
+    "p1": lambda: piege({"ALICE": 48, "BOB": 0}),               # Mot piégé : 16 (trouvé du 1er coup) + 8 (cible qui rate), 2 manches
+    "p2": lambda: piege({"ALICE": 32, "BOB": 32, "CHLOE": 0}),  # mot au hasard (0 pt au choisisseur), paire du joueur parti annulée
+    "p3": lambda: piege({"ALICE": 48, "BOB": 0}),
+    "q1": lambda: piege({"ALICE": 48, "BOB": 0}),               # hôte PC, joueur web (choix invalide puis valide, devinette ratée)
+    "q3": lambda: piege({"ALICE": 32, "BOB": 32, "CHLOE": 0}),  # joueur web parti après son choix : paire annulée, mot au hasard pour BOB
+    "q2": lambda: piege({"BOB": 32, "ALICE": 0}),               # hôte web, joueur PC (mot au hasard pour ALICE : 0 pt au choisisseur ; ALICE rate)
 }
 REGLES[nom]()
 print(f"  scores conformes ({nom})")
