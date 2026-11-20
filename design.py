@@ -3,7 +3,7 @@ import tkinter as tk
 import tkinter.font as tkfont
 import os, sys, ctypes, colorsys, hashlib
 
-VERSION_APP = "8.2"
+VERSION_APP = "8.3"
 URL_WEB = "https://vicovert.github.io/SMOUT/"
 
 def mot_graine(liste_triee, graine, index=0):
