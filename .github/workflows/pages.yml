@@ -4,6 +4,9 @@ name: Version web (GitHub Pages)
 on:
   push:
     branches: [main]
+    paths-ignore:          # documentation seule : pas de republication
+      - '**.md'
+      - 'claude/**'
   workflow_dispatch:
 
 permissions:
