@@ -6,6 +6,7 @@ const res = []; const ok = (n, c, i = "") => { res.push(!!c); console.log((c ? "
 const B = "http://127.0.0.1:9000/";
 (async () => {
   const jeton = await (await fetch(B + "signup", { method: "POST", body: "{}" })).json(); const uid = jeton.idToken.slice(4);
+  const VJ = require("fs").readFileSync(__dirname + "/../../web/smout.js", "utf8").match(/const VERSION_JEU = "([^"]+)"/)[1];  // version du jeu testée
   const put = (code, v) => fetch(`${B}v7/index/${code}.json?auth=${jeton.idToken}`, { method: "PUT", body: JSON.stringify({ owner: uid, hote: "HOTE", nb: 1, prive: false, visible: true, status: "waiting", version: v, maj: { ".sv": "timestamp" } }) });
   const b = await puppeteer.launch({ executablePath: process.env.CHROME || "/usr/bin/google-chrome", headless: "new", args: ["--no-sandbox"] });
   const err = [];
@@ -18,7 +19,7 @@ const B = "http://127.0.0.1:9000/";
       if (!c) return r.continue();
       if (r.method() === "OPTIONS") return r.respond({ status: 204, headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "*", "Access-Control-Allow-Headers": "*" } });
       const x = await fetch(c, { method: r.method(), body: r.postData(), headers: { "Content-Type": "application/json" } }); r.respond({ status: x.status, headers: { "Access-Control-Allow-Origin": "*" }, contentType: "application/json", body: await x.text() }); });
-    await put("4242", "8.9"); await put("4343", "8.0");   // le serveur horodate lui-même (maj)
+    await put("4242", VJ); await put("4343", "8.0");   // le serveur horodate lui-même (maj)
     await p.goto(process.env.SMOUT_SITE || "http://127.0.0.1:8000/", { waitUntil: "networkidle0" });
     await p.evaluate(() => { VERSION_JEU_TEST = 1; }).catch(() => {});
     await p.evaluate(() => rejoindreSalon()); await sleep(2500);

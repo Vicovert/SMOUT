@@ -87,9 +87,11 @@ def jeu_piege(manche):
         pump(S["forcer_apres"]); log("démarrage forcé par l'hôte (clic sur le bouton)")
         pm.tkm.askyesno = lambda *a, **k: True  # confirmation acceptée
         bs = [w for w in J.moi_side.winfo_children() if isinstance(w, design.Bouton) and w.texte == "Forcer le démarrage"]
-        if not bs: log("ÉCHEC pas de bouton « Forcer le démarrage » pour l'hôte"); fin(False)
-        class Clic: x, y = 5, 5
-        bs[0]._clic(Clic())
+        if J.piege_fin_connue(): log("la devinette a déjà commencé (tous les mots utiles choisis) : rien à forcer")
+        elif not bs or not bs[0].winfo_ismapped(): log("ÉCHEC pas de bouton « Forcer le démarrage » pour l'hôte"); fin(False)
+        else:
+            class Clic: x, y = 5, 5
+            bs[0]._clic(Clic())
     if S.get("planter_apres_choix") == manche:
         log("PLANTAGE simulé après le choix"); json.dump(dict(R, ok=True, plante=True), open(S["sortie"], "w"), ensure_ascii=False); os._exit(0)
     if not attendre(lambda: J.phase == "devine" or J.fini_local, 90): log("ÉCHEC pas de mot à deviner"); fin(False)
