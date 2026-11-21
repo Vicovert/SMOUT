@@ -17,7 +17,7 @@ Toute règle ou logique de jeu modifiée côté PC doit l'être à l'identique c
 ## Versions et releases (OBLIGATOIRE à chaque mise à jour)
 - Chaque mise à jour du code : incrémenter le **second chiffre** (8.2 → 8.3). Grosse mise à jour : premier chiffre +1, second remis à 0.
 - Mettre à jour `VERSION_APP` dans `design.py` (le web la lit via `export_web.py`).
-- Une release à chaque fois, avec builds **Windows, Mac et Linux** : on travaille sur une branche `travail-X.Y`, puis squash-merge dans `main` et push → le workflow publie la release.
+- Une release à chaque fois, avec builds **Windows, Mac et Linux** : on travaille sur une branche `travail-X.Y`, PR vers `main`, puis **Claude squash-merge lui-même** une fois les tests verts → le workflow publie la release.
 - Message du commit sur `main` : ligne de résumé = **tag** (ex. `8.2`), corps = notes de version au format `-élément`, un par bloc séparé d'une ligne vide, puis les lignes d'attribution.
 - Vérifier ensuite les assets `SMOUT.X.Y_{LINUX.tar.gz,MACOS.zip,WINDOWS.exe}` : `gh api repos/Vicovert/SMOUT/releases/tags/X.Y` (dans les fils cloud, outil GitHub `get_release_by_tag`).
 - Mettre à jour le doc de projet `claude/feuille-de-route.md` (entrée de la version) et `ETAT.md`.
@@ -28,7 +28,8 @@ Pour chaque tâche, **indiquer le modèle et l'effort conseillés** (ex. « Sonn
 
 ## Méthode de travail (fils du projet)
 - **Honnêteté** : dire ce qui a été vérifié, ce qui ne l'a pas été, et ce qui a échoué. Poser autant de questions que nécessaire avant de coder quand la demande est ambiguë.
-- **Plan validé par Claude** : pour une demande de code, le fil rédige un plan, le relit et le valide lui-même (ou le coordinateur le fait) ; Victor n'est sollicité que pour les choix qui changent le but et les étapes irréversibles (merge dans `main` = release, règles Firebase).
+- **Plan validé par Claude** : pour une demande de code, le fil rédige un plan, le relit et le valide lui-même (ou le coordinateur le fait) ; Victor n'est sollicité que pour les choix qui changent le but et les règles Firebase (qu'il publie lui-même).
+- **Fusion des PR par Claude** : Victor ne fusionne jamais lui-même. Claude squash-merge ses PR dans `main` dès que le CI requis est vert (4 jobs « Tests » pour du code), sans demander, puis vérifie la release et le site. Une PR de documentation seule qui modifie aussi un workflow se fusionne avec `[skip ci]` dans le titre, sinon une fausse release est créée.
 - **Instruction répétée** : quand Victor donne **2 fois** la même instruction (dans un même fil ou d'un fil à l'autre), l'ajouter à ce `CLAUDE.md` dans la section qui convient, dans le même fil.
 - **État du projet** : tenir `ETAT.md` à jour à la fin de chaque tâche (version en ligne, travail en cours, à faire par Victor).
 - **Contexte trop gros** : quand un fil devient long (réponses qui ralentissent, nombreux fichiers relus, plusieurs résumés de contexte), le clore avec la procédure `claude/PASSATION.md` et demander au coordinateur d'ouvrir un nouveau fil.

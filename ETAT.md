@@ -13,7 +13,7 @@ _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travai
 - [ ] Coller les instructions de projet (`claude/instructions-projet.md`) dans les réglages du projet.
 
 ## En cours
-- Configuration de l'espace de travail (CLAUDE.md, ETAT.md, passation, skills).
+- Configuration de l'espace de travail : terminée (PR #1), Claude fusionne désormais lui-même les PR.
 
 ## Prochaines pistes (non commencées)
 - Supprimer les branches inutiles : `travail-8.10`, `regles-etape3`, `v4.3`, `v5.0`, `v6.0`, `v7.0`.
