@@ -2,6 +2,12 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
+## 8.7
+- Accueil (PC et web) : Solo et Multijoueur côte à côte, chacun de sa couleur (rouge « bien placé » / jaune « mal placé » du thème) ; le Mot du jour, à part en dessous, en bleu clair.
+- Web, téléphone : clavier du jeu refait (touches plus larges et hautes, pleine largeur, appui immédiat sans délai ni zoom, vibration légère, ⌫ et ↵).
+- Web, téléphone : bouton « ⌨ Clavier du téléphone » en jeu (solo et multi) pour taper avec le clavier natif (champ invisible : lettres, accents ramenés à la lettre, effacer, entrée), préférence mémorisée ; absent sur ordinateur, qui utilise déjà le clavier physique.
+- Tests : nouveau `tests/web/clavier_tel.js` (accueil, taille des touches, saisie native).
+
 ## 8.6
 - Nouveau mode multijoueur « Mot piégé » (bleu `#5B7CFA`) : chacun choisit en secret (30 s, mot au hasard sinon) le mot que son voisin devra deviner, puis devine celui qu'on lui a choisi. Paires tirées au lancement, décalage différent à chaque manche, 2 joueurs minimum.
 - Barème : chaque paire distribue autant de points que d'essais ; le devineur a le barème Précision, le choisisseur les essais ratés (0 si mot au hasard).

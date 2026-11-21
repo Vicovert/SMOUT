@@ -14,7 +14,7 @@ verifier() { if grep -qE "ÉCHEC|EXCEPTION|Traceback|: False|ok=False|sans rappo
 xpy() { HOME=$(mktemp -d) xvfb-run -a -s "-screen 0 1200x860x24" $PY "$@"; }
 etape "Règles Firebase v7"; $PY "$ICI/test_regles.py" 2>&1 | tee /tmp/t1.txt | tail -n 1; verifier /tmp/t1.txt
 etape "Solo PC"; (xpy "$ICI/test_solo_base.py" "$DEPOT"; xpy "$ICI/test_solo_72.py" "$DEPOT") 2>&1 | tee /tmp/t2.txt | grep -E "ÉCHEC|False|conformes|Traceback"; verifier /tmp/t2.txt
-for t in solo_web solo72_web hors_ligne captures_multi; do etape "Web : $t"; (cd "$ICI/web" && timeout 400 node $t.js) 2>&1 | tee /tmp/t_$t.txt | grep -E "ÉCHEC|conformes|EXCEPTION"; verifier /tmp/t_$t.txt; done
+for t in solo_web solo72_web hors_ligne captures_multi clavier_tel; do etape "Web : $t"; (cd "$ICI/web" && timeout 400 node $t.js) 2>&1 | tee /tmp/t_$t.txt | grep -E "ÉCHEC|conformes|EXCEPTION"; verifier /tmp/t_$t.txt; done
 S="$ICI/scenario.sh"
 etape "Croisé : Précision, hôte PC protégé, joueur web (mauvais puis bon mot de passe)"
 DUREE=220 $S c1 'pc:{"nom":"ALICE","role":"host","mode":"PRECISION","manches":2,"mdp":"chat","nb":2}' 'web:{"nom":"BOB","role":"join","hote":"ALICE","mode":"PRECISION","manches":2,"mdp":"chat","mdp_faux":"chien"}' 2>&1 | tee /tmp/t_c1.txt; $PY "$ICI/verif_scores.py" c1 | tee -a /tmp/t_c1.txt; verifier /tmp/t_c1.txt

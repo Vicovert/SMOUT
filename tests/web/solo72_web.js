@@ -16,7 +16,7 @@ const res = []; const ok = (nom, c, info = "") => { res.push(!!c); console.log((
     return window.__mot; });
   const taper = async (p, mot) => { await p.keyboard.type(mot.slice(1).toLowerCase(), { delay: 3 }); await p.keyboard.press("Enter"); await sleep(150); };
   let p = await page(1200, 860);
-  ok("accueil : 3 cartes (Solo, Mot du jour, Multijoueur), ni Marathon ni Défi", await p.evaluate(() => { const t = [...document.querySelectorAll(".carte-menu .t")].map(x => x.textContent); return t.join("|") === "Solo|Mot du jour|Multijoueur"; }));
+  ok("accueil : 3 cartes (Solo, Multijoueur, Mot du jour), ni Marathon ni Défi", await p.evaluate(() => { const t = [...document.querySelectorAll(".carte-menu .t")].map(x => x.textContent); return t.join("|") === "Solo|Multijoueur|Mot du jour"; }));
   await p.evaluate(() => document.querySelector(".carte-menu").click()); await sleep(200);
   ok("Solo → page intermédiaire Partie normale / Marathon / Paramètres", await p.evaluate(() => [...document.querySelectorAll(".carte-menu .t")].map(x => x.textContent).join("|") === "Partie normale|Marathon|Paramètres"));
   await p.screenshot({ path: "/tmp/w_menu_solo.png" });

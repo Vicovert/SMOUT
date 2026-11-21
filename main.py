@@ -491,11 +491,14 @@ class MenuPrincipal(tk.Tk):
         Logo(centre, 88, 14).pack()
         etiquette(centre, "Trouvez le mot caché.", "texte", 19, P["texte2"]).pack(pady=(12, 30))
         h = 84 if self.winfo_height() < 200 or self.winfo_height() >= 820 else 72
-        CarteMenu(centre, "Solo", "Normal, marathon, réglages", self.ouvrir_menu_solo, hauteur=h).pack(pady=6)
+        # Solo et Multijoueur côte à côte, chacun de sa couleur ; le Mot du jour, à part, dessous, d'une troisième couleur
+        ligne = tk.Frame(centre, bg=P["fond"]); ligne.pack()
+        CarteMenu(ligne, "Solo", "Normal, marathon, réglages", self.ouvrir_menu_solo, largeur=390, hauteur=h + 30, couleur=P["bien"], texte=P["sur_bien"]).pack(side="left", padx=(0, 16))
+        CarteMenu(ligne, "Multijoueur", "Salons publics ou entre amis", self.ouvrir_multi, largeur=390, hauteur=h + 30, couleur=P["mal"], texte=P["sur_mal"]).pack(side="left")
         serie, joue = design.serie_mot_du_jour()
         badge = (f"Série {serie}" if serie else "") + (" · Joué ✓" if joue else "") if (serie or joue) else None
-        CarteMenu(centre, "Mot du jour", "Un mot, une partie par jour", lambda: self.ouvrir_solo(True), badge=badge.strip(" ·") if badge else None, hauteur=h).pack(pady=6)
-        CarteMenu(centre, "Multijoueur", "Salons publics ou entre amis", self.ouvrir_multi, hauteur=h).pack(pady=6)
+        CarteMenu(centre, "Mot du jour", "Un mot, une partie par jour", lambda: self.ouvrir_solo(True), largeur=796, hauteur=h, badge=badge.strip(" ·") if badge else None,
+                  couleur="#4CC9F0", texte="#14182A").pack(pady=(26, 0))  # couleur propre au Mot du jour (comme .carte-menu.mdj du web)
         etiquette(page, f"SMOUT v{design.VERSION_APP}", "texte", 14, P["texte2"]).pack(side="bottom", pady=22)
 
     def changer_pseudo(self):

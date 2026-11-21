@@ -332,17 +332,46 @@ function caseACocher(texte, valeur, onchange) {
   e.valeur = valeur; return e;
 }
 function clavier(onLettre, onEffacer, onValider, hauteurTouche = 50) {
-  const largeur = Math.min(42, Math.floor((Math.min(window.innerWidth, 700) - 28 - 9 * 8) / 10));
-  const e = h("div.clavier", { style: { "--k": largeur + "px", "--kh": hauteurTouche + "px" } });
-  const touches = {};
+  const e = h("div.clavier", { style: { "--kh": hauteurTouche + "px" } });
+  const touches = {}, rangs = h("div.rangs");
+  const tactile = window.matchMedia("(pointer: coarse)").matches || window.innerWidth <= 760;
+  // appui immédiat (pas d'attente du « click » ni de zoom au double appui) ; le « click » reste actif pour le clavier physique (detail = 0)
+  const touche = (cls, contenu, action, etiquette) => {
+    const t = h("button" + cls, { "aria-label": etiquette || contenu, type: "button" }, contenu);
+    t.onpointerdown = ev => { ev.preventDefault(); action(); try { navigator.vibrate && navigator.vibrate(6); } catch (x) {} };
+    t.onclick = ev => { if (ev.detail === 0) action(); };
+    return t;
+  };
   ["AZERTYUIOP", "QSDFGHJKLM", "WXCVBN"].forEach((rang, i) => {
     const r = h("div.rang");
-    if (i === 2) r.append(h("button.touche.large", { onclick: onEffacer }, "Effacer"));
-    for (const ch of rang) { const t = h("button.touche", { onclick: () => onLettre(ch) }, ch); touches[ch] = t; r.append(t); }
-    if (i === 2) r.append(h("button.touche.large.valider", { onclick: onValider }, "Valider"));
-    e.append(r);
+    if (i === 2) r.append(touche(".touche.large", "⌫", onEffacer, "Effacer"));
+    for (const ch of rang) { const t = touche(".touche", ch, () => onLettre(ch)); touches[ch] = t; r.append(t); }
+    if (i === 2) r.append(touche(".touche.large.valider", "↵", onValider, "Valider"));
+    rangs.append(r);
   });
+  e.append(rangs);
   e.setCouleur = (ch, etat) => { const t = touches[ch]; if (t) t.className = "touche" + (etat ? " " + etat : ""); };
+  // Clavier du téléphone : un champ invisible reçoit la saisie du clavier natif (lettres, effacer, entrée), comme le clavier physique sur ordinateur
+  if (tactile) {
+    const SENT = "​", champ = h("input.champ-natif", { type: "text", autocapitalize: "characters", autocorrect: "off", autocomplete: "off", spellcheck: "false", enterkeyhint: "enter", "aria-label": "Clavier du téléphone" });
+    champ.value = SENT; let prec = SENT;
+    const zone = h("button.zone-natif", { type: "button", onclick: () => champ.focus() }, "Touche ici pour écrire avec le clavier du téléphone");
+    const bascule = h("button.lien.bascule-clavier", { type: "button" });
+    champ.addEventListener("input", () => {
+      const v = champ.value;
+      if (v.length < prec.length) for (let i = 0; i < prec.length - v.length; i++) onEffacer();
+      else if (v.startsWith(prec)) for (const c of v.slice(prec.length).normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase()) if (ALPHABET.includes(c)) onLettre(c);
+      prec = v;
+      if (!champ.isComposing && v.length > 24) { champ.value = SENT; prec = SENT; }
+    });
+    champ.addEventListener("compositionend", () => { champ.value = SENT; prec = SENT; });
+    champ.addEventListener("keydown", ev => { ev.stopPropagation(); if (ev.key === "Enter") { ev.preventDefault(); onValider(); } });  // la saisie passe par « input » seulement
+    const maj = natif => { e.classList.toggle("natif", natif); bascule.textContent = natif ? "⌨ Clavier du jeu" : "⌨ Clavier du téléphone"; };
+    const regler = natif => { majConfig({ clavier_natif: natif }); maj(natif); if (natif) { champ.value = SENT; prec = SENT; champ.focus(); } else champ.blur(); };
+    bascule.onclick = () => regler(!e.classList.contains("natif"));
+    maj(!!lireConfig().clavier_natif);
+    e.append(zone, champ, bascule);
+  }
   return e;
 }
 function superposition(contenu, largeur = 520) {
@@ -380,16 +409,16 @@ const pseudo = () => lireConfig().pseudo || "ANONYME";
 function accueil() {
   const [serie, joue] = serieMotDuJour();
   const badge = (serie || joue) ? [serie ? `Série ${serie}` : "", joue ? "Joué ✓" : ""].filter(Boolean).join(" · ") : null;
-  const carte = (t, s, f, b) => h("button.carte-menu", { onclick: f }, h("div", {}, h("div.t", {}, t), h("div.s", {}, s)), b ? h("div.d", {}, b) : h("span.chevron", { html: svg("chevron", 22) }));
+  const carte = (t, s, f, b, cls = "") => h("button.carte-menu" + cls, { onclick: f }, h("div", {}, h("div.t", {}, t), h("div.s", {}, s)), b ? h("div.d", {}, b) : h("span.chevron", { html: svg("chevron", 22) }));
   ecran(
     h("div.ligne", { style: { justifyContent: "flex-end", gap: "16px", padding: "22px 28px 0" } },
       icone("palette", () => themes(), true, "Thèmes"), icone("stats", () => statistiques(), true, "Statistiques"), avatar(pseudo(), 46, 0, () => changerPseudo())),
     h("div.centre", { style: { flex: 1, justifyContent: "center", gap: "12px", padding: "16px 0" } },
       logo(Math.min(88, Math.floor((window.innerWidth - 80) / 5.8)), 14),
       h("div.t2", { style: { fontSize: "19px", margin: "0 0 22px" } }, "Trouvez le mot caché."),
-      carte("Solo", "Normal, marathon, réglages", menuSolo),
-      carte("Mot du jour", "Un mot, une partie par jour", () => solo("mdj"), badge),
-      carte("Multijoueur", "Salons publics ou entre amis", multiAccueil)),
+      // Solo et Multijoueur côte à côte, chacun de sa couleur ; le Mot du jour, à part, dessous, d'une troisième couleur
+      h("div.menu-ligne", {}, carte("Solo", "Normal, marathon, réglages", menuSolo, null, ".solo"), carte("Multijoueur", "Salons publics ou entre amis", multiAccueil, null, ".multi")),
+      h("div.menu-ligne.mdj", {}, carte("Mot du jour", "Un mot, une partie par jour", () => solo("mdj"), badge, ".mdj"))),
     h("div.t2", { style: { textAlign: "center", padding: "0 0 22px", fontSize: "14px" } }, `SMOUT v${VERSION_APP} · version en ligne`));
 }
 /* page intermédiaire du solo */
