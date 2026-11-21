@@ -5,7 +5,7 @@ _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travai
 **Dernière mise à jour : 22/11/2026**
 
 ## En ligne
-- Version : **8.10** (release Windows / Mac / Linux publiée le 22/11/2026, site https://vicovert.github.io/SMOUT/)
+- Version : **8.10** (dernière release Windows / Mac / Linux, publiée le 22/11/2026 ; les suivantes : Windows seul, `SMOUT.X.Y.exe`, site https://vicovert.github.io/SMOUT/)
 - Protocole multi : `VERSION_JEU` 8.10, données sous `/v7`
 
 ## À faire par Victor
