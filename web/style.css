@@ -32,6 +32,7 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 .tuile.bien { background: var(--bien); color: var(--sur-bien); box-shadow: inset 0 -3px 0 var(--ombre-bien); }
 .tuile.mal { background: var(--mal); color: var(--sur-mal); box-shadow: inset 0 -3px 0 var(--ombre-mal); }
 .tuile.absent { background: var(--absent); color: var(--texte-absent); }
+.tuile.facultative:not(.curseur) { background: transparent; border: 2px dashed var(--texte2); }  /* Mot piégé : case au-delà de la longueur minimale */
 .tuile.curseur { outline: 2px solid var(--mal); outline-offset: -2px; }
 .tuile.mini { border-radius: 3px; font-size: calc(var(--t) * 0.55); box-shadow: none; }
 .grille { display: grid; gap: 8px; }

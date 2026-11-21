@@ -2,6 +2,15 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
+## 8.10
+- Mot piégé : toutes les cases du mot à choisir sont affichées dès le départ ; celles au-delà de la longueur minimale sont en pointillé (« facultatives »), pour qu'on voie qu'on peut écrire 6 **ou** 7 lettres.
+- Mot piégé : seul l'hôte voit le bouton « Forcer le démarrage » (mis à jour en continu, aussi après un changement d'hôte) ; plus de fenêtre de confirmation, retour visuel « c'est parti ! ». Un mot de secours refusé est retenté.
+- Mot piégé : « Ton mot : … » s'affiche sous la mini-grille du joueur concerné (plus sous sa propre grille).
+- Mini-grilles des adversaires plus grandes quand il y a peu de joueurs (jusqu'à 30 px avec 1 adversaire, 24 px avec 2, 18 px au-delà), PC et web.
+- Plus de déconnexion pour inactivité : un joueur inactif n'est plus retiré du salon (il apparaît « Déconnecté ») ; s'il a été retiré quand même, il se réinscrit tout seul ; l'hôte inactif est relayé par un joueur actif ; un salon n'est supprimable qu'après 30 min sans signe de vie (au lieu de 2). Les paires du Mot piégé se font entre joueurs actifs.
+- `VERSION_JEU` 8.10 ; **règles Firebase à republier** (délai d'abandon d'un salon : 30 min).
+- Tests : 69/69 règles, robots mis à jour (clic réel sur « Forcer le démarrage », « Ton mot » sous la grille de la cible).
+
 ## 8.9
 - Web : clavier du jeu « aplati » en multijoueur corrigé (régression de la 8.7 : le clavier s'écrasait en colonne étroite à côté des mini-grilles).
 - Mot piégé : plus de limite de temps pour choisir son mot ; la devinette commence quand tous les mots sont choisis, ou quand l'hôte clique « Forcer le démarrage » (mot au hasard pour ceux qui n'ont rien choisi). Le temps de jeu ne court qu'à partir de là. Avancement « n sur m mots choisis ». Longueur libre dans la plage du salon (6 **ou** 7 lettres : une case de plus apparaît à chaque lettre).

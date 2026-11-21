@@ -40,8 +40,8 @@ async function jeuPiege(manche) {
     await p.keyboard.type(mot.toLowerCase(), { delay: 15 }); await p.keyboard.press("Enter");
     if (!(await attendre(() => !document.body.innerText.includes("Choisis le mot que"), 20000))) { log("ÉCHEC envoi du mot choisi"); return fin(false); }
     (R.choisis ||= []).push(mot); log(`manche ${manche} : mot choisi pour sa cible`, mot);
-    const vu = await ev(() => document.body.innerText);  // on voit le mot qu'on a choisi pour sa cible
-    if (!vu.includes("Ton mot pour") || !vu.includes(mot)) { log("ÉCHEC le mot choisi n'est pas affiché", mot); return fin(false); }
+    // on voit le mot qu'on a choisi, sous la mini-grille de sa cible
+    if (!(await attendre(m => [...document.querySelectorAll("div.gras")].some(x => x.textContent === "Ton mot : " + m), 10000, mot))) { log("ÉCHEC le mot choisi n'est pas affiché sous la grille de sa cible", mot); return fin(false); }
   } else if (choix === "rien") log(`manche ${manche} : ne choisit rien (mot au hasard à la fin du décompte)`);
   if (S.forcer_apres != null && S.role === "host") {  // l'hôte force le démarrage (mot au hasard pour ceux qui n'ont pas choisi)
     await sleep(S.forcer_apres * 1000); log("démarrage forcé par l'hôte"); await clicTexte("button", "Forcer le démarrage");

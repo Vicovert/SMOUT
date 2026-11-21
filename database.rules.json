@@ -160,7 +160,7 @@
       "lobbies": {
         "$code": {
           ".read": "auth != null && data.child('players/' + auth.uid).exists()",
-          ".write": "auth != null && $code.matches(/^[0-9]{4}$/) && ((!data.exists() && newData.child('settings/host_id').val() === auth.uid && newData.child('players/' + auth.uid).exists()) || data.child('settings/host_id').val() === auth.uid || (!newData.exists() && (!data.child('players').exists() || data.child('maj').val() < now - 120000)))",
+          ".write": "auth != null && $code.matches(/^[0-9]{4}$/) && ((!data.exists() && newData.child('settings/host_id').val() === auth.uid && newData.child('players/' + auth.uid).exists()) || data.child('settings/host_id').val() === auth.uid || (!newData.exists() && (!data.child('players').exists() || data.child('maj').val() < now - 1800000)))",
           "maj": {
             ".write": "auth != null && data.parent().child('players/' + auth.uid).exists()",
             ".validate": "newData.isNumber() && newData.val() <= now"

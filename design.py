@@ -3,7 +3,7 @@ import tkinter as tk
 import tkinter.font as tkfont
 import os, sys, ctypes, colorsys, hashlib
 
-VERSION_APP = "8.9"
+VERSION_APP = "8.10"
 URL_WEB = "https://vicovert.github.io/SMOUT/"
 
 def mot_graine(liste_triee, graine, index=0):
@@ -194,6 +194,9 @@ class Tuile(tk.Canvas):
     def set_curseur(self, actif):
         if actif != self._curseur: self._curseur = actif; self._dessiner()
 
+    def set_pointilles(self, actif):
+        if actif != getattr(self, "pointilles", False): self.pointilles = actif; self._dessiner()
+
     def set_taille(self, taille):
         if taille == self.taille: return
         self.taille = taille; self.rayon = max(3, int(taille * 0.18))
@@ -217,6 +220,8 @@ class Tuile(tk.Canvas):
             arrondi(self, 1, 1, s - 1, s - 4, r, fill=fill, outline="")
         else:
             arrondi(self, 1, 1, s - 1, s - 1, r, fill=fill, outline="")
+        if getattr(self, "pointilles", False) and not self._texte and not self._curseur:  # case facultative (Mot piégé)
+            self.delete("all"); self.create_rectangle(2, 2, s - 2, s - 2, outline=P["texte2"], width=2, dash=(4, 3))
         if self._curseur:
             arrondi(self, 2, 2, s - 2, s - 2, r, fill="", outline=P["mal"], width=2)
         if self._texte and not self.mini:
