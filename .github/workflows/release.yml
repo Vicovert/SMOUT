@@ -7,6 +7,9 @@ on:
     branches:
       - main
       - 'travail-*'
+    paths-ignore:          # documentation seule : ni tests, ni release
+      - '**.md'
+      - 'claude/**'
   workflow_dispatch:
 
 jobs:
