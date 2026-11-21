@@ -54,28 +54,10 @@ jobs:
             /tmp/essai1/
 
   build:
+    # Windows seulement : un seul fichier SMOUT.X.Y.exe par release
     if: github.ref == 'refs/heads/main'
-    name: Build for ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            asset_name: windows-artifact
-            icon_file: "fichiers/logo.ico"
-            build_suffix: "_WINDOWS"
-            file_to_upload: "_WINDOWS.exe"
-          - os: ubuntu-latest
-            asset_name: linux-artifact
-            icon_file: "fichiers/logo.ico"
-            build_suffix: "_LINUX"
-            file_to_upload: "_LINUX.tar.gz"
-          - os: macos-latest
-            asset_name: macos-artifact
-            icon_file: "fichiers/logo.icns"
-            build_suffix: "_MACOS"
-            file_to_upload: "_MACOS.zip"
+    name: Build Windows
+    runs-on: windows-latest
     permissions:
       contents: write
 
@@ -90,9 +72,8 @@ jobs:
         shell: bash
         run: |
           SUMMARY=$(git log -1 --pretty=%s)
-          # Création du nom avec un espace "SMOUT $SUMMARY"
-          # On nettoie les caractères interdits pour éviter les erreurs système
-          SAFE_NAME=$(echo "SMOUT $SUMMARY" | sed 's/[<>:"/\\|?*]//g')
+          # Nom du fichier : SMOUT.X.Y (caractères interdits retirés, espaces remplacés par des points)
+          SAFE_NAME=$(echo "SMOUT.$SUMMARY" | sed 's/[<>:"/\\|?*]//g; s/ /./g')
           echo "full_name=$SAFE_NAME" >> $GITHUB_OUTPUT
 
       - name: Set up Python
@@ -100,51 +81,21 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install System Dependencies (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y python3-tk
-        shell: bash
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install pyinstaller requests
-          if [ "${{ matrix.os }}" = "macos-latest" ]; then pip install pyobjc; fi
         shell: bash
 
       - name: Build with PyInstaller (Windows)
-        if: matrix.os == 'windows-latest'
         run: |
-          # Utilisation de guillemets pour gérer l'espace dans le nom
-          python -m PyInstaller --noconsole --onefile --add-data "fichiers;fichiers" --icon="${{ matrix.icon_file }}" --name "${{ steps.vars.outputs.full_name }}${{ matrix.build_suffix }}" main.py
-
-      - name: Build with PyInstaller (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          # Séparateur ":" pour Linux et ajout des droits d'exécution
-          python -m PyInstaller --noconsole --onefile --add-data "fichiers:fichiers" --icon="${{ matrix.icon_file }}" --name "${{ steps.vars.outputs.full_name }}${{ matrix.build_suffix }}" main.py
-          chmod +x "dist/${{ steps.vars.outputs.full_name }}${{ matrix.build_suffix }}"
-          # Compresse en tar.gz pour conserver les permissions d'exécution sous Linux
-          tar -czf "dist/${{ steps.vars.outputs.full_name }}${{ matrix.file_to_upload }}" -C dist "${{ steps.vars.outputs.full_name }}${{ matrix.build_suffix }}"
-        shell: bash
-
-      - name: Build with PyInstaller (macOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          # Compilation macOS
-          python -m PyInstaller --noconsole --onefile --windowed --add-data "fichiers:fichiers" --icon="${{ matrix.icon_file }}" --name "${{ steps.vars.outputs.full_name }}${{ matrix.build_suffix }}" main.py
-          # Compresse l'application .app en .zip pour conserver la structure et les permissions d'exécution sous macOS
-          cd dist
-          zip -r "${{ steps.vars.outputs.full_name }}${{ matrix.file_to_upload }}" "${{ steps.vars.outputs.full_name }}${{ matrix.build_suffix }}.app"
-        shell: bash
+          python -m PyInstaller --noconsole --onefile --add-data "fichiers;fichiers" --icon="fichiers/logo.ico" --name "${{ steps.vars.outputs.full_name }}" main.py
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.asset_name }}
-          path: dist/${{ steps.vars.outputs.full_name }}${{ matrix.file_to_upload }}
+          name: windows-artifact
+          path: dist/${{ steps.vars.outputs.full_name }}.exe
           if-no-files-found: error
 
   release:
