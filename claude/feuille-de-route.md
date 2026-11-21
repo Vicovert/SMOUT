@@ -2,6 +2,12 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
+## 8.8
+- CI plus rapide : tests joués une seule fois, sur la branche `travail-*` (4 jobs parallèles : base, croisés a/b, Mot piégé ; ≈ 8 min au lieu de ≈ 20), plus de re-test sur `main`.
+- Sur `main` : builds Windows/Mac/Linux + release directement (≈ 5 min) ; le site web est publié tout de suite par `pages.yml`.
+- `tests/lancer_tests.sh` accepte `GROUPE=…` pour ne jouer qu'une partie de la suite.
+- Web : le bouton « retour » du téléphone (ou Alt+←) revient à l'écran précédent comme la flèche de l'écran, ferme d'abord une fenêtre ouverte, demande confirmation en partie, et ne quitte la page que depuis l'accueil (`tests/web/retour_tel.js`). Non vérifié sur un vrai téléphone.
+
 ## 8.7
 - Accueil (PC et web) : Solo et Multijoueur côte à côte, chacun de sa couleur (rouge « bien placé » / jaune « mal placé » du thème) ; le Mot du jour, à part en dessous, en bleu clair.
 - Web, téléphone : clavier du jeu refait (touches plus larges et hautes, pleine largeur, appui immédiat sans délai ni zoom, vibration légère, ⌫ et ↵).

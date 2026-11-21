@@ -228,7 +228,9 @@ function h(tag, attrs, ...enfants) {
 }
 const APP = () => document.getElementById("app");
 let nettoyageEcran = [];
+let enAccueil = false, enJeu = false;  // enAccueil : le retour du téléphone y quitte la page ; enJeu : partie en cours (le retour demande confirmation)
 function ecran(...enfants) {
+  enAccueil = false; enJeu = false;
   nettoyageEcran.forEach(f => { try { f(); } catch (e) {} }); nettoyageEcran = [];
   document.onkeydown = null;
   const a = APP(); a.innerHTML = ""; const p = h("div.page", {}, ...enfants); a.append(p); window.scrollTo(0, 0); return p;
@@ -420,6 +422,7 @@ function accueil() {
       h("div.menu-ligne", {}, carte("Solo", "Normal, marathon, réglages", menuSolo, null, ".solo"), carte("Multijoueur", "Salons publics ou entre amis", multiAccueil, null, ".multi")),
       h("div.menu-ligne.mdj", {}, carte("Mot du jour", "Un mot, une partie par jour", () => solo("mdj"), badge, ".mdj"))),
     h("div.t2", { style: { textAlign: "center", padding: "0 0 22px", fontSize: "14px" } }, `SMOUT v${VERSION_APP} · version en ligne`));
+  enAccueil = true;
 }
 /* page intermédiaire du solo */
 function menuSolo() {
@@ -485,6 +488,7 @@ async function solo(mode = "libre") {
   const titre = TITRES[mode] + (mode === "marathon" ? ` · mot ${marathon.mots + 1}` : "") + ` · ${mot.length} lettres` + (difficile ? " · difficile" : "");
   ecran(entete(titre, quitter, icone("aide", () => aide.montrer(), false, "Aide")),
     h("div.centre", { style: { gap: "0" } }, h("div.stats", { style: { marginTop: "10px" } }, sT, sS, sE, sTot), h("div", { style: { marginTop: "18px" } }, g), msg, kb, h("div", { style: { margin: "14px 0 20px" } }, abandon)));
+  enJeu = true;
   aide = fenetreAide();  // après ecran() : sinon le nettoyage de l'écran la supprimerait
   const minuteur = setInterval(() => { if (S.fini) return; const ec = Math.floor((Date.now() - S.debut) / 1000); sT.set(mmss(ec)); sS.set(nombre(score(ec))); }, 1000);
   nettoyageEcran.push(() => clearInterval(minuteur));
@@ -517,6 +521,7 @@ async function solo(mode = "libre") {
     else { S.ligne++; S.tape = [mot[0]]; sE.set(String(S.ligne + 1)); maj(); }
   }
   function fin(victoire) {
+    enJeu = false;
     S.fini = true; const ec = Math.floor((Date.now() - S.debut) / 1000);
     const sc = victoire ? score(ec) : 0, nEssais = S.ligne + 1;
     let titreFin, stats, rejouer = () => solo(mode), partage = null, note = null;
@@ -1165,6 +1170,7 @@ async function partie() {
     h("div.ligne", { style: { alignItems: "flex-start", flexWrap: "wrap", justifyContent: "center" } },
       h("div.centre", { style: { flex: 1, minWidth: "320px" } }, h("div.stats", { style: { marginTop: "4px", gap: "min(68px, 7.5vw)" } }, sM, sT, sS), zoneMoi, h("div.ligne", { style: { gap: "8px", margin: "8px 0 4px" } }, msg, lienDef), suivant, h("div", { style: { margin: "4px 0 16px" } }, kb)),
       advZone));
+  enJeu = true;
   info.textContent = `${NOM_MODE[mode] || mode} · ${G.mot.length} lettres`;
   document.onkeydown = e => {
     if (G.fini || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -1664,6 +1670,25 @@ async function resultats() {
       if (total !== M.score) { M.score = total; FB.patch(`lobbies/${M.lobby}/players/${FB.uid}`, { score: total }); }
     } else if (dd && !recap.textContent) majRecap(dd);
   }
+}
+
+/* ------------------------------------------------------------------ retour du téléphone
+   Le bouton « retour » du téléphone (ou Alt+←) revient à l'écran précédent comme la flèche de l'écran, au lieu de fermer la page.
+   Une entrée d'historique est ajoutée dès la première interaction (les navigateurs ignorent celles ajoutées sans geste de l'utilisateur) et après chaque retour. */
+{
+  const armer = () => { if (!history.state || history.state.smout !== 1) history.pushState({ smout: 1 }, ""); };
+  addEventListener("pointerdown", armer, { once: true, capture: true });
+  addEventListener("keydown", armer, { once: true, capture: true });
+  addEventListener("popstate", () => {
+    if (history.state && history.state.smout === 1) return;  // avance : rien à faire
+    const ouvert = [...document.querySelectorAll(".voile:not(.cache)")].pop();
+    if (enAccueil && !ouvert) { history.back(); return; }  // sur l'accueil : le retour quitte vraiment la page
+    armer();
+    if (ouvert) { ouvert.classList.add("cache"); return; }  // une fenêtre ouverte : on la ferme d'abord
+    const b = document.querySelector('button.icone[aria-label="Retour"], button.icone[aria-label="Quitter"]');
+    if (enJeu && !confirm("Quitter la partie en cours ?")) return;
+    if (b) b.click(); else accueil();
+  });
 }
 
 /* ------------------------------------------------------------------ démarrage */

@@ -1,10 +1,8 @@
 name: Version web (GitHub Pages)
 
-# Le site n'est mis à jour qu'après une release réussie (donc après le passage des tests)
+# Le site est publié dès le push sur main (les tests ont déjà tourné sur la branche de travail avant le squash-merge)
 on:
-  workflow_run:
-    workflows: ["Auto Release with Executables"]
-    types: [completed]
+  push:
     branches: [main]
   workflow_dispatch:
 
@@ -19,7 +17,6 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -27,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

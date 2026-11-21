@@ -1,15 +1,24 @@
 name: Auto Release with Executables
 
+# Tests : une seule fois, sur la branche de travail (4 jobs en parallèle) avant le squash-merge.
+# Sur main : builds + release seulement (l'arbre est celui de la branche testée) ; le site est publié par pages.yml.
 on:
   push:
     branches:
       - main
+      - 'travail-*'
+  workflow_dispatch:
 
 jobs:
   tests:
-    name: Tests (PC, web et parties croisées)
+    name: Tests ${{ matrix.groupe }}
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 45
+    if: github.ref != 'refs/heads/main'
+    strategy:
+      fail-fast: false
+      matrix:
+        groupe: [base, croise-a, croise-b, piege]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -28,12 +37,13 @@ jobs:
         env:
           PY: python
           CHROME: /usr/bin/google-chrome
+          GROUPE: ${{ matrix.groupe }}
         run: tests/lancer_tests.sh || (mkdir -p /tmp/essai1 && cp -r /tmp/t*.txt /tmp/sc /tmp/fb_refus.log /tmp/essai1/ 2>/dev/null; echo "Nouvel essai…" && tests/lancer_tests.sh)
       - name: Journaux en cas d'échec
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: journaux-tests
+          name: journaux-tests-${{ matrix.groupe }}
           path: |
             /tmp/t*.txt
             /tmp/sc/
@@ -41,7 +51,7 @@ jobs:
             /tmp/essai1/
 
   build:
-    needs: tests
+    if: github.ref == 'refs/heads/main'
     name: Build for ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -135,6 +145,7 @@ jobs:
           if-no-files-found: error
 
   release:
+    if: github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     permissions:
