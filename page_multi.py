@@ -8,8 +8,8 @@ import tkinter.font as tkfont
 FIREBASE_URL = "https://smout-multi-default-rtdb.europe-west1.firebasedatabase.app/"
 FIREBASE_API_KEY = "AIzaSyCUliQiMhKmHZzxrMK6k35Gt0z7zBfZP3g"  # clé web publique (normal qu'elle soit dans le client)
 RACINE = "v7"            # données du protocole 7 (PC et web) ; /v5 reste pour les 5.x/6.x
-VERSION_JEU = "8.9"      # version du protocole multi : 8.9 = Mot piégé sans limite de temps pour choisir ; seuls les joueurs 8.9+ jouent ensemble (PC et navigateur)
-DELAI_ABANDON_MS = 120000  # un salon dont plus personne ne donne signe de vie depuis 2 min peut être supprimé par n'importe qui
+VERSION_JEU = "8.10"     # version du protocole multi : 8.10 = plus d'exclusion des joueurs inactifs ; seuls les joueurs 8.10+ jouent ensemble (PC et navigateur)
+DELAI_ABANDON_MS = 1800000  # un salon dont plus personne ne donne signe de vie depuis 30 min peut être supprimé par n'importe qui (pas de déconnexion pour simple inactivité)
 
 def preuve_salon(code, mot_de_passe):
     """Preuve de connaissance du mot de passe (le mot de passe lui-même n'est jamais envoyé)."""
@@ -224,7 +224,16 @@ class PageMulti(tk.Frame):
         d = self.fb_get(f"lobbies/{code}")
         if code != self.lobby_code: return None
         if d and self.player_id in (d.get("players") or {}): self.vu_ok = time.time(); return d
-        if time.time() - self.vu_ok > 10: self.salon_perdu = True
+        # retiré du salon (ancien client, longue mise en veille) : on s'y réinscrit tout seul, sans déconnexion
+        if time.time() - getattr(self, "dernier_retour", 0) > 3:
+            self.dernier_retour = time.time()
+            moi = {"name": self.pseudo, "score": self.current_score, "last_seen": {".sv": "timestamp"}}
+            preuve = preuve_salon(code, self.settings_config.get("password", ""))
+            if preuve: moi["preuve"] = preuve
+            if self.fb_ok("put", f"lobbies/{code}/players/{self.player_id}", moi):
+                d = self.fb_get(f"lobbies/{code}")
+                if d and self.player_id in (d.get("players") or {}): self.vu_ok = time.time(); return d
+        if time.time() - self.vu_ok > 10: self.salon_perdu = True  # le salon n'existe plus (ou le mot de passe a changé)
         return d
 
     def lire_salon_async(self, callback):
@@ -236,7 +245,7 @@ class PageMulti(tk.Frame):
             self.salon_perdu, self.vu_ok, self.is_host = False, 0, False
             self.lobby_code, self.code_affiche = "", ""
             self.show_frame("PageAccueil")
-            tkm.showwarning("SMOUT", "Tu n'es plus dans ce salon (connexion perdue trop longtemps ou salon fermé).")
+            tkm.showwarning("SMOUT", "Ce salon n'existe plus.")
         try:
             while True:
                 callback, data = self.reponses_reseau.get_nowait()
@@ -796,16 +805,12 @@ class PageLobby(tk.Frame):
         if d:
             s, p = d.get("settings", {}), d.get("players", {})
             server_now = max([pdat.get("last_seen", 0) for pdat in p.values()] + [0])
-            for pid, pdat in list(p.items()):
-                last_seen = pdat.get("last_seen", 0)
-                diff_sec = (server_now - last_seen) / 1000
-                if server_now > 0 and diff_sec > 25:
-                    self.controller.fb_delete(f"lobbies/{self.controller.lobby_code}/players/{pid}"); del p[pid]
             if not p: self.quitter(); return
-
+            # un joueur inactif reste dans le salon (affiché « Déconnecté ») : pas d'exclusion pour inactivité
+            actifs = [pid for pid, pdat in p.items() if not server_now or server_now - pdat.get("last_seen", 0) <= 25000] or list(p)
             hid = s.get("host_id")
-            if hid not in p:
-                hid = sorted(p.keys())[0]  # même choix chez tous les joueurs
+            if hid not in actifs:  # hôte parti ou inactif : le premier joueur actif prend le relais (même choix chez tous)
+                hid = sorted(actifs)[0]
                 if hid == self.controller.player_id: self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/settings", {"host_id": hid})
             self.controller.is_host = (s.get("host_id") == self.controller.player_id)
             self.controller.nb_joueurs, self.controller.statut_salon = len(p), d.get("status", "waiting")
@@ -871,7 +876,8 @@ class PageLobby(tk.Frame):
         }
         if mode == "PIEGE":  # ordre circulaire tiré au hasard, puis paires « qui choisit pour qui » de la 1re manche
             d = self.controller.lire_salon() or {}
-            joueurs = list((d.get("players") or {}).keys()) or [self.controller.player_id]
+            pl = d.get("players") or {}; now_ms = max([v.get("last_seen", 0) for v in pl.values()] + [0])
+            joueurs = [pid for pid, v in pl.items() if now_ms - v.get("last_seen", 0) <= 25000] or [self.controller.player_id]
             ordre = random.sample(joueurs, len(joueurs))
             new_settings.update(piege_reglages(ordre, joueurs, 1, rush_seed, new_settings["start_time"]))
         self.controller.settings_config.update(new_settings)
@@ -892,6 +898,7 @@ class Adversaire(tk.Frame):
         self.lbl_nom = etiquette(info, nom, "texte", 17, gras=True); self.lbl_nom.pack(anchor="w")
         self.lbl_score = etiquette(info, "0", "chiffres", 22, P["mal"]); self.lbl_score.pack(anchor="w")
         self.lbl_etat = etiquette(info, "", "texte", 14, P["texte2"]); self.lbl_etat.pack(anchor="w")
+        self.lbl_mot = etiquette(info, "", "texte", 14, P["mal"], True); self.lbl_mot.pack(anchor="w", pady=(4, 0))  # Mot piégé : le mot qu'on lui a choisi
     def construire(self, essais, longueur):
         for w in self.zone.winfo_children(): w.destroy()
         self.grille = []
@@ -1273,8 +1280,8 @@ class PageJeu(tk.Frame):
         nom = self.piege_noms(d).get(self.piege_cible, "?").capitalize()
         self.lbl_info.config(text=f"{NOM_MODE['PIEGE']} · choisis le mot de {nom}")
         etiquette(self.moi_side, f"Choisis le mot que {nom} devra deviner", "texte", 19, gras=True).pack()
-        etiquette(self.moi_side, self.piege_texte_longueur(mi, ma) + " · un mot du dictionnaire · gardé secret · pas de limite de temps",
-                  "texte", 14, P["texte2"]).pack(pady=(2, 10))
+        aide = self.piege_texte_longueur(mi, ma) + (" (cases en pointillé facultatives)" if ma > mi else "")
+        etiquette(self.moi_side, aide + " · un mot du dictionnaire · gardé secret · pas de limite de temps", "texte", 14, P["texte2"]).pack(pady=(2, 10))
         rg = tk.Frame(self.moi_side, bg=P["fond"]); rg.pack()
         taille, _ = self.get_grid_sizes()
         self.labels_choix = [Tuile(rg, taille) for _ in range(ma)]
@@ -1287,42 +1294,47 @@ class PageJeu(tk.Frame):
 
     def piege_rendre_choix(self):
         mi, ma = int(self.controller.settings_config.get("min", 6)), int(self.controller.settings_config.get("max", 7))
-        visibles = max(mi, min(ma, len(self.choix) + 1))  # mi cases, puis une de plus à chaque lettre : on peut choisir n'importe quelle longueur permise
-        for i, t in enumerate(getattr(self, "labels_choix", [])):
-            if i < visibles: t.grid(row=0, column=i, padx=4, pady=4)
-            else: t.grid_remove()
+        for i, t in enumerate(getattr(self, "labels_choix", [])):  # cases au-delà du minimum : facultatives (en pointillé)
+            t.grid(row=0, column=i, padx=4, pady=4)
             txt = self.choix[i] if i < len(self.choix) else ""
             if t.cget("text") != txt: t.config(text=txt, bg=BG)
+            t.set_pointilles(i >= mi)
             t.set_curseur(i == len(self.choix) and not self.choix_envoi)
 
     def piege_construire_attente(self, texte="Mot envoyé ✓"):
         self.piege_vider()
         etiquette(self.moi_side, texte, "titre", 26).pack(pady=(30, 6))
         etiquette(self.moi_side, "En attente des autres joueurs…", "texte", 15, P["texte2"]).pack()
-        self.lbl_mon_mot = etiquette(self.moi_side, "", "texte", 17, P["mal"], True); self.lbl_mon_mot.pack(pady=(14, 0))
         self.piege_maj_mon_mot()
         self.piege_zone_hote()
 
     def piege_zone_hote(self):
         """Avancement du choix des mots, et pour l'hôte le bouton qui force le démarrage (mot au hasard pour ceux qui n'ont pas choisi)."""
         self.lbl_piege_etat = etiquette(self.moi_side, "", "texte", 14, P["texte2"]); self.lbl_piege_etat.pack(pady=(14, 0))
-        if self.controller.is_host:
-            Bouton(self.moi_side, "Forcer le démarrage", self.piege_forcer, largeur=240, hauteur=44, variante="discret").pack(pady=(10, 0))
+        self.btn_forcer = Bouton(self.moi_side, "Forcer le démarrage", self.piege_forcer, largeur=240, hauteur=44, variante="discret")
+        self.btn_forcer_visible = False
         self.piege_maj_etat()
 
     def piege_maj_etat(self, d=None):
         if not getattr(self, "lbl_piege_etat", None) or not self.lbl_piege_etat.winfo_exists(): return
         pret = ((d or self.last_sync_data or {}).get("piege_pret")) or {}
-        self.lbl_piege_etat.config(text=f"{sum(1 for t in self.piege_de if t in pret)} sur {len(self.piege_de)} mots choisis")
+        txt = f"{sum(1 for t in self.piege_de if t in pret)} sur {len(self.piege_de)} mots choisis"
+        if self.piege_fin_connue(): txt += " · c'est parti !"
+        self.lbl_piege_etat.config(text=txt)
+        voir = self.controller.is_host and not self.piege_fin_connue()  # seul l'hôte peut forcer le démarrage
+        if voir != self.btn_forcer_visible:
+            self.btn_forcer_visible = voir
+            if voir: self.btn_forcer.pack(pady=(10, 0))
+            else: self.btn_forcer.pack_forget()
 
     def piege_maj_mon_mot(self, d=None):
         """Affiche le mot qu'on a choisi pour sa cible (jamais ceux choisis par ou pour les autres)."""
         if not self.piege_mon_mot and self.piege_cible and ((d or self.last_sync_data or {}).get("piege_pret") or {}).get(self.piege_cible):
             sec = self.piege_mots.get(self.piege_cible) or self.piege_mot(self.piege_cible)  # reprise : relu en arrière-plan (autorisé : on est son choisisseur)
             if sec and sec.get("de") == self.controller.player_id: self.piege_mon_mot = sec["mot"]
-        if self.piege_mon_mot and self.lbl_mon_mot is not None and self.lbl_mon_mot.winfo_exists():
-            nom = self.piege_noms(d).get(self.piege_cible, "?").capitalize()
-            self.lbl_mon_mot.config(text=f"Ton mot pour {nom} : {self.piege_mon_mot}")
+        a = getattr(self, "adv_widgets", {}).get(self.piege_cible)  # affiché sous la mini-grille du joueur concerné
+        if self.piege_mon_mot and a is not None and a.winfo_exists() and a.lbl_mot.cget("text") != f"Ton mot : {self.piege_mon_mot}":
+            a.lbl_mot.config(text=f"Ton mot : {self.piege_mon_mot}")
 
     def piege_poser_fin(self):
         """Hôte : fixe la fin du choix à maintenant ; chacun passe à la devinette, ceux qui n'ont rien choisi ont un mot au hasard."""
@@ -1330,10 +1342,10 @@ class PageJeu(tk.Frame):
         self.piege_fin = ms / 1000; self.controller.settings_config["piege_fin_choix"] = ms
         self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/settings", {"piege_fin_choix": ms})
 
-    def piege_forcer(self, confirmer=True):
+    def piege_forcer(self):
+        """Hôte : démarre la devinette tout de suite ; ceux qui n'ont pas encore choisi reçoivent un mot au hasard."""
         if not self.controller.is_host or self.piege_fin_connue(): return
-        if confirmer and not tkm.askyesno("Forcer le démarrage", "Les joueurs qui n'ont pas encore choisi recevront un mot au hasard.\nDémarrer maintenant ?"): return
-        self.piege_poser_fin()
+        self.piege_poser_fin(); self.piege_maj_etat()
 
     def piege_mot_hasard(self):
         conf = self.controller.settings_config; mi, ma = int(conf.get("min", 6)), int(conf.get("max", 7))
@@ -1362,6 +1374,7 @@ class PageJeu(tk.Frame):
     def piege_envoye(self, ok, cible, mot, de, auto, moi_choix, gen):
         if gen != self.sync_gen: return
         if ok: self.piege_mots[cible] = {"mot": mot, "de": de, "auto": auto}
+        elif not moi_choix: self.piege_secours.discard(cible)  # mot de secours refusé (horloge) : on réessaiera
         if ok and cible == self.piege_cible and de == self.controller.player_id: self.piege_mon_mot = mot
         if not moi_choix or self.phase != "choix": return
         maintenant = time.time() + self.controller.server_time_offset
@@ -1379,7 +1392,6 @@ class PageJeu(tk.Frame):
         self.ligne, self.tape, self.attente_verdict = 0, [prem], None
         self.statut_lettres = {l: None for l in ALPHABET}
         self.labels_moi = self.creer_grille(self.moi_side, "", True)
-        self.lbl_mon_mot = etiquette(self.moi_side, "", "texte", 14, P["mal"], True); self.lbl_mon_mot.pack(pady=(6, 0))
         nom = self.piege_noms(d).get(self.piege_de.get(me), "?").capitalize()
         self.lbl_info.config(text=f"{NOM_MODE['PIEGE']} · mot choisi par {nom} · {n} lettres")
         essais = ((d.get("piege_essais") or {}).get(me)) or {}
@@ -1824,7 +1836,8 @@ class PageJeu(tk.Frame):
         except Exception: win_h = 860
         if win_h <= 200: win_h = 860
         dispo = (win_h - 160) / max(1, nb) - 30
-        return int(max(8, min(16, dispo / essais - 3)))
+        plafond = {1: 30, 2: 24}.get(nb, 18)  # adaptée au nombre de joueurs
+        return int(max(8, min(plafond, dispo / essais - 3)))
 
     def actualiser_tailles_grilles(self):
         main_size, _ = self.get_grid_sizes()

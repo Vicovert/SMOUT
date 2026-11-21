@@ -88,7 +88,7 @@ def regle_ecriture(uid, niveau, D, N):
             if not re.fullmatch(r"[0-9]{4}", code): return False
             if not existe(d_lob) and lire(n_lob, ["settings", "host_id"]) == uid and existe(lire(n_lob, ["players", uid])): return True
             if lire(d_lob, ["settings", "host_id"]) == uid: return True
-            if not existe(n_lob) and (not existe(d_lob.get("players")) or (d_lob.get("maj") or 0) < maintenant() - 120000): return True
+            if not existe(n_lob) and (not existe(d_lob.get("players")) or (d_lob.get("maj") or 0) < maintenant() - 1800000): return True
             return False
         sous = niveau[3:]
         if sous == ["maj"]: return existe(lire(d_lob, ["players", uid]))

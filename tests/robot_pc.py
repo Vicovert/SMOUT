@@ -80,10 +80,18 @@ def jeu_piege(manche):
         mot = random.choice(mots); J.choix = list(mot); J.valider()
         if not attendre(lambda: J.phase != "choix", 20): log("ÉCHEC envoi du mot choisi"); fin(False)
         R.setdefault("choisis", []).append(mot); log(f"manche {manche} : mot choisi pour sa cible", mot)
-        if not attendre(lambda: J.lbl_mon_mot is not None and J.lbl_mon_mot.winfo_exists() and mot in J.lbl_mon_mot.cget("text"), 10): log("ÉCHEC le mot choisi n'est pas affiché", mot); fin(False)
+        a = J.adv_widgets.get(J.piege_cible)  # « Ton mot : … » sous la mini-grille du joueur concerné
+        if not attendre(lambda: a is not None and mot in a.lbl_mot.cget("text"), 10): log("ÉCHEC le mot choisi n'est pas affiché sous la grille de sa cible", mot); fin(False)
     elif choix == "rien": log(f"manche {manche} : ne choisit rien (mot au hasard à la fin du décompte)")
     if S.get("forcer_apres") is not None and A.is_host:  # l'hôte force le démarrage (mot au hasard pour ceux qui n'ont pas choisi)
-        pump(S["forcer_apres"]); log("démarrage forcé par l'hôte"); J.piege_forcer(False)
+        pump(S["forcer_apres"]); log("démarrage forcé par l'hôte (clic sur le bouton)")
+        pm.tkm.askyesno = lambda *a, **k: True  # confirmation acceptée
+        bs = [w for w in J.moi_side.winfo_children() if isinstance(w, design.Bouton) and w.texte == "Forcer le démarrage"]
+        if J.piege_fin_connue(): log("la devinette a déjà commencé (tous les mots utiles choisis) : rien à forcer")
+        elif not bs or not bs[0].winfo_ismapped(): log("ÉCHEC pas de bouton « Forcer le démarrage » pour l'hôte"); fin(False)
+        else:
+            class Clic: x, y = 5, 5
+            bs[0]._clic(Clic())
     if S.get("planter_apres_choix") == manche:
         log("PLANTAGE simulé après le choix"); json.dump(dict(R, ok=True, plante=True), open(S["sortie"], "w"), ensure_ascii=False); os._exit(0)
     if not attendre(lambda: J.phase == "devine" or J.fini_local, 90): log("ÉCHEC pas de mot à deviner"); fin(False)
