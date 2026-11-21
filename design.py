@@ -3,7 +3,7 @@ import tkinter as tk
 import tkinter.font as tkfont
 import os, sys, ctypes, colorsys, hashlib
 
-VERSION_APP = "8.6"
+VERSION_APP = "8.7"
 URL_WEB = "https://vicovert.github.io/SMOUT/"
 
 def mot_graine(liste_triee, graine, index=0):
@@ -291,10 +291,11 @@ class Panneau(tk.Canvas):
 
 
 class CarteMenu(tk.Canvas):
-    """Grande carte cliquable de l'accueil : titre, sous-titre, chevron ou badge."""
-    def __init__(self, parent, titre, sous_titre, commande, largeur=540, hauteur=94, badge=None):
+    """Carte cliquable de l'accueil : titre, sous-titre, chevron ou badge. Avec `couleur`, la carte est pleine (texte `texte`)."""
+    def __init__(self, parent, titre, sous_titre, commande, largeur=540, hauteur=94, badge=None, couleur=None, texte=None):
         super().__init__(parent, width=largeur, height=hauteur, bg=fond_parent(parent), highlightthickness=0, cursor="hand2")
         self.titre, self.sous, self.commande, self.badge, self.l, self.h = titre, sous_titre, commande, badge, largeur, hauteur
+        self.couleur, self.texte = couleur, texte
         self.survol = False
         self.bind("<Enter>", lambda e=None: self._s(True)); self.bind("<Leave>", lambda e=None: self._s(False))
         self.bind("<ButtonRelease-1>", lambda e=None: self.commande())
@@ -303,14 +304,19 @@ class CarteMenu(tk.Canvas):
     def set_badge(self, b): self.badge = b; self._dessiner()
     def _dessiner(self):
         self.delete("all")
-        arrondi(self, 1, 1, self.l - 1, self.h - 1, 16, fill=P["survol"] if self.survol else P["panneau"], outline="")
-        self.create_text(30, self.h / 2 - 12, text=self.titre, anchor="w", fill=P["texte"], font=police("titre", 26))
-        self.create_text(30, self.h / 2 + 17, text=self.sous, anchor="w", fill=P["texte2"], font=police("texte", 16))
+        if self.couleur:
+            fond, t1 = (eclaircir(self.couleur, 1.08) if self.survol else self.couleur), self.texte
+            t2, tb = melanger(t1, self.couleur, 0.15), t1
+        else:
+            fond, t1, t2, tb = (P["survol"] if self.survol else P["panneau"]), P["texte"], P["texte2"], P["mal"]
+        arrondi(self, 1, 1, self.l - 1, self.h - 1, 16, fill=fond, outline="")
+        self.create_text(30, self.h / 2 - 12, text=self.titre, anchor="w", fill=t1, font=police("titre", 26))
+        self.create_text(30, self.h / 2 + 17, text=self.sous, anchor="w", fill=t2, font=police("texte", 16))
         if self.badge:
-            self.create_text(self.l - 30, self.h / 2, text=self.badge, anchor="e", fill=P["mal"], font=police("texte", 15, True))
+            self.create_text(self.l - 30, self.h / 2, text=self.badge, anchor="e", fill=tb, font=police("texte", 15, True))
         else:
             x, y = self.l - 38, self.h / 2
-            self.create_line(x - 4, y - 8, x + 4, y, x - 4, y + 8, fill=P["texte2"], width=2, capstyle="round", joinstyle="round")
+            self.create_line(x - 4, y - 8, x + 4, y, x - 4, y + 8, fill=t2, width=2, capstyle="round", joinstyle="round")
 
 
 class Icone(tk.Canvas):

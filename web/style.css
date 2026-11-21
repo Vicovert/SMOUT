@@ -63,6 +63,16 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 /* Accueil */
 .carte-menu { width: min(540px, 92vw); height: 94px; border-radius: 16px; background: var(--panneau); display: flex; align-items: center; padding: 0 30px; cursor: pointer; border: 0; color: var(--texte); text-align: left; }
 .carte-menu:hover { background: var(--survol); }
+.menu-ligne { display: flex; gap: 16px; justify-content: center; width: min(796px, 92vw); }
+.menu-ligne .carte-menu { flex: 1 1 0; width: auto; min-width: 0; height: 124px; }
+.menu-ligne.mdj { margin-top: 14px; }
+.menu-ligne.mdj .carte-menu { height: 84px; }
+.carte-menu.solo { background: var(--bien); color: var(--sur-bien); }
+.carte-menu.multi { background: var(--mal); color: var(--sur-mal); }
+.carte-menu.mdj { background: #4CC9F0; color: #14182A; }  /* couleur propre au Mot du jour (même que COULEUR_MDJ de main.py) */
+.carte-menu.solo:hover, .carte-menu.multi:hover, .carte-menu.mdj:hover { filter: brightness(1.08); }
+.carte-menu.solo .chevron, .carte-menu.multi .chevron, .carte-menu.mdj .chevron { color: inherit; opacity: .7; }
+.carte-menu.solo .s, .carte-menu.multi .s, .carte-menu.mdj .s, .carte-menu.mdj .d { color: inherit; opacity: .8; }
 .carte-menu .t { font-family: var(--f-titre); font-size: 26px; font-weight: 700; }
 .carte-menu .s { color: var(--texte2); font-size: 16px; margin-top: 4px; }
 .carte-menu .d { margin-left: auto; color: var(--mal); font-weight: 600; }
@@ -77,14 +87,21 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 .stat .s { font-family: var(--f-chiffres); font-weight: 700; font-size: 24px; color: var(--texte2); }
 
 /* Clavier */
-.clavier { display: flex; flex-direction: column; align-items: center; gap: 8px; user-select: none; }
-.clavier .rang { display: flex; gap: 8px; }
-.touche { width: var(--k, 42px); height: var(--kh, 50px); border-radius: 8px; border: 0; background: var(--tuile); color: var(--texte); font-family: var(--f-chiffres); font-weight: 700; font-size: 17px; cursor: pointer; padding: 0; }
+.clavier { display: flex; flex-direction: column; align-items: center; gap: 8px; user-select: none; width: 100%; max-width: 560px; margin: 0 auto; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.clavier .rangs { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.clavier .rang { display: flex; gap: 6px; width: 100%; }
+.touche { flex: 1 1 0; min-width: 0; height: var(--kh, 50px); border-radius: 8px; border: 0; background: var(--tuile); color: var(--texte); font-family: var(--f-chiffres); font-weight: 700; font-size: 18px; cursor: pointer; padding: 0; touch-action: manipulation; }
+.touche:active { filter: brightness(1.25); transform: scale(.96); }
 .touche.bien { background: var(--bien); color: var(--sur-bien); }
 .touche.mal { background: var(--mal); color: var(--sur-mal); }
 .touche.absent { background: var(--vide); color: var(--texte-absent); }
-.touche.large { width: calc(var(--k, 42px) * 2 + 8px); font-family: var(--f-texte); font-weight: 600; font-size: 15px; }
+.touche.large { flex: 2 1 0; font-family: var(--f-texte); font-weight: 600; font-size: 22px; }
 .touche.valider { background: var(--mal); color: var(--sur-mal); }
+.champ-natif { position: fixed; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; border: 0; padding: 0; font-size: 16px; pointer-events: none; }
+.zone-natif { display: none; width: 100%; min-height: 64px; border-radius: 12px; border: 2px dashed var(--texte2); background: none; color: var(--texte2); font-size: 15px; cursor: pointer; }
+.clavier.natif .rangs { display: none; }
+.clavier.natif .zone-natif { display: block; }
+.bascule-clavier { font-size: 15px; padding: 6px 12px; }
 
 /* Formulaires */
 .champ { height: 52px; border-radius: 12px; background: var(--panneau); border: 1px solid var(--bordure); color: var(--texte); padding: 0 18px; font-size: 17px; font-family: var(--f-texte); outline: none; }
@@ -159,6 +176,14 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   .stat .v { font-size: 32px; }
   .entete, .barre-haut { padding-left: 14px; padding-right: 14px; }
   .carte-menu .t { font-size: 22px; }
+  .menu-ligne { gap: 10px; }
+  .menu-ligne .carte-menu { padding: 0 14px; height: 118px; }
+  .menu-ligne .carte-menu .s { font-size: 13px; }
+  .menu-ligne .carte-menu .chevron { display: none; }
+  .clavier { max-width: 100%; padding: 0 4px; gap: 6px; }
+  .clavier .rangs { gap: 8px; }
+  .clavier .rang { gap: 4px; }
+  .touche { height: max(var(--kh, 50px), 52px); font-size: 20px; }
   .podium .marche { width: 30vw; }
   .tableau .r { padding: 0 14px; }
 }
