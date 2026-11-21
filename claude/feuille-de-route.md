@@ -2,6 +2,19 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
+## 8.9
+- Web : clavier du jeu « aplati » en multijoueur corrigé (régression de la 8.7 : le clavier s'écrasait en colonne étroite à côté des mini-grilles).
+- Mot piégé : plus de limite de temps pour choisir son mot ; la devinette commence quand tous les mots sont choisis, ou quand l'hôte clique « Forcer le démarrage » (mot au hasard pour ceux qui n'ont rien choisi). Le temps de jeu ne court qu'à partir de là. Avancement « n sur m mots choisis ». Longueur libre dans la plage du salon (6 **ou** 7 lettres : une case de plus apparaît à chaque lettre).
+- Mot piégé : verdicts plus rapides (rafraîchissement du salon toutes les 0,35 s au lieu de 0,8 s). Les mots choisis sont vérifiés dans le dictionnaire au moment du choix (PC et web) ; les mots tirés au hasard viennent de la liste de jeu.
+- L'hôte peut ramener tout le monde au salon en cours de partie (bouton « Retour au salon » + confirmation), tous modes, PC et web.
+- Bug « salon invisible » (liste et code) : (1) horloge locale décalée de plus de 30 s → le web comparait l'âge de l'annonce à sa propre heure ; il se synchronise maintenant sur le serveur (nouveau chemin `v7/horloge/$uid` dans les règles, **à republier**) ; (2) ancienne version du site gardée par le cache hors ligne → rechargement automatique à la mise à jour, et salons d'une autre version désormais signalés dans la liste au lieu d'être cachés.
+- Salon : l'invité voit les réglages choisis par l'hôte (manches, temps, essais, lettres, choix du mot) en lecture seule, sans les curseurs (PC et web).
+- Mot piégé : on voit le mot qu'on a choisi pour sa cible (jamais ceux des autres), pendant l'attente et la devinette.
+- Mot piégé : barème simplifié, **1 point si on trouve son mot, 0 sinon** (le choisisseur ne marque pas ; remplace le barème équilibré de la 8.6).
+- `VERSION_JEU` 8.9 (protocole : fin du choix infinie par défaut).
+- Tests : `horloge_decalee.js`, 4 cas de règles (68/68), parties « retour au salon » (hôte web et hôte PC), démarrage forcé dans les parties Mot piégé ; robot PC à la taille réelle de fenêtre, longueur de mot alternée (mini/maxi).
+- **Règles Firebase à republier** (`database.rules.json` : ajout de `horloge`).
+
 ## 8.8
 - CI plus rapide : tests joués une seule fois, sur la branche `travail-*` (4 jobs parallèles : base, croisés a/b, Mot piégé ; ≈ 8 min au lieu de ≈ 20), plus de re-test sur `main`.
 - Sur `main` : builds Windows/Mac/Linux + release directement (≈ 5 min) ; le site web est publié tout de suite par `pages.yml`.

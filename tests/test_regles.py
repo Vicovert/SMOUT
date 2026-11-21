@@ -46,6 +46,11 @@ t("supprimer le salon abandonné (> 2 min)", req("DELETE", "v7/lobbies/1234", C)
 t("supprimer son secret ensuite", req("DELETE", "v7/secrets/1234", C), 200)
 t("supprimer l'annonce périmée", req("DELETE", "v7/index/1234", C), 200)
 t("code non numérique refusé", req("PUT", "v7/lobbies/abcd", A, {"status": "waiting", "settings": dict(reglages), "players": {ua: {"name": "A", "score": 0}}}), 401)
+# ---- Horloge : chacun écrit l'heure du serveur sur son propre chemin (corrige les horloges décalées)
+t("horloge : écrire l'heure du serveur sur son chemin", req("PUT", f"v7/horloge/{ua}", A, SV), 200)
+t("horloge : écrire sur le chemin d'un autre", req("PUT", f"v7/horloge/{ub}", A, SV), 401)
+t("horloge : valeur qui n'est pas un nombre", req("PUT", f"v7/horloge/{ua}", A, "x"), 401)
+t("horloge : lecture interdite", req("GET", f"v7/horloge/{ua}", A), 401)
 # ---- Mot piégé : le mot choisi n'est jamais lisible par celui qui doit le deviner
 D = signup(); ud = D[4:]
 rp = dict(reglages, game_mode="PIEGE", piege_id="p42", piege_de={ua: uc, ub: ua, uc: ub}, piege_fin_choix=int(time.time() * 1000) + 60000)

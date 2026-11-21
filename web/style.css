@@ -87,7 +87,7 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 .stat .s { font-family: var(--f-chiffres); font-weight: 700; font-size: 24px; color: var(--texte2); }
 
 /* Clavier */
-.clavier { display: flex; flex-direction: column; align-items: center; gap: 8px; user-select: none; width: 100%; max-width: 560px; margin: 0 auto; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.clavier { display: flex; flex-direction: column; align-items: center; gap: 8px; user-select: none; width: min(560px, calc(100vw - 8px)); max-width: 560px; margin: 0 auto; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .clavier .rangs { display: flex; flex-direction: column; gap: 8px; width: 100%; }
 .clavier .rang { display: flex; gap: 6px; width: 100%; }
 .touche { flex: 1 1 0; min-width: 0; height: var(--kh, 50px); border-radius: 8px; border: 0; background: var(--tuile); color: var(--texte); font-family: var(--f-chiffres); font-weight: 700; font-size: 18px; cursor: pointer; padding: 0; touch-action: manipulation; }
@@ -180,7 +180,7 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   .menu-ligne .carte-menu { padding: 0 14px; height: 118px; }
   .menu-ligne .carte-menu .s { font-size: 13px; }
   .menu-ligne .carte-menu .chevron { display: none; }
-  .clavier { max-width: 100%; padding: 0 4px; gap: 6px; }
+  .clavier { width: calc(100vw - 8px); max-width: 100%; gap: 6px; }
   .clavier .rangs { gap: 8px; }
   .clavier .rang { gap: 4px; }
   .touche { height: max(var(--kh, 50px), 52px); font-size: 20px; }

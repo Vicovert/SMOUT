@@ -127,6 +127,12 @@
           ".validate": "newData.isString() && newData.val().length <= 64"
         }
       },
+      "horloge": {
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "newData.isNumber() && newData.val() <= now + 5000"
+        }
+      },
       "pieges": {
         "$code": {
           ".write": "auth != null && !newData.exists() && !root.child('v7/lobbies/' + $code).exists()",

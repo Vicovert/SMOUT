@@ -77,12 +77,12 @@ REGLES = {
     "c11": rush,
     "c12": rush,
     "c13": lambda: exact({"BOB": 32, "ALICE": 0}),
-    "p1": lambda: piege({"ALICE": 48, "BOB": 0}),               # Mot piégé : 16 (trouvé du 1er coup) + 8 (cible qui rate), 2 manches
-    "p2": lambda: piege({"ALICE": 32, "BOB": 32, "CHLOE": 0}),  # mot au hasard (0 pt au choisisseur), paire du joueur parti annulée
-    "p3": lambda: piege({"ALICE": 48, "BOB": 0}),
-    "q1": lambda: piege({"ALICE": 48, "BOB": 0}),               # hôte PC, joueur web (choix invalide puis valide, devinette ratée)
-    "q3": lambda: piege({"ALICE": 32, "BOB": 32, "CHLOE": 0}),  # joueur web parti après son choix : paire annulée, mot au hasard pour BOB
-    "q2": lambda: piege({"BOB": 32, "ALICE": 0}),               # hôte web, joueur PC (mot au hasard pour ALICE : 0 pt au choisisseur ; ALICE rate)
+    "p1": lambda: piege({"ALICE": 2, "BOB": 0}),                 # Mot piégé : 1 point par mot trouvé, 0 sinon (2 manches)
+    "p2": lambda: piege({"ALICE": 2, "BOB": 2, "CHLOE": 0}),     # mot au hasard après démarrage forcé, paire du joueur parti annulée
+    "p3": lambda: piege({"ALICE": 2, "BOB": 0}),
+    "q1": lambda: piege({"ALICE": 2, "BOB": 0}),                 # hôte PC, joueur web (choix invalide puis valide, devinette ratée)
+    "q3": lambda: piege({"ALICE": 2, "BOB": 2, "CHLOE": 0}),     # joueur web parti après son choix : paire annulée, mot au hasard pour BOB
+    "q2": lambda: piege({"BOB": 2, "ALICE": 0}),                 # hôte web, joueur PC (mot au hasard pour ALICE après démarrage forcé ; ALICE rate)
 }
 REGLES[nom]()
 print(f"  scores conformes ({nom})")

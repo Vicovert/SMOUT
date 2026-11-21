@@ -35,11 +35,17 @@ async function jeuPiege(manche) {
     }
   }
   if (choix === "valide" || choix === "invalide") {
-    const mot = await ev((mi, ma) => { const l = MOTS.multiListe.filter(m => m.length >= mi && m.length <= ma && /^[A-Z]+$/.test(m)); return l[Math.floor(Math.random() * l.length)]; }, mi, ma);
+    const lg = manche % 2 ? mi : ma;  // alterne la longueur choisie (mini, puis maxi) : toute longueur permise est possible
+    const mot = await ev((lg) => { const l = MOTS.multiListe.filter(m => m.length === lg && /^[A-Z]+$/.test(m)); return l[Math.floor(Math.random() * l.length)]; }, lg);
     await p.keyboard.type(mot.toLowerCase(), { delay: 15 }); await p.keyboard.press("Enter");
     if (!(await attendre(() => !document.body.innerText.includes("Choisis le mot que"), 20000))) { log("ÉCHEC envoi du mot choisi"); return fin(false); }
     (R.choisis ||= []).push(mot); log(`manche ${manche} : mot choisi pour sa cible`, mot);
+    const vu = await ev(() => document.body.innerText);  // on voit le mot qu'on a choisi pour sa cible
+    if (!vu.includes("Ton mot pour") || !vu.includes(mot)) { log("ÉCHEC le mot choisi n'est pas affiché", mot); return fin(false); }
   } else if (choix === "rien") log(`manche ${manche} : ne choisit rien (mot au hasard à la fin du décompte)`);
+  if (S.forcer_apres != null && S.role === "host") {  // l'hôte force le démarrage (mot au hasard pour ceux qui n'ont pas choisi)
+    await sleep(S.forcer_apres * 1000); log("démarrage forcé par l'hôte"); await clicTexte("button", "Forcer le démarrage");
+  }
   if (S.planter_apres_choix === manche) { log("PLANTAGE simulé après le choix"); R.config = await ev(() => localStorage.getItem("smout_config")); fs.writeFileSync(S.sortie, JSON.stringify(Object.assign(R, { ok: true, plante: true }))); b.process().kill("SIGKILL"); process.exit(0); }
   if (!(await attendre(() => (document.querySelector(".milieu")?.textContent || "").includes("mot choisi par") || /Manche terminée|Bien joué|Tu regardes/.test(document.body.innerText), 90000))) { log("ÉCHEC pas de mot à deviner"); return fin(false); }
   if (!(await enDevine())) return;
@@ -67,7 +73,7 @@ async function jeuPiege(manche) {
   p = await b.newPage(); await p.setViewport({ width: S.largeur || 1200, height: S.hauteur || 860 });
   p.on("pageerror", e => { R.erreurs.push(e.message); log("ERREUR PAGE", e.message); });
   p.on("console", m => { if (m.type() === "error" && !/401|Failed to load resource/.test(m.text())) { R.erreurs.push(m.text()); log("console", m.text()); } });
-  p.on("dialog", async d => { R.evenements.push("alerte: " + d.message()); log("alerte", d.message()); await d.dismiss(); });
+  p.on("dialog", async d => { R.evenements.push("alerte: " + d.message()); log("alerte", d.message()); if (d.type() === "confirm") await d.accept(); else await d.dismiss(); });  // « Forcer le démarrage », « Retour au salon » : on confirme
   await p.setRequestInterception(true);
   p.on("request", async r => {
     const u = r.url(); let c = null;
@@ -123,6 +129,12 @@ async function jeuPiege(manche) {
     }
     if (!(await attendre(() => M.lobby !== "", 15000))) { log("ÉCHEC rejoindre"); return fin(!!S.attendu_refus); }
     R.code = await ev(() => M.lobby); log("a rejoint", R.code);
+    await sleep(1500);  // l'invité voit les réglages de l'hôte (en lecture seule : pas de curseurs)
+    const inv = await ev(() => ({ salon: !!document.querySelector(".salon-partie"), t: document.body.innerText, curseurs: [...document.querySelectorAll(".salon-partie input[type=range]")].filter(x => x.offsetParent !== null).length }));
+    R.reglages_invite = !inv.salon || (/manches/i.test(inv.t) && /essais/i.test(inv.t) && /lettres/i.test(inv.t) && inv.curseurs === 0);  // (partie déjà lancée : rien à vérifier)
+    log(R.reglages_invite ? "réglages de l hôte visibles sans curseurs" : "ÉCHEC réglages de l hôte non visibles", JSON.stringify({ curseurs: inv.curseurs, t: inv.t.slice(0, 400) }));
+    if (!R.reglages_invite && !S.attendu_refus) return fin(false);
+    if (S.capture_salon) { await sleep(2500); await p.screenshot({ path: S.capture_salon }); }
   }
   for (let partie = 1; partie <= (S.parties || 1); partie++) {
     if (S.role === "host") {
@@ -149,6 +161,15 @@ async function jeuPiege(manche) {
       const mot = S.mode === "PIEGE" ? "" : await ev(() => M.dernierMot); if (mot) R.mots.push(mot);
       if (S.capture_jeu && manche === 1) { await p.keyboard.type("ab"); await sleep(200); await p.screenshot({ path: S.capture_jeu }); await p.keyboard.press("Backspace"); await p.keyboard.press("Backspace");
         R.deborde = await ev(() => { const w = document.documentElement.clientWidth; return [...document.querySelectorAll("body *")].filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && (r.right > w + 1 || r.left < -1); }).slice(0, 4).map(e => e.className); }); log("débordements", JSON.stringify(R.deborde)); } log(`partie ${partie} manche ${manche} mot ${mot}`);
+      if (S.retour_salon) {  // l'hôte ramène tout le monde au salon en cours de partie (avec confirmation)
+        await sleep(3000); await clicTexte("button", "Retour au salon");
+        if (!(await attendre(() => document.querySelector(".joueur"), 30000))) { log("ÉCHEC pas de retour au salon"); return fin(false); }
+        log("retour au salon (demandé par l'hôte)"); R.retour_salon = true; await sleep(2000); return fin(true);
+      }
+      if (S.attend_retour_salon) {
+        if (!(await attendre(() => document.querySelector(".joueur"), 90000))) { log("ÉCHEC pas de retour au salon"); return fin(false); }
+        log("retour au salon (demandé par l'hôte)"); R.retour_salon = true; await sleep(2000); return fin(true);
+      }
       if (S.planter_manche === manche) { log("PLANTAGE simulé"); R.config = await ev(() => localStorage.getItem("smout_config")); fs.writeFileSync(S.sortie, JSON.stringify(Object.assign(R, { ok: true, plante: true }))); b.process().kill("SIGKILL"); process.exit(0); }
       const jeu = S.jeu || "gagne";
       if (S.mode === "PIEGE") await jeuPiege(manche);

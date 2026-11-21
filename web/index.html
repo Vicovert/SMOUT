@@ -21,6 +21,14 @@
 <div id="app"><div class="page centre" style="justify-content:center;color:#A9B6DA;background:#0B1226;font-family:sans-serif">Chargement de SMOUT…</div></div>
 <script src="donnees.js"></script>
 <script src="smout.js"></script>
-<script>if ("serviceWorker" in navigator && window.isSecureContext) navigator.serviceWorker.register("sw.js").catch(() => {});</script>
+<script>
+if ("serviceWorker" in navigator && window.isSecureContext) {
+  // une nouvelle version du jeu prend le relais : on recharge tout de suite (une seule fois) pour ne pas rester sur l'ancienne
+  // (sinon un joueur resté sur une ancienne version ne voyait pas les salons des autres, de version différente)
+  const avait = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener("controllerchange", () => { if (avait && !(typeof enJeu !== "undefined" && enJeu) && !sessionStorage.getItem("sw_recharge")) { sessionStorage.setItem("sw_recharge", "1"); location.reload(); } });
+  navigator.serviceWorker.register("sw.js").then(r => { r.update().catch(() => {}); }).catch(() => {});
+}
+</script>
 </body>
 </html>

@@ -23,7 +23,7 @@ _tb = traceback.print_exc
 def capte(*a, **k): erreurs.append(traceback.format_exc()); _tb(*a, **k)
 pm.traceback.print_exc = capte
 design.appliquer_theme(Mn.THEMES["PLATEAU DE NUIT"]); pm.apply_theme_multi(Mn.THEMES["PLATEAU DE NUIT"])
-root = tk.Tk(); root.geometry("1200x860")
+root = tk.Tk(); root.geometry(f"{min(1200, root.winfo_screenwidth() - 40)}x{min(860, root.winfo_screenheight() - 90)}+0+0")  # comme la vraie fenêtre (main.py)
 root.report_callback_exception = lambda *a: erreurs.append("".join(traceback.format_exception(*a)))
 class Ctrl:
     def winfo_toplevel(self): return root
@@ -75,11 +75,15 @@ def jeu_piege(manche):
         J.choix = []
     if manche == 1 and J.phase == "choix": J.choix = list("PIEG"); J.piege_rendre_choix(); capture("choix"); J.choix = []
     if choix in ("valide", "invalide"):
-        mots = sorted(m for m in A.liste_mots if mi <= len(m) <= ma and m.isalpha() and m.isascii())
+        lg = mi if manche % 2 else ma  # alterne la longueur choisie (mini, puis maxi) : toute longueur permise est possible
+        mots = sorted(m for m in A.liste_mots if len(m) == lg and m.isalpha() and m.isascii())
         mot = random.choice(mots); J.choix = list(mot); J.valider()
         if not attendre(lambda: J.phase != "choix", 20): log("ÉCHEC envoi du mot choisi"); fin(False)
         R.setdefault("choisis", []).append(mot); log(f"manche {manche} : mot choisi pour sa cible", mot)
+        if not attendre(lambda: J.lbl_mon_mot is not None and J.lbl_mon_mot.winfo_exists() and mot in J.lbl_mon_mot.cget("text"), 10): log("ÉCHEC le mot choisi n'est pas affiché", mot); fin(False)
     elif choix == "rien": log(f"manche {manche} : ne choisit rien (mot au hasard à la fin du décompte)")
+    if S.get("forcer_apres") is not None and A.is_host:  # l'hôte force le démarrage (mot au hasard pour ceux qui n'ont pas choisi)
+        pump(S["forcer_apres"]); log("démarrage forcé par l'hôte"); J.piege_forcer(False)
     if S.get("planter_apres_choix") == manche:
         log("PLANTAGE simulé après le choix"); json.dump(dict(R, ok=True, plante=True), open(S["sortie"], "w"), ensure_ascii=False); os._exit(0)
     if not attendre(lambda: J.phase == "devine" or J.fini_local, 90): log("ÉCHEC pas de mot à deviner"); fin(False)
@@ -130,6 +134,10 @@ try:
             if not A.lobby_code: log("ÉCHEC rejoindre"); fin(S.get("attendu_refus", False))
         elif not pa.rejoindre(code, S.get("mdp", ""), silencieux=True): log("ÉCHEC rejoindre"); fin(False)
         log("a rejoint", code); R["code"] = code
+        pump(2); capture("salon_invite")
+        vals = {k: v[2].cget("text") for k, v in lob.lignes_invite.items()}  # l'invité voit les réglages de l'hôte (lecture seule)
+        if not all(vals[k] for k in ("timer", "essais", "lettres")): log("ÉCHEC réglages de l'hôte non visibles", vals); fin(False)
+        log("réglages de l'hôte visibles", vals)
     for partie in range(1, S.get("parties", 1) + 1):
         if S["role"] == "host":
             if not attendre(lambda: lob.active_sync and A.nb_joueurs >= S.get("nb", 2), 120): log("ÉCHEC joueurs manquants", A.nb_joueurs); fin(False)
@@ -148,6 +156,14 @@ try:
             if not attendre(lambda: J.active_sync and int(J.round_actuel) == manche and J.controller.settings_config.get("game_mode") == S["mode"], 90):
                 log("ÉCHEC manche pas commencée", manche); fin(False)
             pump(1.2); R["mots"].append(J.mot); log(f"partie {partie} manche {manche} mot {J.mot}")
+            if manche == 1: capture("jeu")
+            if S.get("retour_salon_hote"):  # hôte : ramène tout le monde au salon en cours de partie
+                pump(3); tkm_ok = pm.tkm; pm.tkm.askyesno = lambda *a, **k: True; J.retour_salon_hote()
+                if not attendre(lambda: lob.active_sync, 60): log("ÉCHEC pas de retour au salon"); fin(False)
+                log("retour au salon (demandé par l'hôte)"); R["retour_salon"] = True; pump(2); fin(True)
+            if S.get("attend_retour_salon"):  # l'hôte ramène tout le monde au salon en cours de partie
+                if not attendre(lambda: lob.active_sync, 90): log("ÉCHEC pas de retour au salon"); fin(False)
+                log("retour au salon (demandé par l'hôte)"); R["retour_salon"] = True; pump(2); fin(True)
             if getattr(J, "elimine", False):
                 log(f"manche {manche} : éliminé, spectateur"); R["elimine"] = manche
                 attendre(lambda: (J.active_sync and int(J.round_actuel) > manche) or A.frames["PageScoreFinal"].active_sync, 300); continue

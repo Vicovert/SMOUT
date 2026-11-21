@@ -66,6 +66,8 @@ def regle_ecriture(uid, niveau, D, N):
         return (not existe(d) or d.get("owner") == uid or (d.get("maj") or 0) < maintenant() - 20000
                 or lire(D, ["v7", "lobbies", code, "settings", "host_id"]) == uid  # l'hôte actuel (après une reprise d'hôte)
                 or (not existe(lire(N, niveau)) and not existe(lire(D, ["v7", "lobbies", code]))))  # annonce d'un salon disparu
+    if len(niveau) == 3 and niveau[1] == "horloge":  # synchronisation de l'horloge : chacun écrit l'heure du serveur sur son propre chemin
+        return niveau[2] == uid
     if len(niveau) == 3 and niveau[1] == "secrets":
         code = niveau[2]
         if not re.fullmatch(r"[0-9]{4}", code): return False
@@ -113,6 +115,7 @@ def regle_ecriture(uid, niveau, D, N):
 
 def valider(N, cible):
     """Règles .validate touchées par l'écriture."""
+    if len(cible) >= 3 and cible[1] == "horloge" and not isinstance(lire(N, cible[:3]), (int, float)): return False
     if len(cible) >= 3 and cible[1] == "index":
         n = lire(N, cible[:3])
         if existe(n):
