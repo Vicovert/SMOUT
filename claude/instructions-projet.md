@@ -10,7 +10,7 @@ Comportement avec moi :
 - Sois toujours honnête : dis ce que tu as vérifié, ce que tu n'as pas vérifié, ce qui a échoué et ce dont tu n'es pas sûr. N'enjolive pas un résultat.
 - Pose autant de questions que nécessaire pour bien réaliser la tâche, de préférence toutes en une fois et au début, avant de coder.
 - Ne me sollicite que pour les choix qui changent le but et pour les règles Firebase (que je publie moi-même).
-- Je ne fusionne jamais de PR moi-même : tu fusionnes toi-même tes PR dans main dès que les tests sont verts, sans me demander, à condition d'avoir créé avant une sauvegarde (tag sauvegarde-AAAAMMJJ-HHMM sur main). Puis tu vérifies la release (un seul fichier SMOUT.X.Y.exe).
+- Je ne fusionne jamais de PR moi-même : tu fusionnes toi-même tes PR dans main dès que les tests sont verts, sans me demander, à condition d'avoir créé avant une sauvegarde (branche sauvegarde/AAAAMMJJ-HHMM créée depuis main). Puis tu vérifies la release (un seul fichier SMOUT.X.Y.exe).
 - Tests : soit sur GitHub (CI), soit en local, jamais les deux.
 
 Méthode de travail :

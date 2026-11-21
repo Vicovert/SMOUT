@@ -18,7 +18,7 @@ Toute règle ou logique de jeu modifiée côté PC doit l'être à l'identique c
 - Chaque mise à jour du code : incrémenter le **second chiffre** (8.2 → 8.3). Grosse mise à jour : premier chiffre +1, second remis à 0.
 - Mettre à jour `VERSION_APP` dans `design.py` (le web la lit via `export_web.py`).
 - Une release à chaque fois, avec **un seul fichier `SMOUT.X.Y.exe` (Windows)** ; plus de builds Mac ni Linux. On travaille sur une branche `travail-X.Y`, PR vers `main`, puis **Claude squash-merge lui-même** une fois les tests verts → le workflow publie la release.
-- **Sauvegarde avant chaque fusion dans `main`** (obligatoire, c'est ce qui dispense du feu vert de Victor) : pousser un tag sur l'état actuel de `main`, `git tag sauvegarde-AAAAMMJJ-HHMM origin/main && git push origin sauvegarde-AAAAMMJJ-HHMM`. Retour arrière possible avec ce tag.
+- **Sauvegarde avant chaque fusion dans `main`** (obligatoire, c'est ce qui dispense du feu vert de Victor) : créer une branche `sauvegarde/AAAAMMJJ-HHMM` (heure de Paris) depuis `main`, avec l'outil GitHub `create_branch` (le push de tags est refusé depuis les fils cloud). Elle ne déclenche aucun workflow. Retour arrière possible depuis cette branche.
 - Message du commit sur `main` : ligne de résumé = **tag** (ex. `8.2`), corps = notes de version au format `-élément`, un par bloc séparé d'une ligne vide, puis les lignes d'attribution.
 - Vérifier ensuite l'asset `SMOUT.X.Y.exe` : `gh api repos/Vicovert/SMOUT/releases/tags/X.Y` (dans les fils cloud, outil GitHub `get_release_by_tag`).
 - Mettre à jour le doc de projet `claude/feuille-de-route.md` (entrée de la version) et `ETAT.md`.
