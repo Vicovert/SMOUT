@@ -5,7 +5,7 @@ _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travai
 **Dernière mise à jour : 22/11/2026**
 
 ## En ligne
-- Version : **8.10** (dernière release Windows / Mac / Linux, publiée le 22/11/2026 ; les suivantes : Windows seul, `SMOUT.X.Y.exe`, site https://vicovert.github.io/SMOUT/)
+- Version : **8.11** (release Windows seule `SMOUT.8.11.exe`, 22/11/2026 ; site https://vicovert.github.io/SMOUT/). 8.10 était la dernière avec Mac / Linux.
 - Protocole multi : `VERSION_JEU` 8.10, données sous `/v7`
 
 ## À faire par Victor
@@ -16,7 +16,7 @@ _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travai
 - Configuration de l'espace de travail : terminée (PR #1), Claude fusionne désormais lui-même les PR.
 
 ## Prochaines pistes (non commencées)
-- Supprimer les branches inutiles : `travail-8.10`, `regles-etape3`, `v4.3`, `v5.0`, `v6.0`, `v7.0`.
+- Supprimer les branches inutiles : `travail-8.10`, `travail-8.11`, `regles-etape3`, `v4.3`, `v5.0`, `v6.0`, `v7.0`.
 - Corriger `tests/README.md` (dit encore que les tests tournent sur `main`).
 - Test automatique d'équivalence PC ↔ web des constantes (`REGLES_MODES`, `RUSHS`, `COULEURS_MODES`).
 - Règles Firebase : empêcher l'hôte d'écrire n'importe quel score.

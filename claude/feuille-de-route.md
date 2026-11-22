@@ -2,6 +2,9 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
+## 8.11
+- Podium de fin de partie : les joueurs ex aequo ont la même hauteur de marche (hauteur choisie selon le rang, plus selon la place), PC et web.
+
 ## 8.10
 - Mot piégé : toutes les cases du mot à choisir sont affichées dès le départ ; celles au-delà de la longueur minimale sont en pointillé (« facultatives »), pour qu'on voie qu'on peut écrire 6 **ou** 7 lettres.
 - Mot piégé : seul l'hôte voit le bouton « Forcer le démarrage » (mis à jour en continu, aussi après un changement d'hôte) ; plus de fenêtre de confirmation, retour visuel « c'est parti ! ». Un mot de secours refusé est retenté.

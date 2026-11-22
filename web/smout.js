@@ -1706,11 +1706,11 @@ async function resultats() {
   const top = classement[0][1].score || 0, gagnants = classement.filter(([, v]) => (v.score || 0) === top).map(([, v]) => capitaliser(v.name));
   const rang = {}; let r = 0; classement.forEach(([pid, v], i) => { if (i > 0 && (v.score || 0) < (classement[i - 1][1].score || 0)) r = i; rang[pid] = r; });
   const ordre = classement.length >= 3 ? [1, 0, 2] : classement.length === 2 ? [1, 0] : [0];
-  const hauteurs = [150, 110, 84];
+  const hauteurs = [150, 110, 84];  // indexées par le rang : ex aequo = même marche
   const podium = h("div.podium", {}, ordre.map(k => { const [pid, v] = classement[k]; const premier = rang[pid] === 0;
     return h("div.centre", {}, premier ? h("div", { style: { color: "var(--mal)" }, html: `<svg viewBox="0 0 24 24" style="width:30px;height:30px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linejoin:round">${SVG.couronne}</svg>` }) : null,
       h("div.gras", { style: { fontSize: "17px", margin: "6px 0 12px" } }, capitaliser(v.name)),
-      h("div.marche", { style: { height: hauteurs[k] + "px", background: premier ? "var(--mal)" : "var(--tuile)", color: premier ? "var(--sur-mal)" : "var(--texte)" } }, h("div.rang", {}, String(rang[pid] + 1)), h("div.gras", { style: { fontSize: "16px" } }, `${nombre(v.score || 0)} pt${(v.score || 0) > 1 ? "s" : ""}`))); }));
+      h("div.marche", { style: { height: hauteurs[rang[pid]] + "px", background: premier ? "var(--mal)" : "var(--tuile)", color: premier ? "var(--sur-mal)" : "var(--texte)" } }, h("div.rang", {}, String(rang[pid] + 1)), h("div.gras", { style: { fontSize: "16px" } }, `${nombre(v.score || 0)} pt${(v.score || 0) > 1 ? "s" : ""}`))); }));
   const tab = h("div.tableau", {}, h("div.r.h", {}, h("span", { style: { width: "62px" } }, "#"), h("span", {}, "Joueur"), h("span.p", {}, "Points")),
     classement.map(([pid, v]) => h("div.r" + (pid === FB.uid ? ".moi" : ""), {}, h("span", { style: { width: "62px" } }, String(rang[pid] + 1)), h("span", {}, capitaliser(v.name) + (pid === FB.uid ? " (vous)" : "")), h("span.p", {}, nombre(v.score || 0)))));
   const recap = h("div.t2", { style: { textAlign: "center", fontSize: "14px", whiteSpace: "pre-line" } });
