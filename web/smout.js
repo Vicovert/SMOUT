@@ -1629,7 +1629,7 @@ async function partie() {
       if (RUSHS.includes(mode) && advIdx < motsRush.length && a.longueur !== motsRush[advIdx].length) construireAdv(pid, a.nm.textContent, motsRush[advIdx].length);
       let lignes = md[pid] || {}; lignes = Array.isArray(lignes) ? lignes.map((v, i) => [i, v]) : Object.entries(lignes).filter(([k]) => /^\d+$/.test(k)).map(([k, v]) => [Number(k), v]);
       lignes = lignes.filter(([, v]) => v && (!RUSHS.includes(mode) || v.w_idx === advIdx));
-      const trouve = lignes.some(([, v]) => (v.c || []).every(c => c === "B"));
+      const trouve = lignes.some(([, v]) => { const c = (v.c || []).slice(mode === "MYSTERE" ? 1 : 0); return c.length > 0 && c.every(x => x === "B"); });  // Mystère : la case 0 (lettre cachée) est toujours "A"
       let etat, coul = "var(--texte2)";
       if (deco) { etat = "Déconnecté"; coul = "var(--danger)"; }
       else if (mode === "ELIMINATION" && (s.elimines || []).includes(pid)) etat = "Éliminé";
