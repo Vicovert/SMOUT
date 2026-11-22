@@ -1933,8 +1933,8 @@ class PageScoreFinal(tk.Frame):
             if k >= len(classement): continue
             pid, v = classement[k]
             col = tk.Frame(pod, bg=P["fond"]); col.pack(side="left", anchor="s", padx=8)
-            cv = tk.Canvas(col, width=190, height=hauteurs[k] + 64, bg=P["fond"], highlightthickness=0); cv.pack()
-            hb = hauteurs[k]; H = hb + 64
+            cv = tk.Canvas(col, width=190, height=hauteurs[rang_de[pid]] + 64, bg=P["fond"], highlightthickness=0); cv.pack()
+            hb = hauteurs[rang_de[pid]]; H = hb + 64  # ex aequo : même marche
             premier = rang_de[pid] == 0
             if premier:
                 x, y = 95, H - hb - 50
