@@ -1140,7 +1140,7 @@ class PageJeu(tk.Frame):
             if mode in RUSHS:
                 adv_idx = pdat.get("rush_index", pdat.get("score", 0)) or 0
                 items = [(i, v) for i, v in items if v.get("w_idx") == adv_idx]
-            trouve = any(all(c == "B" for c in v.get("c", [])) for _, v in items)
+            trouve = any(c and all(x == "B" for x in c) for c in ((v.get("c") or [])[1 if mode == "MYSTERE" else 0:] for _, v in items))  # Mystère : la case 0 (lettre cachée) est toujours "A"
             if deco: etat, coul = "Déconnecté", P["danger"]
             elif mode == "ELIMINATION" and pid in (s.get("elimines") or []): etat, coul = "Éliminé", P["texte2"]
             elif mode == "COOP": etat, coul = f"{len(items)} proposition" + ("s" if len(items) > 1 else ""), P["texte2"]

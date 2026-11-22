@@ -2,6 +2,9 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
+## 8.12
+- Mystère (multi) : un joueur qui a trouvé le mot n'apparaît plus « Pas trouvé » sous sa mini-grille chez les autres (la case de la lettre cachée était comptée comme ratée), PC et web.
+
 ## 8.11
 - Podium de fin de partie : les joueurs ex aequo ont la même hauteur de marche (hauteur choisie selon le rang, plus selon la place), PC et web.
 
