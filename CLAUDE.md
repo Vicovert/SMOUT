@@ -25,7 +25,7 @@ Toute règle ou logique de jeu modifiée côté PC doit l'être à l'identique c
 - Après chaque mise à jour : **lister clairement et brièvement les modifications**.
 
 ## Modèle et effort
-Pour chaque tâche, **indiquer le modèle et l'effort conseillés** (ex. « Sonnet, effort moyen ») et pourquoi, pour économiser le quota. Si une partie peut passer sur un modèle inférieur, la confier à un sous-agent de ce modèle plutôt que de s'arrêter (sous-agents seulement s'ils sont rentables pour le quota).
+Pour chaque tâche, **indiquer le modèle et l'effort conseillés** (ex. « Sonnet, effort moyen ») et pourquoi, pour économiser le quota. **Quand Victor doit changer de modèle (ou d'effort) pour la suite, s'arrêter** : le dire clairement (modèle et effort à choisir) et attendre qu'il ait changé avant de continuer. Les sous-agents d'un modèle inférieur restent possibles s'ils sont rentables pour le quota.
 
 ## Méthode de travail (fils du projet)
 - **Honnêteté** : dire ce qui a été vérifié, ce qui ne l'a pas été, et ce qui a échoué. Poser autant de questions que nécessaire avant de coder quand la demande est ambiguë.
