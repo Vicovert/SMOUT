@@ -81,10 +81,11 @@ def jeu_piege(manche):
         if not attendre(lambda: J.phase != "choix", 20): log("ÉCHEC envoi du mot choisi"); fin(False)
         R.setdefault("choisis", []).append(mot); log(f"manche {manche} : mot choisi pour sa cible", mot)
         a = J.adv_widgets.get(J.piege_cible)  # « Ton mot : … » sous la mini-grille du joueur concerné (sauf cible cachée)
-        if S.get("cache"):
+        if S.get("cache"):  # cible cachée : « Ton mot : … » ne s'affiche jamais ; « Mot à trouver : … » n'apparaît que quand la devinette a commencé
             pump(1.5)
-            if a is not None and a.lbl_mot.cget("text"): log("ÉCHEC cible cachée : « Ton mot » révèle la cible", a.lbl_mot.cget("text")); fin(False)
-            log("cible cachée : rien n'est affiché sous la grille de la cible")
+            txt = a.lbl_mot.cget("text") if a is not None else ""
+            if txt.startswith("Ton mot") or (txt and not J.piege_fin_connue()): log("ÉCHEC cible cachée : la cible est révélée trop tôt", txt); fin(False)
+            log("cible cachée : la cible n'est pas révélée pendant le choix")
         elif not attendre(lambda: a is not None and mot in a.lbl_mot.cget("text"), 10): log("ÉCHEC le mot choisi n'est pas affiché sous la grille de sa cible", mot); fin(False)
     elif choix == "rien": log(f"manche {manche} : ne choisit rien (mot au hasard à la fin du décompte)")
     if S.get("forcer_apres") is not None and A.is_host:  # l'hôte force le démarrage (mot au hasard pour ceux qui n'ont pas choisi)
