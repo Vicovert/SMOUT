@@ -5,7 +5,7 @@ _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travai
 **Dernière mise à jour : 23/11/2026**
 
 ## En ligne
-- Version : **8.13** (release Windows seule `SMOUT.8.13.exe`, 23/11/2026 ; site https://vicovert.github.io/SMOUT/). 8.10 était la dernière avec Mac / Linux.
+- Version : **8.14** (release Windows seule `SMOUT.8.14.exe`, 23/11/2026 ; site https://vicovert.github.io/SMOUT/ à jour). Salon et Paramètres solo en tuiles, taille de grille en solo.
 - Protocole multi : `VERSION_JEU` 8.10, données sous `/v7`
 
 ## À faire par Victor
@@ -13,7 +13,7 @@ _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travai
 - [ ] Coller les instructions de projet (`claude/instructions-projet.md`) dans les réglages du projet.
 
 ## En cours
-- 8.14 (branche `travail-8.14`) : salon multijoueur et paramètres solo en tuiles « − valeur + », page Paramètres centrée, taille de grille en solo. **En attente de la validation graphique de Victor** avant fusion.
+- 8.15 (à faire, validé par Victor) : 8 joueurs max (règles Firebase `nb ≤ 8` à republier), Mot piégé « cible visible / cachée » dans le salon, bouton Paramètres du menu Solo en blanc cassé. Modèle conseillé : Sonnet, effort moyen.
 - Configuration de l'espace de travail : terminée (PR #1), Claude fusionne désormais lui-même les PR.
 
 ## Prochaines pistes (non commencées)
