@@ -3,7 +3,7 @@ import tkinter as tk
 import tkinter.font as tkfont
 import os, sys, ctypes, colorsys, hashlib
 
-VERSION_APP = "8.12"
+VERSION_APP = "8.13"
 URL_WEB = "https://vicovert.github.io/SMOUT/"
 
 def mot_graine(liste_triee, graine, index=0):
@@ -297,10 +297,10 @@ class Panneau(tk.Canvas):
 
 class CarteMenu(tk.Canvas):
     """Carte cliquable de l'accueil : titre, sous-titre, chevron ou badge. Avec `couleur`, la carte est pleine (texte `texte`)."""
-    def __init__(self, parent, titre, sous_titre, commande, largeur=540, hauteur=94, badge=None, couleur=None, texte=None):
+    def __init__(self, parent, titre, sous_titre, commande, largeur=540, hauteur=94, badge=None, couleur=None, texte=None, deco=None):
         super().__init__(parent, width=largeur, height=hauteur, bg=fond_parent(parent), highlightthickness=0, cursor="hand2")
         self.titre, self.sous, self.commande, self.badge, self.l, self.h = titre, sous_titre, commande, badge, largeur, hauteur
-        self.couleur, self.texte = couleur, texte
+        self.couleur, self.texte, self.deco = couleur, texte, deco  # deco : états des petites tuiles dessinées en haut (bien, mal, absent)
         self.survol = False
         self.bind("<Enter>", lambda e=None: self._s(True)); self.bind("<Leave>", lambda e=None: self._s(False))
         self.bind("<ButtonRelease-1>", lambda e=None: self.commande())
@@ -315,6 +315,20 @@ class CarteMenu(tk.Canvas):
         else:
             fond, t1, t2, tb = (P["survol"] if self.survol else P["panneau"]), P["texte"], P["texte2"], P["mal"]
         arrondi(self, 1, 1, self.l - 1, self.h - 1, 16, fill=fond, outline="")
+        if self.deco:  # grande carte : petites tuiles en haut, titre et sous-titre en bas, badge en pastille
+            for i, e in enumerate(self.deco):
+                x = 30 + i * 26
+                arrondi(self, x, 26, x + 22, 48, 4, fill=(P["sur_bien"] if e == "bien" and self.couleur == P["bien"] else P[e]), outline=melanger(fond, "#000000", 0.18))
+            self.create_text(30, self.h - 54, text=self.titre, anchor="w", fill=t1, font=police("titre", 26))
+            self.create_text(30, self.h - 26, text=self.sous, anchor="w", fill=t2, font=police("texte", 16))
+            if self.badge:
+                f = police("texte", 14, True); w = tkfont.Font(font=f).measure(self.badge) + 22
+                arrondi(self, self.l - 18 - w, 14, self.l - 18, 42, 14, fill=melanger(fond, "#14182A", 0.16), outline="")
+                self.create_text(self.l - 18 - w / 2, 28, text=self.badge, fill=t1, font=f)
+            else:
+                x, y = self.l - 38, self.h / 2
+                self.create_line(x - 4, y - 8, x + 4, y, x - 4, y + 8, fill=t2, width=2, capstyle="round", joinstyle="round")
+            return
         self.create_text(30, self.h / 2 - 12, text=self.titre, anchor="w", fill=t1, font=police("titre", 26))
         self.create_text(30, self.h / 2 + 17, text=self.sous, anchor="w", fill=t2, font=police("texte", 16))
         if self.badge:

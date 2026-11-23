@@ -2,6 +2,9 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
+## 8.13
+- Menu Solo plus attrayant, PC et web : titre « SOLO » en tuiles colorées, bandeau de bilan (parties, réussite, série, record marathon), deux grandes cartes colorées (Partie normale rouge, Marathon violet avec le record en pastille) ornées de petites tuiles, carte Paramètres qui affiche les réglages en cours. `CarteMenu` gagne le paramètre `deco`.
+
 ## 8.12
 - Mystère (multi) : un joueur qui a trouvé le mot n'apparaît plus « Pas trouvé » sous sa mini-grille chez les autres (la case de la lettre cachée était comptée comme ratée), PC et web.
 

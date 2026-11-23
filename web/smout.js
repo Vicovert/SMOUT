@@ -420,17 +420,28 @@ function accueil() {
     h("div.t2", { style: { textAlign: "center", padding: "0 0 22px", fontSize: "14px" } }, `SMOUT v${VERSION_APP} · version en ligne`));
   enAccueil = true;
 }
-/* page intermédiaire du solo */
+/* page intermédiaire du solo : titre en tuiles, bilan, deux grandes cartes colorées, réglages en cours */
+const COULEUR_MARATHON = "#A78BFA";  // couleur propre au Marathon (même que COULEUR_MARATHON de page_solo.py)
+function resumeReglages(c) {
+  const l = c.nb_lettres_min === c.nb_lettres_max ? `mots de ${c.nb_lettres_min} lettres` : `mots de ${c.nb_lettres_min} à ${c.nb_lettres_max} lettres`;
+  return `${c.nb_essais} essais · ${l}` + (c.difficile ? " · difficile" : "");
+}
 function menuSolo() {
-  const rec = lireStats().marathon.record;
-  const carte = (t, s, f, b) => h("button.carte-menu", { onclick: f }, h("div", {}, h("div.t", {}, t), h("div.s", {}, s)), b ? h("div.d", {}, b) : h("span.chevron", { html: svg("chevron", 22) }));
+  const st = lireStats(), s = st.solo, rec = st.marathon.record, c = configSolo();
+  const taux = s.parties ? Math.round(100 * s.victoires / s.parties) : 0;
+  const deco = etats => h("div.deco", {}, etats.map(e => { const t = tuile(22, true); t.maj("", e); return t; }));
+  const carte = (t, sub, f, b, cls = "", d = null) => h("button.carte-menu" + cls, { onclick: f }, h("div", {}, d, h("div.t", {}, t), h("div.s", {}, sub)), b ? h("div.d", {}, b) : h("span.chevron", { html: svg("chevron", 22) }));
+  const titre = h("div.logo.titre-solo", {}, [..."SOLO"].map((ch, i) => { const t = tuile(Math.min(64, Math.floor((window.innerWidth - 80) / 4.6))); t.maj(ch, ["bien", "mal", "bien", "mal"][i]); t.style.boxShadow = "none"; return t; }));
+  const bilan = h("div.bilan-solo", {}, stat("Parties", String(s.parties), null, 30), stat("Réussite", `${taux}%`, null, 30), stat("Série", String(s.serie), null, 30), stat("Record marathon", String(rec), COULEUR_MARATHON, 30));
+  const marathon = carte("Marathon", "Enchaînez les mots jusqu'à l'erreur", () => solo("marathon"), rec ? `Record ${rec}` : null, ".marathon", deco(["bien", "bien", "bien", "bien", "mal"]));
+  marathon.style.setProperty("--mc", COULEUR_MARATHON);
   ecran(entete("", accueil),
     h("div.centre", { style: { flex: 1, justifyContent: "center", gap: "12px", padding: "0 0 40px" } },
-      h("div.titre", { style: { fontSize: "46px", textAlign: "center" } }, "Solo"),
-      h("div.t2", { style: { fontSize: "18px", margin: "0 0 22px", textAlign: "center" } }, "À votre rythme"),
-      carte("Partie normale", "Un mot, à votre rythme", () => solo("libre")),
-      carte("Marathon", "Enchaînez les mots jusqu'à l'erreur", () => solo("marathon"), rec ? `Record ${rec}` : null),
-      carte("Paramètres", "Essais, longueur des mots, difficile", parametres)));
+      titre,
+      h("div.t2", { style: { fontSize: "18px", margin: "6px 0 10px", textAlign: "center" } }, "À votre rythme"),
+      bilan,
+      h("div.menu-ligne.grandes", {}, carte("Partie normale", "Un mot, à votre rythme", () => solo("libre"), null, ".solo", deco(["absent", "mal", "bien", "bien", "bien"])), marathon),
+      h("div.menu-ligne.ligne-params", {}, carte("Paramètres", resumeReglages(c), parametres))));
 }
 function changerPseudo(apres) {
   if (typeof apres !== "function") apres = accueil;  // appelée aussi comme gestionnaire de clic
