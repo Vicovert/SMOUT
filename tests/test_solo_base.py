@@ -20,7 +20,7 @@ print("Victoire au clavier physique :", j.fini_local and j.overlay_fin.winfo_ism
 # mot du jour
 D.maj_config(last_mdj="", mdj_serie=3, mdj_dernier_gagne=(__import__("datetime").date.today() - __import__("datetime").timedelta(days=1)).isoformat())
 app.ouvrir_solo(True); pump(); j = app.container.winfo_children()[0].jeu
-print("Mot du jour en 7 essais :", j.nb_essais_partie == 7, "| marqué joué dès le début :", D.lire_config().get("last_mdj") == __import__("datetime").date.today().isoformat())
+print("Mot du jour en 7 essais :", j.nb_essais_partie == 7, "| pas marqué joué avant d'avoir vu le mot :", D.lire_config().get("last_mdj") != __import__("datetime").date.today().isoformat())
 j.mot_tape = list(j.mot); j.valider(); pump(0.3)
 print("Série après victoire (3 → 4) :", D.serie_mot_du_jour())
 app.creer_menu_accueil(); pump()
