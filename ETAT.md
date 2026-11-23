@@ -5,15 +5,15 @@ _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travai
 **Dernière mise à jour : 23/11/2026**
 
 ## En ligne
-- Version : **8.14** (release Windows seule `SMOUT.8.14.exe`, 23/11/2026 ; site https://vicovert.github.io/SMOUT/ à jour). Salon et Paramètres solo en tuiles, taille de grille en solo.
+- Version : **8.15** (release Windows seule `SMOUT.8.15.exe`, 23/11/2026 ; site https://vicovert.github.io/SMOUT/ à jour). 8 joueurs max, Mot piégé « cible cachée », grilles adverses adaptées de 2 à 8 joueurs.
 - Protocole multi : `VERSION_JEU` 8.10, données sous `/v7`
 
 ## À faire par Victor
-- [ ] Republier `database.rules.json` dans la console Firebase (changements des 8.9 et 8.10 : `horloge`, abandon d'un salon après 30 min).
+- [ ] Republier `database.rules.json` dans la console Firebase (changements des 8.9, 8.10 et 8.15 : `horloge`, abandon d'un salon après 30 min, `nb ≤ 8` joueurs).
 - [ ] Coller les instructions de projet (`claude/instructions-projet.md`) dans les réglages du projet.
 
 ## En cours
-- 8.15 (branche `travail-8.15`, tests CI en cours) : 8 joueurs max, Mot piégé « cible cachée » + tirage aléatoire à chaque manche, bouton Paramètres clair, page de jeu adaptée de 2 à 8 joueurs. **Victor : republier `database.rules.json` (`nb ≤ 8`) après la fusion.**
+- 8.16 (en attente des réponses de Victor, modèle conseillé : Opus, effort moyen) : Mot piégé (voir en permanence la frappe et le mot à trouver des autres), thème propre à chaque grille adverse, mot du jour rejouable tant que le mot n'a pas été vu.
 - Configuration de l'espace de travail : terminée (PR #1), Claude fusionne désormais lui-même les PR.
 
 ## Prochaines pistes (non commencées)
