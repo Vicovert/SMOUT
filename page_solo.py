@@ -2,7 +2,7 @@ import tkinter as tk
 import json, random, os, sys, time, datetime
 import design
 from design import (P, police, etiquette, espacer, Tuile, Bouton, Panneau, Icone, Clavier, Stat, Chips, Superposition, entete, fenetre_aide,
-                    Champ, Interrupteur, CarteMenu, Curseur)
+                    Champ, Interrupteur, CarteMenu, Curseur, melanger)
 
 
 def get_data_path(filename):
@@ -302,18 +302,32 @@ class PageJeu(tk.Frame):
             case.set_curseur(i == len(self.mot_tape))
 
 
+COULEUR_MARATHON = "#A78BFA"  # couleur propre au Marathon (même que COULEUR_MARATHON de smout.js)
+
+def resume_reglages(c):
+    mn, mx = c["nb_lettres_min"], c["nb_lettres_max"]
+    longueur = f"{mn} lettres" if mn == mx else f"{mn} à {mx} lettres"
+    return f"{c['nb_essais']} essais · {longueur}" + (" · difficile" if c.get("difficile") else "")
+
+
 class PageMenuSolo(tk.Frame):
-    """Page intermédiaire du solo : partie normale, marathon, paramètres."""
+    """Page intermédiaire du solo : titre en tuiles, grand bouton « Jouer », puis Marathon et Paramètres (chacun avec son icône)."""
     def __init__(self, parent, controller):
         super().__init__(parent, bg=P["fond"]); self.controller = controller
         entete(self, "", controller.creer_menu_accueil)
-        centre = tk.Frame(self, bg=P["fond"]); centre.place(relx=0.5, rely=0.46, anchor="center")
-        etiquette(centre, "Solo", "titre", 46).pack(pady=(0, 6))
-        etiquette(centre, "À votre rythme", "texte", 18, P["texte2"]).pack(pady=(0, 26))
         rec = design.lire_stats()["marathon"]["record"]
-        CarteMenu(centre, "Partie normale", "Un mot, à votre rythme", lambda: controller.ouvrir_solo(False)).pack(pady=6)
-        CarteMenu(centre, "Marathon", "Enchaînez les mots jusqu'à l'erreur", controller.ouvrir_marathon, badge=f"Record {rec}" if rec else None).pack(pady=6)
-        CarteMenu(centre, "Paramètres", "Essais, longueur des mots, difficile", controller.ouvrir_parametres).pack(pady=6)
+        centre = tk.Frame(self, bg=P["fond"]); centre.place(relx=0.5, rely=0.46, anchor="center")
+        titre = tk.Frame(centre, bg=P["fond"]); titre.pack(pady=(0, 4))
+        for ch, e in zip("SOLO", ("bien", "mal", "bien", "mal")):
+            t = Tuile(titre, 60); t.config(text=ch, bg=P[e]); t.pack(side="left", padx=4)
+        etiquette(centre, "À votre rythme", "texte", 18, P["texte2"]).pack(pady=(6, 14))
+        CarteMenu(centre, "Jouer", "Partie normale · un mot, à votre rythme", lambda: controller.ouvrir_solo(False), largeur=796, hauteur=170,
+                  couleur=P["bien"], texte=P["sur_bien"], degrade=melanger(P["bien"], P["mal"], 0.45), icone="jouer", rond=True, grand=True).pack()
+        ligne = tk.Frame(centre, bg=P["fond"]); ligne.pack(pady=(14, 0))
+        CarteMenu(ligne, "Marathon", f"Record {rec}" if rec else "Jusqu'à l'erreur", controller.ouvrir_marathon, largeur=390, hauteur=96,
+                  couleur=COULEUR_MARATHON, texte="#14182A", icone="infini").pack(side="left", padx=(0, 16))
+        CarteMenu(ligne, "Paramètres", resume_reglages(charger_config_solo()), controller.ouvrir_parametres, largeur=390, hauteur=96,
+                  icone="engrenage", fond_icone=melanger(P["panneau"], P["texte"], 0.08)).pack(side="left")
 
 
 class PageStats(tk.Frame):

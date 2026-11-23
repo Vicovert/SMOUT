@@ -74,6 +74,20 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 .carte-menu.solo:hover, .carte-menu.multi:hover, .carte-menu.mdj:hover { filter: brightness(1.08); }
 .carte-menu.solo .chevron, .carte-menu.multi .chevron, .carte-menu.mdj .chevron { color: inherit; opacity: .7; }
 .carte-menu.solo .s, .carte-menu.multi .s, .carte-menu.mdj .s, .carte-menu.mdj .d { color: inherit; opacity: .8; }
+/* Menu Solo */
+.titre-solo { gap: 8px; margin-bottom: 4px; }
+.carte-menu .ico { width: 56px; height: 56px; border-radius: 16px; background: rgba(255,255,255,.18); display: flex; align-items: center; justify-content: center; flex: none; margin-right: 20px; }
+.carte-menu .ico svg { width: 30px; height: 30px; }
+.carte-menu.hero { height: 170px; padding: 0 34px; background: linear-gradient(135deg, var(--bien), color-mix(in srgb, var(--bien) 55%, var(--mal))); color: var(--sur-bien); }
+.carte-menu.hero .ico { width: 88px; height: 88px; border-radius: 50%; margin-right: 26px; }
+.carte-menu.hero .ico svg { width: 48px; height: 48px; }
+.carte-menu.hero .t { font-size: 38px; }
+.carte-menu.hero .s, .carte-menu.marathon .s { color: inherit; opacity: .8; font-size: 17px; }
+.carte-menu.hero:hover, .carte-menu.marathon:hover { filter: brightness(1.08); }
+.carte-menu.marathon { background: var(--mc); color: #14182A; }
+.carte-menu.params .ico { background: rgba(255,255,255,.08); }
+.menu-ligne.petites { margin-top: 2px; }
+.menu-ligne.petites .carte-menu { height: 96px; padding: 0 22px; }
 .carte-menu .t { font-family: var(--f-titre); font-size: 26px; font-weight: 700; }
 .carte-menu .s { color: var(--texte2); font-size: 16px; margin-top: 4px; }
 .carte-menu .d { margin-left: auto; color: var(--mal); font-weight: 600; }
@@ -181,6 +195,14 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   .menu-ligne .carte-menu { padding: 0 14px; height: 118px; }
   .menu-ligne .carte-menu .s { font-size: 13px; }
   .menu-ligne .carte-menu .chevron { display: none; }
+  .carte-menu.hero { height: 130px; padding: 0 20px; }
+  .carte-menu.hero .ico { width: 64px; height: 64px; margin-right: 16px; }
+  .carte-menu.hero .ico svg { width: 34px; height: 34px; }
+  .carte-menu.hero .t { font-size: 30px; }
+  .menu-ligne.petites .carte-menu { flex-direction: column; align-items: flex-start; justify-content: center; height: 132px; padding: 0 14px; gap: 8px; }
+  .menu-ligne.petites .carte-menu .ico { width: 44px; height: 44px; margin: 0; }
+  .menu-ligne.petites .carte-menu .t { font-size: 20px; }
+  .menu-ligne.petites .carte-menu .s { font-size: 13px; margin-top: 2px; }
   .clavier { width: calc(100vw - 8px); max-width: 100%; gap: 6px; }
   .clavier .rangs { gap: 8px; }
   .clavier .rang { gap: 4px; }

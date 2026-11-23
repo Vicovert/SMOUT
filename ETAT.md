@@ -2,10 +2,10 @@
 
 _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travail »). Historique détaillé des versions : `claude/feuille-de-route.md`._
 
-**Dernière mise à jour : 22/11/2026**
+**Dernière mise à jour : 23/11/2026**
 
 ## En ligne
-- Version : **8.12** (release Windows seule `SMOUT.8.12.exe`, 22/11/2026 ; site https://vicovert.github.io/SMOUT/). 8.10 était la dernière avec Mac / Linux.
+- Version : **8.13** (release Windows seule `SMOUT.8.13.exe`, 23/11/2026 ; site https://vicovert.github.io/SMOUT/). 8.10 était la dernière avec Mac / Linux.
 - Protocole multi : `VERSION_JEU` 8.10, données sous `/v7`
 
 ## À faire par Victor
