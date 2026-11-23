@@ -1,12 +1,16 @@
 """Tests solo 7.2 (PC) : marathon, difficile, accueil et menu solo, statistiques, daltonien, captures."""
 import sys, os, time, datetime, tkinter as tk
 
-# diagnostic CI : quand un rappel Tkinter échoue, on affiche la fonction et les arguments (la trace seule n'indique pas qui l'a appelée)
+# diagnostic CI : quand un rappel Tkinter échoue, on affiche la fonction, les arguments et le widget (la trace seule n'indique pas qui l'a appelé)
 import tkinter as _tkdiag
-_appel0 = _tkdiag.CallWrapper.__call__
-def _appel(self, *a):
-    try: return _appel0(self, *a)
-    except Exception as ex: print("RAPPEL TK EN ECHEC :", getattr(self.func, "__qualname__", self.func), "args=", a, "|", ex, flush=True); raise
+def _appel(self, *args):
+    try:
+        if self.subst: args = self.subst(*args)
+        return self.func(*args)
+    except SystemExit: raise
+    except Exception as ex:
+        print("RAPPEL TK EN ECHEC :", getattr(self.func, "__qualname__", self.func), "| args =", args, "| widget =", type(self.widget).__name__, getattr(self.widget, "_w", "?"), "|", ex, flush=True)
+        self.widget._report_exception()
 _tkdiag.CallWrapper.__call__ = _appel
 repo = sys.argv[1]; os.chdir(repo); sys.path.insert(0, repo)
 import main as M, design as D, page_solo as PS
