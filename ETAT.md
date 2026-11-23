@@ -13,7 +13,7 @@ _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travai
 - [ ] Coller les instructions de projet (`claude/instructions-projet.md`) dans les réglages du projet.
 
 ## En cours
-- 8.15 (à faire, validé par Victor) : 8 joueurs max (règles Firebase `nb ≤ 8` à republier), Mot piégé « cible visible / cachée » dans le salon, bouton Paramètres du menu Solo en blanc cassé. Modèle conseillé : Sonnet, effort moyen.
+- 8.15 (branche `travail-8.15`, tests CI en cours) : 8 joueurs max, Mot piégé « cible cachée » + tirage aléatoire à chaque manche, bouton Paramètres clair, page de jeu adaptée de 2 à 8 joueurs. **Victor : republier `database.rules.json` (`nb ≤ 8`) après la fusion.**
 - Configuration de l'espace de travail : terminée (PR #1), Claude fusionne désormais lui-même les PR.
 
 ## Prochaines pistes (non commencées)

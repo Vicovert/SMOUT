@@ -41,7 +41,11 @@ async function jeuPiege(manche) {
     if (!(await attendre(() => !document.body.innerText.includes("Choisis le mot que"), 20000))) { log("ÉCHEC envoi du mot choisi"); return fin(false); }
     (R.choisis ||= []).push(mot); log(`manche ${manche} : mot choisi pour sa cible`, mot);
     // on voit le mot qu'on a choisi, sous la mini-grille de sa cible
-    if (!(await attendre(m => [...document.querySelectorAll("div.gras")].some(x => x.textContent === "Ton mot : " + m), 10000, mot))) { log("ÉCHEC le mot choisi n'est pas affiché sous la grille de sa cible", mot); return fin(false); }
+    if (S.cache) {  // cible cachée : le mot choisi n'est affiché sous la grille de personne
+      await sleep(1500);
+      if (await ev(() => [...document.querySelectorAll("div.gras")].some(x => /^Ton mot/.test(x.textContent)))) { log("ÉCHEC cible cachée : « Ton mot » révèle la cible"); return fin(false); }
+      log("cible cachée : rien n'est affiché sous la grille de la cible");
+    } else if (!(await attendre(m => [...document.querySelectorAll("div.gras")].some(x => x.textContent === "Ton mot : " + m), 10000, mot))) { log("ÉCHEC le mot choisi n'est pas affiché sous la grille de sa cible", mot); return fin(false); }
   } else if (choix === "rien") log(`manche ${manche} : ne choisit rien (mot au hasard à la fin du décompte)`);
   if (S.forcer_apres != null && S.role === "host") {  // l'hôte force le démarrage (mot au hasard pour ceux qui n'ont pas choisi)
     await sleep(S.forcer_apres * 1000); log("démarrage forcé par l'hôte"); await clicTexte("button", "Forcer le démarrage");
@@ -142,6 +146,7 @@ async function jeuPiege(manche) {
       if (partie === 1) {
         if (S.mode !== "CLASSIQUE") await clicTexte(".choix", ({ BLAST: "Blast", PRECISION: "Précision", MYSTERE: "Mystère", RUSH: "Rush", ELIMINATION: "Élimination", CHAINE: "Chaîne", COOP: "Coopératif", PIEGE: "Mot piégé" })[S.mode]);
         await sleep(300);
+        if (S.cache) await clicTexte(".case", "Cible cachée");
         const regler = (cle, v) => ev((cle, v) => document.querySelector(`.salon-partie .tuile-reglage[data-cle=${cle}]`).fixer(v), cle, v);
         await regler("rounds", S.manches || 1);
         if (S.timer) await regler("timer", S.timer);

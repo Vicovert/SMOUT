@@ -17,7 +17,7 @@
             ".validate": "newData.isString() && newData.val().length <= 30"
           },
           "nb": {
-            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 4"
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 8"
           },
           "prive": {
             ".validate": "newData.isBoolean()"
@@ -99,7 +99,7 @@
             ".validate": "newData.isString() && newData.val().length <= 30"
           },
           "nb": {
-            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 4"
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 8"
           },
           "prive": {
             ".validate": "newData.isBoolean()"

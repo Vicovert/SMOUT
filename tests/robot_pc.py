@@ -80,8 +80,12 @@ def jeu_piege(manche):
         mot = random.choice(mots); J.choix = list(mot); J.valider()
         if not attendre(lambda: J.phase != "choix", 20): log("ÉCHEC envoi du mot choisi"); fin(False)
         R.setdefault("choisis", []).append(mot); log(f"manche {manche} : mot choisi pour sa cible", mot)
-        a = J.adv_widgets.get(J.piege_cible)  # « Ton mot : … » sous la mini-grille du joueur concerné
-        if not attendre(lambda: a is not None and mot in a.lbl_mot.cget("text"), 10): log("ÉCHEC le mot choisi n'est pas affiché sous la grille de sa cible", mot); fin(False)
+        a = J.adv_widgets.get(J.piege_cible)  # « Ton mot : … » sous la mini-grille du joueur concerné (sauf cible cachée)
+        if S.get("cache"):
+            pump(1.5)
+            if a is not None and a.lbl_mot.cget("text"): log("ÉCHEC cible cachée : « Ton mot » révèle la cible", a.lbl_mot.cget("text")); fin(False)
+            log("cible cachée : rien n'est affiché sous la grille de la cible")
+        elif not attendre(lambda: a is not None and mot in a.lbl_mot.cget("text"), 10): log("ÉCHEC le mot choisi n'est pas affiché sous la grille de sa cible", mot); fin(False)
     elif choix == "rien": log(f"manche {manche} : ne choisit rien (mot au hasard à la fin du décompte)")
     if S.get("forcer_apres") is not None and A.is_host:  # l'hôte force le démarrage (mot au hasard pour ceux qui n'ont pas choisi)
         pump(S["forcer_apres"]); log("démarrage forcé par l'hôte (clic sur le bouton)")
@@ -156,6 +160,7 @@ try:
                 lob.c_rounds.set_valeur(S.get("manches", 1))
                 if S.get("timer"): lob.s_time.set_valeur(S["timer"])
                 if S.get("essais"): lob.s_essais.set_valeur(S["essais"])
+                if S.get("cache"): lob.i_cache.basculer()
                 lob.sync_params(); capture("salon")
             pump(1.5); lob.lancer(); log("partie lancée", partie)
         debut = 1

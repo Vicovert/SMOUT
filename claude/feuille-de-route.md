@@ -2,6 +2,13 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
+## 8.15
+- 8 joueurs par salon au lieu de 4 (PC et web) : liste des salons « n/8 », 8 places dans le salon (plus compactes), 2 couleurs d'avatar de plus. **Règles Firebase à republier** (`index/nb` ≤ 8) ; `VERSION_JEU` inchangée (8.10). Aucun mode n'est limité à 4 ; Blast garde ses points pour les 4 premiers (4, 3, 2, 1).
+- Page de jeu : les grilles des adversaires s'adaptent au nombre de joueurs (calcul commun `disposition_adv` / `dispositionAdv`) : 1 à 3 adversaires = nom et score à droite de la grille ; au-delà, plusieurs colonnes et nom + score au-dessus de la grille si les cases sont plus grandes ainsi (jusqu'à 3 colonnes, 7 adversaires).
+- Mot piégé : option du salon « Cible cachée » (on choisit son mot sans savoir pour qui ; « Ton mot » n'apparaît plus sous la grille de la cible). Les paires sont maintenant tirées au hasard à chaque manche (en évitant celles de la manche précédente quand c'est possible). La cible reste lisible dans la base (règles Firebase) : option de confort, pas de secret cryptographique.
+- Menu Solo : bouton Paramètres clair (blanc cassé, texte sombre), bien distinct du fond.
+- Tests : règles 72/72 (nb ≤ 8), 2 scénarios croisés « cible cachée » (x1, x2), `tests/web/captures_jeu.js` et `tests/capture_jeu_pc.py` (page de jeu de chaque mode, de 1 à 8 joueurs).
+
 ## 8.14
 - Salon multijoueur repensé : sections « Mode de jeu » et « Réglages de la partie » ; cartes de mode avec leur description (masquée sur téléphone) ; les curseurs sont remplacés par des tuiles « − valeur + » (manches, temps, essais sur une ligne, lettres min/max dessous). Le temps avance par paliers (15 s … 1 min … 10 min). Les invités voient les mêmes tuiles, sans boutons, sous le bandeau du mode. Bouton « En attente d'un 2e joueur… » neutre tant qu'on est seul.
 - Paramètres solo : page centrée, mêmes tuiles que le salon ; nouveau réglage « Taille de la grille » (60 à 160 %).

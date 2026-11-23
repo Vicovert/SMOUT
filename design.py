@@ -3,7 +3,7 @@ import tkinter as tk
 import tkinter.font as tkfont
 import os, sys, ctypes, colorsys, hashlib
 
-VERSION_APP = "8.14"
+VERSION_APP = "8.15"
 URL_WEB = "https://vicovert.github.io/SMOUT/"
 
 def mot_graine(liste_triee, graine, index=0):
@@ -411,7 +411,7 @@ class Icone(tk.Canvas):
 
 
 class Avatar(tk.Canvas):
-    COULEURS = ["#F5B83D", "#8FB3FF", "#7ED6A8", "#F2A1C5", "#C4A7FF", "#FFB38A"]
+    COULEURS = ["#F5B83D", "#8FB3FF", "#7ED6A8", "#F2A1C5", "#C4A7FF", "#FFB38A", "#7FD8F0", "#D6E58A"]
     def __init__(self, parent, nom, taille=44, commande=None, index=0, vide=False):
         super().__init__(parent, width=taille, height=taille, bg=fond_parent(parent), highlightthickness=0, cursor="hand2" if commande else "")
         self.t, self.vide = taille, vide

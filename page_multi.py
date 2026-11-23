@@ -71,6 +71,7 @@ MODES = [
 ]
 NOM_MODE = {m: n for m, n, _ in MODES}
 RUSHS = ("RUSH", "CHAINE")  # modes « un maximum de mots avant la fin du temps »
+MAX_JOUEURS = 8  # joueurs par salon (identique au web et aux règles Firebase : index/nb ≤ 8)
 TEMPS_POSSIBLES = (15, 30, 45, 60, 90, 120, 150, 180, 240, 300, 360, 420, 480, 540, 600)  # pas du réglage du temps (s)
 LARGEUR_REGLAGES = 628  # largeur des réglages du salon (3 cartes de mode de 204 px)
 # chaque mode a sa couleur (identique à COULEURS_MODES de smout.js) et une règle en une phrase
@@ -112,6 +113,25 @@ def fusion_coop(md, essais):
 PIEGE_FIN_INFINIE = 32503680000000  # Mot piégé : fin du choix (ms, an 3000) tant que l'hôte ne l'a pas fixée : on choisit sans limite de temps
 
 
+def disposition_adv(nb, essais, longueur, larg, haut):
+    """Adversaires (mini-grilles) : (colonnes, taille de case, dense) qui remplissent au mieux la zone larg x haut (px).
+    Même calcul sur PC et sur le web : 1 à 3 adversaires = nom et score à droite de la grille ; à partir de 3, le nom et le
+    score passent au-dessus de la grille (« dense ») si cela permet des cases plus grandes, avec plusieurs colonnes."""
+    if nb <= 0: return 1, 14, False
+    plafond = {1: 30, 2: 24}.get(nb, 20)
+    meilleur = None
+    for dense in ((False, True) if nb >= 3 else (False,)):
+        for cols in range(1, min(nb, 4) + 1):
+            rangs = -(-nb // cols)
+            for t in range(plafond, 5, -1):
+                lb = longueur * (t + 3) + (8 if dense else 124)  # grille (+ nom / score à droite)
+                hb = max(essais * (t + 3) + (52 if dense else 0), 66)
+                if cols * lb + (cols - 1) * 18 <= larg and rangs * hb + (rangs - 1) * 14 <= haut:
+                    if meilleur is None or t > meilleur[1]: meilleur = (cols, t, dense)
+                    break
+    return meilleur or (min(nb, 2), 6, nb >= 3)
+
+
 def piege_paires(ordre, joueurs, manche):
     """Mot piégé : {cible: choisisseur} pour la manche (même calcul sur PC et sur le web).
     Ordre circulaire tiré au lancement ; le décalage change à chaque manche pour varier les adversaires."""
@@ -122,10 +142,20 @@ def piege_paires(ordre, joueurs, manche):
     return {part[i]: part[(i - d) % n] for i in range(n)}
 
 
-def piege_reglages(ordre, joueurs, manche, graine, debut):
-    """Réglages d'une manche de Mot piégé (écrits par l'hôte) : paires, identifiant de manche, fin du choix (infinie : l'hôte la fixe quand tous ont choisi, ou en forçant)."""
-    return {"piege_ordre": list(ordre), "piege_de": piege_paires(ordre, joueurs, manche), "piege_id": f"p{graine}",
-            "piege_fin_choix": PIEGE_FIN_INFINIE}
+def piege_reglages(ordre, joueurs, manche, graine, debut, precedent=None):
+    """Réglages d'une manche de Mot piégé (écrits par l'hôte) : paires tirées au hasard à chaque manche (en évitant celles de la manche
+    précédente quand c'est possible), identifiant de manche, fin du choix (infinie : l'hôte la fixe quand tous ont choisi, ou en forçant).
+    Les paires sont écrites dans le salon : chaque client les lit, le tirage n'a donc pas à être identique sur PC et sur le web."""
+    part = [u for u in (ordre or []) if u in joueurs] + sorted(u for u in joueurs if u not in (ordre or []))
+    essais, meilleur = 0, None
+    while essais < 30 and len(part) > 1:
+        essais += 1
+        mel = part[:]; random.shuffle(mel)
+        paires = piege_paires(mel, joueurs, 1)
+        meilleur = (mel, paires)
+        if not precedent or len(part) < 3 or all(precedent.get(c) != ch for c, ch in paires.items()): break
+    mel, paires = meilleur if meilleur else (part, {})
+    return {"piege_ordre": list(mel), "piege_de": paires, "piege_id": f"p{graine}", "piege_fin_choix": PIEGE_FIN_INFINIE}
 
 
 def piege_points_paire(essais_max, k):
@@ -531,7 +561,7 @@ class PageRejoindre(tk.Frame):
             if val.get("visible") and val.get("status") == "waiting" and val.get("version") == VERSION_JEU and age < 30000:
                 titre = f"Salon de {val.get('hote', 'ANONYME').capitalize()}"
                 sous = f"Code {code}" + ("  ·  mot de passe" if val.get("prive") else "")
-                CarteSalon(self.lf, titre, sous, f"{val.get('nb', 1)}/4", lambda c=code: self.tenter_join(c)).pack(pady=(0, 12), anchor="w")
+                CarteSalon(self.lf, titre, sous, f"{val.get('nb', 1)}/{MAX_JOUEURS}", lambda c=code: self.tenter_join(c)).pack(pady=(0, 12), anchor="w")
                 n += 1
         if not n:
             etiquette(self.lf, "Aucun salon public pour le moment. Crée le tien !", "texte", 16, P["texte2"]).pack(anchor="w", pady=10)
@@ -545,8 +575,8 @@ class PageRejoindre(tk.Frame):
             tkm.showwarning("SMOUT", "Salon introuvable"); return
         if idx.get("version") != VERSION_JEU:
             tkm.showwarning("SMOUT", f"Ce salon utilise une autre version du jeu ({idx.get('version', '?')}). Mets SMOUT à jour."); return
-        if idx.get("nb", 0) >= 4:
-            tkm.showwarning("SMOUT", "Ce salon est déjà complet (maximum 4 joueurs)."); return
+        if idx.get("nb", 0) >= MAX_JOUEURS:
+            tkm.showwarning("SMOUT", f"Ce salon est déjà complet (maximum {MAX_JOUEURS} joueurs)."); return
         self.t_c = code
         if idx.get("prive"):
             self.champ_pw.set(""); self.lbl_pw.config(text=""); self.pass_view.montrer(); self.champ_pw.focus()
@@ -572,9 +602,9 @@ class PageRejoindre(tk.Frame):
             return False
         d = self.controller.fb_get(f"lobbies/{code}") or {}
         self.pass_view.cacher(); self.controller.is_host = False
-        if len(d.get("players", {})) > 4:
+        if len(d.get("players", {})) > MAX_JOUEURS:
             self.controller.fb_ok("delete", f"lobbies/{code}/players/{uid}")
-            tkm.showwarning("SMOUT", "Ce salon est déjà complet (maximum 4 joueurs)."); return True
+            tkm.showwarning("SMOUT", f"Ce salon est déjà complet (maximum {MAX_JOUEURS} joueurs)."); return True
         self.controller.lobby_code, self.controller.code_affiche, self.controller.current_score = code, code, score or 0
         self.controller.reprise = score is not None  # garde ses points en revenant dans une partie en cours
         self.controller.settings_config.update({"password": mdp, "visible": d.get("settings", {}).get("visible", True)})
@@ -641,8 +671,8 @@ class PageLobby(tk.Frame):
         pj = Panneau(cols, padding=20, largeur=332); pj.pack(side="left", anchor="n")
         etiquette(pj.interieur, "Joueurs", "texte", 17, gras=True).pack(anchor="w", pady=(0, 6))
         self.player_slots = []
-        for i in range(4):
-            c = tk.Canvas(pj.interieur, width=292, height=62, bg=P["panneau"], highlightthickness=0); c.pack(pady=3)
+        for i in range(MAX_JOUEURS):
+            c = tk.Canvas(pj.interieur, width=292, height=48, bg=P["panneau"], highlightthickness=0); c.pack(pady=2)
             self.player_slots.append(c)
         ps = Panneau(cols, padding=24); ps.pack(side="left", anchor="n", padx=(22, 0), fill="x", expand=True)
         i = ps.interieur; self.panneau_partie = i
@@ -667,7 +697,8 @@ class PageLobby(tk.Frame):
         self.s_time = tuile("Temps par manche", 15, 600, 180, formater=mm_ss, valeurs=TEMPS_POSSIBLES)
         self.s_essais = tuile("Essais", 4, 10, 8)
         self.c_lettres = tuile("Lettres par mot", 6, 10, (6, 7), plage=True, largeur=LARGEUR_REGLAGES)
-        self.lbl_choix = etiquette(zr, "Choix du mot : sans limite de temps (l'hôte peut forcer le départ).", "texte", 14, P["texte2"])
+        self.i_cache = Interrupteur(zr, "Cible cachée : on choisit son mot sans savoir pour qui", False, lambda v: self.sync_params(), largeur=LARGEUR_REGLAGES)
+        self.lbl_choix = etiquette(zr, "", "texte", 14, P["texte2"], wraplength=LARGEUR_REGLAGES, justify="left")
         self.note_invite = etiquette(i, "L'hôte choisit le mode et les réglages.", "texte", 14, P["texte2"])
         self.btn_lancer = Bouton(i, "Lancer la partie", self.lancer, largeur=LARGEUR_REGLAGES, hauteur=54, taille=17); self.btn_lancer.pack(anchor="w", pady=(14, 0))
         self._placer_tuiles(False)
@@ -712,8 +743,13 @@ class PageLobby(tk.Frame):
         self.c_rounds.set_libelle("Manches max" if mode == "ELIMINATION" else "Manches")
         for w in (self.c_rounds, self.s_time, self.s_essais, self.c_lettres): w.set_couleur(mc)
         if mode == "PIEGE":
-            if not self.lbl_choix.winfo_ismapped(): self.lbl_choix.pack(anchor="w", pady=(10, 0))
-        else: self.lbl_choix.pack_forget()
+            hote = self.controller.is_host
+            self.lbl_choix.config(text="Choix du mot : sans limite de temps (l'hôte peut forcer le départ)." + ("" if hote else
+                (" La cible est cachée : tu ne sauras pas pour qui tu choisis." if v.get("piege_cache") else " La cible est visible : tu sais pour qui tu choisis.")))
+            self.lbl_choix.pack_forget(); self.i_cache.pack_forget()
+            if hote: self.i_cache.pack(anchor="w", pady=(10, 0))
+            self.lbl_choix.pack(anchor="w", pady=(6 if hote else 10, 0))
+        else: self.lbl_choix.pack_forget(); self.i_cache.pack_forget()
         self.btn_lancer.set_couleur(mc)
         b = self.bandeau; b.delete("all"); W, H = LARGEUR_REGLAGES, 86
         arrondi(b, 0, 0, W, H, 14, fill=mc, outline="")
@@ -734,7 +770,8 @@ class PageLobby(tk.Frame):
 
     def valeurs(self):
         mi, ma = self.c_lettres.get()
-        return {"rounds": self.c_rounds.get(), "essais": self.s_essais.get(), "min": mi, "max": ma, "timer": self.s_time.get()}
+        return {"rounds": self.c_rounds.get(), "essais": self.s_essais.get(), "min": mi, "max": ma, "timer": self.s_time.get(),
+                "piege_cache": bool(self.i_cache.valeur) and self.active_mode == "PIEGE"}
 
     def sync_params(self):
         if hasattr(self, "bandeau"): self._maj_bandeau()
@@ -784,18 +821,18 @@ class PageLobby(tk.Frame):
         self.controller.lire_salon_async(lambda d: self.traiter_lobby(d, gen))
 
     def dessiner_joueur(self, c, index, nom=None, hote=False, deco=False, moi=False):
-        c.delete("all"); w, h = 292, 62
+        c.delete("all"); w, h = 292, 48
         if nom is None:
-            c.create_oval(14, 13, 50, 49, fill=P["vide"], outline="")
-            c.create_text(66, h / 2, text="Place libre", anchor="w", fill=P["texte_absent"], font=police("texte", 17, True))
+            c.create_oval(12, 6, 42, 42, fill=P["vide"], outline="")
+            c.create_text(56, h / 2, text="Place libre", anchor="w", fill=P["texte_absent"], font=police("texte", 16, True))
             return
         coul = Avatar.COULEURS[index % len(Avatar.COULEURS)]
         arrondi(c, 0, 0, w, h, 12, fill=melanger(P["tuile"], coul, 0.16), outline="")
         arrondi(c, 0, 8, 5, h - 8, 2, fill=coul, outline="")
-        c.create_oval(14, 13, 50, 49, fill=coul, outline="")
-        c.create_text(32, 31, text=nom[:1].upper(), fill="#16130a", font=police("texte", 16, True))
+        c.create_oval(12, 6, 42, 42, fill=coul, outline="")
+        c.create_text(27, 24, text=nom[:1].upper(), fill="#16130a", font=police("texte", 15, True))
         aff = nom.capitalize() + (" (vous)" if moi else "")
-        c.create_text(64, h / 2, text=aff, anchor="w", fill=P["texte"], font=police("texte", 17, True), width=150)
+        c.create_text(56, h / 2, text=aff, anchor="w", fill=P["texte"], font=police("texte", 16, True), width=160)
         if deco: c.create_text(w - 14, h / 2, text="Déconnecté", anchor="e", fill=P["danger"], font=police("texte", 14))
         elif hote:
             c.create_text(w - 14, h / 2, text="Hôte", anchor="e", fill=P["mal"], font=police("texte", 15, True))
@@ -828,6 +865,7 @@ class PageLobby(tk.Frame):
             if not self.controller.is_host:
                 self.c_rounds.set_valeur(s.get("rounds", 3)); self.s_essais.set_valeur(s.get("essais", 8))
                 self.c_lettres.set_valeur(s.get("min", 6), s.get("max", 7)); self.s_time.set_valeur(s.get("timer", 180))
+                self.i_cache.valeur = bool(s.get("piege_cache")); self.i_cache._dessiner()
 
             if d.get("status") == "playing":
                 self.active_sync = False
@@ -843,7 +881,7 @@ class PageLobby(tk.Frame):
                     self.dessiner_joueur(slot, i, p[pid]["name"], pid == hid, deco, pid == self.controller.player_id)
                 else: self.dessiner_joueur(slot, i)
             n = len(p)
-            self.lbl_status.config(text=f"En attente des joueurs · {n} sur 4" + ("  ·  salon privé" if not self.controller.settings_config.get("visible", True) else ""))
+            self.lbl_status.config(text=f"En attente des joueurs · {n} sur {MAX_JOUEURS}" + ("  ·  salon privé" if not self.controller.settings_config.get("visible", True) else ""))
             hote = self.controller.is_host
             for sw in [self.c_rounds, self.s_essais, self.c_lettres, self.s_time] + list(self.cartes_mode.values()): sw.activer(hote)
             self._maj_bandeau()
@@ -876,7 +914,7 @@ class PageLobby(tk.Frame):
             "rounds": v["rounds"], "current_round": 1,
             "essais": v["essais"], "min": mi, "max": ma,
             "timer": v["timer"], "host_id": self.controller.player_id,
-            "visible": sc.get("visible", True),
+            "visible": sc.get("visible", True), "piege_cache": bool(v.get("piege_cache")),
             "start_time": time.time() + self.controller.server_time_offset
         }
         if mode == "PIEGE":  # ordre circulaire tiré au hasard, puis paires « qui choisit pour qui » de la 1re manche
@@ -892,10 +930,20 @@ class PageLobby(tk.Frame):
 
 
 class Adversaire(tk.Frame):
-    """Mini-grille d'un adversaire + nom, score et avancement."""
-    def __init__(self, parent, nom, essais, longueur, taille=14, index=0):
+    """Mini-grille d'un adversaire + nom, score et avancement (dense : nom et score au-dessus de la grille, pour les salons nombreux)."""
+    def __init__(self, parent, nom, essais, longueur, taille=14, index=0, dense=False):
         super().__init__(parent, bg=P["fond"])
-        self.taille, self.index = taille, index
+        self.taille, self.index, self.dense = taille, index, dense
+        if dense:
+            info = tk.Frame(self, bg=P["fond"]); info.pack(side="top", anchor="w", pady=(0, 3))
+            self.zone = tk.Frame(self, bg=P["fond"]); self.zone.pack(side="top", anchor="w")
+            self.grille = []
+            self.construire(essais, longueur)
+            self.lbl_nom = etiquette(info, nom, "texte", 14, gras=True); self.lbl_nom.pack(side="left")
+            self.lbl_score = etiquette(info, "0", "chiffres", 15, P["mal"]); self.lbl_score.pack(side="left", padx=(8, 0))
+            self.lbl_etat = etiquette(self, "", "texte", 12, P["texte2"]); self.lbl_etat.pack(side="top", anchor="w")
+            self.lbl_mot = etiquette(self, "", "texte", 12, P["mal"], True); self.lbl_mot.pack(side="top", anchor="w")
+            return
         self.zone = tk.Frame(self, bg=P["fond"]); self.zone.pack(side="left", anchor="n")
         self.grille = []
         self.construire(essais, longueur)
@@ -1037,10 +1085,10 @@ class PageJeu(tk.Frame):
         self.adv_widgets, self.adv_grids, self.adv_last_word_len = {}, {}, {}
         if dm:
             opponents = [item for item in dm.get("players", {}).items() if item[0] != self.controller.player_id]
-            t_adv = self.taille_adv(len(opponents))
+            cols, t_adv, dense = self.taille_adv(len(opponents))
             for idx, (pid, p) in enumerate(opponents):
-                a = Adversaire(self.adv_container, p["name"].capitalize(), conf.get("essais", 6), len(self.mot), t_adv, idx + 1)
-                a.pack(anchor="w", pady=(0, 26))
+                a = Adversaire(self.adv_container, p["name"].capitalize(), conf.get("essais", 6), len(self.mot), t_adv, idx + 1, dense)
+                a.grid(row=idx // cols, column=idx % cols, sticky="nw", padx=(0 if idx % cols == 0 else 18, 0), pady=(0, 14 if len(opponents) > 2 else 26))
                 self.adv_widgets[pid] = a; self.adv_grids[pid] = a.grille; self.adv_last_word_len[pid] = len(self.mot)
 
         if self.piege: self.piege_demarrer(dm)
@@ -1282,11 +1330,12 @@ class PageJeu(tk.Frame):
     def piege_construire_choix(self, d=None):
         self.piege_vider()
         conf = self.controller.settings_config; mi, ma = int(conf.get("min", 6)), int(conf.get("max", 7))
-        nom = self.piege_noms(d).get(self.piege_cible, "?").capitalize()
-        self.lbl_info.config(text=f"{NOM_MODE['PIEGE']} · choisis le mot de {nom}")
-        etiquette(self.moi_side, f"Choisis le mot que {nom} devra deviner", "texte", 19, gras=True).pack()
+        cache = bool(conf.get("piege_cache"))  # option du salon : on ne sait pas pour qui on choisit
+        nom = "un autre joueur" if cache else self.piege_noms(d).get(self.piege_cible, "?").capitalize()
+        self.lbl_info.config(text=f"{NOM_MODE['PIEGE']} · choisis le mot de {nom}" if not cache else f"{NOM_MODE['PIEGE']} · choisis un mot pour un autre joueur")
+        etiquette(self.moi_side, f"Choisis le mot que {nom} devra deviner" if not cache else "Choisis le mot que devra deviner un autre joueur (tu ne sais pas qui)", "texte", 19, gras=True).pack()
         aide = self.piege_texte_longueur(mi, ma) + (" (cases en pointillé facultatives)" if ma > mi else "")
-        etiquette(self.moi_side, aide + " · un mot du dictionnaire · gardé secret · pas de limite de temps", "texte", 14, P["texte2"]).pack(pady=(2, 10))
+        etiquette(self.moi_side, aide + " · un mot du dictionnaire · gardé secret · pas de limite de temps", "texte", 14, P["texte2"], wraplength=520, justify="center").pack(pady=(2, 10))
         rg = tk.Frame(self.moi_side, bg=P["fond"]); rg.pack()
         taille, _ = self.get_grid_sizes()
         self.labels_choix = [Tuile(rg, taille) for _ in range(ma)]
@@ -1337,7 +1386,7 @@ class PageJeu(tk.Frame):
         if not self.piege_mon_mot and self.piege_cible and ((d or self.last_sync_data or {}).get("piege_pret") or {}).get(self.piege_cible):
             sec = self.piege_mots.get(self.piege_cible) or self.piege_mot(self.piege_cible)  # reprise : relu en arrière-plan (autorisé : on est son choisisseur)
             if sec and sec.get("de") == self.controller.player_id: self.piege_mon_mot = sec["mot"]
-        a = getattr(self, "adv_widgets", {}).get(self.piege_cible)  # affiché sous la mini-grille du joueur concerné
+        a = None if self.controller.settings_config.get("piege_cache") else getattr(self, "adv_widgets", {}).get(self.piege_cible)  # affiché sous la mini-grille du joueur concerné (sauf cible cachée)
         if self.piege_mon_mot and a is not None and a.winfo_exists() and a.lbl_mot.cget("text") != f"Ton mot : {self.piege_mon_mot}":
             a.lbl_mot.config(text=f"Ton mot : {self.piege_mon_mot}")
 
@@ -1785,7 +1834,7 @@ class PageJeu(tk.Frame):
             })
             maj = {"settings": s, "status": "playing", "match_data": None, "fini_states": None}
             if mode == "PIEGE":
-                s.update(piege_reglages(s.get("piege_ordre") or [], actifs, s["current_round"], s["rush_seed"], s["start_time"]))
+                s.update(piege_reglages(s.get("piege_ordre") or [], actifs, s["current_round"], s["rush_seed"], s["start_time"], s.get("piege_de")))
                 maj.update({"piege_pret": None, "piege_essais": None, "piege_verdicts": None})
             self.controller.settings_config.update(s)
             self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", maj)
@@ -1836,13 +1885,14 @@ class PageJeu(tk.Frame):
         return int(max(24, min(70, t))), 14
 
     def taille_adv(self, nb):
-        essais = self.controller.settings_config.get("essais", 6)
-        try: win_h = self.winfo_toplevel().winfo_height()
-        except Exception: win_h = 860
+        """(colonnes, taille de case, dense) des grilles adverses selon le nombre d'adversaires et la fenêtre."""
+        conf = self.controller.settings_config
+        try: win_h, win_w = self.winfo_toplevel().winfo_height(), self.winfo_toplevel().winfo_width()
+        except Exception: win_h, win_w = 860, 1200
         if win_h <= 200: win_h = 860
-        dispo = (win_h - 160) / max(1, nb) - 30
-        plafond = {1: 30, 2: 24}.get(nb, 18)  # adaptée au nombre de joueurs
-        return int(max(8, min(plafond, dispo / essais - 3)))
+        if win_w <= 200: win_w = 1200
+        longueur = max(len(getattr(self, "mot", "") or "x" * 7), int(conf.get("max", 7) or 7))
+        return disposition_adv(nb, conf.get("essais", 6), longueur, max(300, win_w - 640), win_h - 140)
 
     def actualiser_tailles_grilles(self):
         main_size, _ = self.get_grid_sizes()

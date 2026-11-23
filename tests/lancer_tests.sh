@@ -94,6 +94,10 @@ etape "Croisé : Mot piégé à 3, hôte PC, un joueur web part après son choix
 DUREE=330 PAUSE=5 $S q3 'pc:{"nom":"ALICE","role":"host","mode":"PIEGE","manches":2,"nb":3,"forcer_apres":20}' 'web:{"nom":"BOB","role":"join","hote":"ALICE","mode":"PIEGE","manches":2,"choix":"rien"}' 'web:{"nom":"CHLOE","role":"join","hote":"ALICE","mode":"PIEGE","manches":2,"planter_apres_choix":1}' 2>&1 | tee /tmp/t_q3.txt; $PY "$ICI/verif_scores.py" q3 | tee -a /tmp/t_q3.txt; verifier /tmp/t_q3.txt
 fi
 if groupe piege; then
+etape "Croisé : Mot piégé, cible cachée (hôte PC, joueur web) : rien ne révèle la cible"
+DUREE=300 $S x1 'pc:{"nom":"ALICE","role":"host","mode":"PIEGE","manches":2,"nb":2,"cache":true}' 'web:{"nom":"BOB","role":"join","hote":"ALICE","mode":"PIEGE","manches":2,"cache":true,"jeu":"perd"}' 2>&1 | tee /tmp/t_x1.txt; $PY "$ICI/verif_scores.py" x1 | tee -a /tmp/t_x1.txt; verifier /tmp/t_x1.txt
+etape "Croisé : Mot piégé, cible cachée (hôte web, joueur PC) : rien ne révèle la cible"
+DUREE=300 $S x2 'web:{"nom":"BOB","role":"host","mode":"PIEGE","manches":2,"nb":2,"cache":true}' 'pc:{"nom":"ALICE","role":"join","hote":"BOB","mode":"PIEGE","manches":2,"cache":true,"jeu":"perd"}' 2>&1 | tee /tmp/t_x2.txt; $PY "$ICI/verif_scores.py" x2 | tee -a /tmp/t_x2.txt; verifier /tmp/t_x2.txt
 etape "Mot piégé PC : le joueur plante après son choix et reprend la partie"
 DUREE=400 $S p3 'pc:{"nom":"ALICE","role":"host","mode":"PIEGE","manches":2,"nb":2}' 'pc:{"nom":"BOB","role":"join","hote":"ALICE","mode":"PIEGE","manches":2,"jeu":"perd","planter_apres_choix":2}' 'pc:{"nom":"BOB","role":"reprise","mode":"PIEGE","manches":2,"jeu":"perd","home":"/tmp/hp32","apres_fichier":"/tmp/sc/p3/r2.json"}' 2>&1 | tee /tmp/t_p3.txt; $PY "$ICI/verif_scores.py" p3 | tee -a /tmp/t_p3.txt; verifier /tmp/t_p3.txt
 fi

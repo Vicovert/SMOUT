@@ -82,6 +82,8 @@ REGLES = {
     "p3": lambda: piege({"ALICE": 2, "BOB": 0}),
     "q1": lambda: piege({"ALICE": 2, "BOB": 0}),                 # hôte PC, joueur web (choix invalide puis valide, devinette ratée)
     "q3": lambda: piege({"ALICE": 2, "BOB": 2, "CHLOE": 0}),     # joueur web parti après son choix : paire annulée, mot au hasard pour BOB
+    "x1": lambda: piege({"ALICE": 2, "BOB": 0}),                 # cible cachée, hôte PC, joueur web
+    "x2": lambda: piege({"BOB": 2, "ALICE": 0}),                 # cible cachée, hôte web, joueur PC
     "q2": lambda: piege({"BOB": 2, "ALICE": 0}),                 # hôte web, joueur PC (mot au hasard pour ALICE après démarrage forcé ; ALICE rate)
 }
 REGLES[nom]()

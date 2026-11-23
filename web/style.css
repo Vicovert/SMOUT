@@ -85,7 +85,10 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 .carte-menu.hero .s, .carte-menu.marathon .s { color: inherit; opacity: .8; font-size: 17px; }
 .carte-menu.hero:hover, .carte-menu.marathon:hover { filter: brightness(1.08); }
 .carte-menu.marathon { background: var(--mc); color: #14182A; }
-.carte-menu.params .ico { background: rgba(255,255,255,.08); }
+.carte-menu.params { background: #EDEFF7; color: #14182A; }
+.carte-menu.params .s { color: inherit; opacity: .75; }
+.carte-menu.params:hover { filter: brightness(1.04); }
+.carte-menu.params .ico { background: rgba(20,24,42,.1); }
 .menu-ligne.petites { margin-top: 2px; }
 .menu-ligne.petites .carte-menu { height: 96px; padding: 0 22px; }
 .carte-menu .t { font-family: var(--f-titre); font-size: 26px; font-weight: 700; }
@@ -153,7 +156,7 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 .carte-salon .s { color: var(--texte2); font-size: 15px; margin-top: 4px; }
 .carte-salon .d { margin-left: auto; font-family: var(--f-chiffres); font-weight: 700; font-size: 20px; color: var(--texte2); }
 
-.joueur { height: 62px; border-radius: 12px; display: flex; align-items: center; gap: 14px; padding: 0 14px; margin: 8px 0; }
+.joueur { height: 50px; border-radius: 12px; display: flex; align-items: center; gap: 12px; padding: 0 12px; margin: 4px 0; }
 .joueur.plein { background: var(--tuile); }
 .joueur .n { font-weight: 600; font-size: 17px; }
 .joueur .r { margin-left: auto; font-weight: 600; font-size: 15px; }
@@ -336,3 +339,6 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   .tuile-reglage { padding: 12px 6px 13px; } .page-parametres .panneau { padding: 18px !important; }
   .tuile-reglage .v { font-size: 20px; } .tuile-reglage .pas { width: 30px; height: 30px; } .tuile-reglage .valeurs { gap: 10px; } .tuile-reglage .groupe { gap: 8px; }
 }
+
+@media (max-width: 520px) { .joueur { height: 44px; margin: 3px 0; } }
+@media (max-width: 520px) { .entete .milieu { font-size: 13px; } }
