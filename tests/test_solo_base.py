@@ -49,6 +49,7 @@ def _appel(self, *args):
     except SystemExit: raise
     except Exception as ex:
         print("RAPPEL TK EN ECHEC :", getattr(self.func, "__qualname__", self.func), "| args =", args, "| widget =", type(self.widget).__name__, getattr(self.widget, "_w", "?"), "|", ex, flush=True)
+        import traceback; traceback.print_stack(limit=9)  # ce que le test faisait quand Tk a appelé le rappel sans événement
         self.widget._report_exception()
 _tkdiag.CallWrapper.__call__ = _appel
 app.show_custom_creator(); pump()

@@ -3,6 +3,14 @@ import tkinter as tk
 import tkinter.font as tkfont
 import os, sys, ctypes, colorsys, hashlib
 
+# Tk appelle parfois une liaison (<Leave>, <ButtonRelease-1>, <Configure>…) sans aucun événement quand une fenêtre sous le pointeur est détruite et recréée :
+# le rappel plante alors (« missing 1 required positional argument: 'e' »). Un vrai événement a toujours ses arguments : on ignore ces appels parasites.
+_appel_tk = tk.CallWrapper.__call__
+def _appel_tk_sur(self, *args):
+    if self.subst and not args: return
+    return _appel_tk(self, *args)
+tk.CallWrapper.__call__ = _appel_tk_sur
+
 VERSION_APP = "8.16"
 URL_WEB = "https://vicovert.github.io/SMOUT/"
 
