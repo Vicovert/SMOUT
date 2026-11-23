@@ -199,10 +199,10 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   .carte-menu.hero .ico { width: 64px; height: 64px; margin-right: 16px; }
   .carte-menu.hero .ico svg { width: 34px; height: 34px; }
   .carte-menu.hero .t { font-size: 30px; }
-  .menu-ligne.petites { flex-direction: column; }
-  .menu-ligne.petites .carte-menu { flex: none; width: 100%; height: 84px; padding: 0 16px; }
-  .menu-ligne.petites .carte-menu .ico { width: 48px; height: 48px; margin-right: 14px; }
-  .menu-ligne.petites .carte-menu .s { font-size: 14px; }
+  .menu-ligne.petites .carte-menu { flex-direction: column; align-items: flex-start; justify-content: center; height: 132px; padding: 0 14px; gap: 8px; }
+  .menu-ligne.petites .carte-menu .ico { width: 44px; height: 44px; margin: 0; }
+  .menu-ligne.petites .carte-menu .t { font-size: 20px; }
+  .menu-ligne.petites .carte-menu .s { font-size: 13px; margin-top: 2px; }
   .clavier { width: calc(100vw - 8px); max-width: 100%; gap: 6px; }
   .clavier .rangs { gap: 8px; }
   .clavier .rang { gap: 4px; }
