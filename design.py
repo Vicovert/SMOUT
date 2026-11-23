@@ -3,7 +3,7 @@ import tkinter as tk
 import tkinter.font as tkfont
 import os, sys, ctypes, colorsys, hashlib
 
-VERSION_APP = "8.13"
+VERSION_APP = "8.14"
 URL_WEB = "https://vicovert.github.io/SMOUT/"
 
 def mot_graine(liste_triee, graine, index=0):
@@ -797,6 +797,89 @@ class Stepper(tk.Frame):
     def activer(self, s):
         if s == self.actif: return
         self.actif = s; self.b_moins.activer(s); self.b_plus.activer(s); self._maj()
+
+
+def pas_suivant(v, s, mini, maxi, pas=1, valeurs=None):
+    """Valeur suivante (s = +1) ou précédente (s = -1) : dans `valeurs` si donné (ex. temps), sinon de `pas` en `pas`."""
+    if valeurs:
+        l = [x for x in valeurs if (x > v if s > 0 else x < v)]
+        return (min(l) if s > 0 else max(l)) if l else v
+    return max(mini, min(maxi, v + s * pas))
+
+
+class TuileReglage(tk.Canvas):
+    """Réglage en tuile : libellé, grande valeur, boutons − / + (masqués en lecture seule : activer(False)).
+    plage=True : deux valeurs (min, max), chacune avec ses boutons ; une valeur qui dépasse l'autre la pousse.
+    Même API que Curseur : get(), set_valeur(), set_couleur(), activer()."""
+    def __init__(self, parent, libelle, mini, maxi, valeur, pas=1, commande=None, formater=str, largeur=200, hauteur=92,
+                 plage=False, valeurs=None, couleur=None):
+        super().__init__(parent, width=largeur, height=hauteur, bg=fond_parent(parent), highlightthickness=0)
+        self.libelle, self.mini, self.maxi, self.pas, self.commande, self.fmt = libelle, mini, maxi, pas, commande, formater
+        self.l, self.h, self.plage, self.valeurs, self.couleur, self.actif = largeur, hauteur, plage, valeurs, couleur, True
+        self.v = list(valeur) if plage else [valeur]
+        self.zones, self.survol = [], None
+        self.bind("<ButtonRelease-1>", self._clic); self.bind("<Motion>", self._bouge); self.bind("<Leave>", lambda e: self._survoler(None))
+        self._dessiner()
+    def get(self): return tuple(self.v) if self.plage else self.v[0]
+    def set_valeur(self, *vals):
+        nv = list(vals[0]) if (self.plage and len(vals) == 1) else list(vals)
+        nv = [max(self.mini, min(self.maxi, int(x))) for x in nv]
+        if nv != self.v: self.v = nv; self._dessiner()
+    def set_couleur(self, c):
+        if c != self.couleur: self.couleur = c; self._dessiner()
+    def set_libelle(self, t):
+        if t != self.libelle: self.libelle = t; self._dessiner()
+    def set_largeur(self, w):
+        if w != self.l: self.l = w; self.config(width=w); self._dessiner()
+    def activer(self, s):
+        if s != self.actif: self.actif = s; self._dessiner()
+    def _changer(self, i, s):
+        nv = list(self.v)
+        nv[i] = pas_suivant(nv[i], s, self.mini, self.maxi, self.pas, self.valeurs)
+        if self.plage:
+            if i == 0 and nv[0] > nv[1]: nv[1] = nv[0]
+            if i == 1 and nv[1] < nv[0]: nv[0] = nv[1]
+        if nv != self.v:
+            self.v = nv; self._dessiner()
+            if self.commande: self.commande(self.get())
+    def _zone(self, e):
+        for (x, y, i, s) in self.zones:
+            if (e.x - x) ** 2 + (e.y - y) ** 2 <= 21 ** 2: return (i, s)
+        return None
+    def _clic(self, e):
+        z = self._zone(e) if self.actif else None
+        if z: self._changer(*z)
+    def _bouge(self, e): self._survoler(self._zone(e) if self.actif else None)
+    def _survoler(self, z):
+        if z != self.survol:
+            self.survol = z; self.config(cursor="hand2" if z else ""); self._dessiner()
+    def _dessiner(self):
+        self.delete("all"); self.zones = []
+        fond = fond_parent(self); mc = self.couleur or P["mal"]; W, H = self.l, self.h
+        arrondi(self, 1, 1, W - 1, H - 1, 14, fill=melanger(fond, P["fond"], 0.5), outline=melanger(fond, P["bordure"], 0.7), width=1)
+        self.create_text(W / 2, 22, text=espacer(self.libelle), fill=P["texte2"], font=police("texte", 10, True))
+        y = H * 0.62
+        def bouton(x, i, s):
+            limite = pas_suivant(self.v[i], s, self.mini, self.maxi, self.pas, self.valeurs) == self.v[i]
+            base = melanger(fond, P["fond"], 0.5)
+            disque = base if limite else melanger(base, mc, 0.42 if self.survol == (i, s) else 0.2)
+            c = melanger(mc, base, 0.65) if limite else mc
+            self.create_oval(x - 17, y - 17, x + 17, y + 17, fill=disque, outline="")
+            self.create_line(x - 6, y, x + 6, y, fill=c, width=2.4, capstyle="round")
+            if s > 0: self.create_line(x, y - 6, x, y + 6, fill=c, width=2.4, capstyle="round")
+            self.zones.append((x, y, i, s))
+        vf = police("chiffres", 24, True)
+        if not self.plage:
+            self.create_text(W / 2, y, text=self.fmt(self.v[0]), fill=P["texte"], font=vf)
+            if self.actif: bouton(34, 0, -1); bouton(W - 34, 0, 1)
+        elif not self.actif:
+            txt = str(self.v[0]) if self.v[0] == self.v[1] else f"{self.v[0]} à {self.v[1]}"
+            self.create_text(W / 2, y, text=txt, fill=P["texte"], font=vf)
+        else:
+            for i, cx in enumerate((W * 0.27, W * 0.73)):
+                self.create_text(cx, y, text=str(self.v[i]), fill=P["texte"], font=vf)
+                bouton(cx - 52, i, -1); bouton(cx + 52, i, 1)
+            self.create_text(W / 2, y, text="à", fill=P["texte2"], font=police("texte", 15))
 
 
 class CarteSalon(tk.Canvas):

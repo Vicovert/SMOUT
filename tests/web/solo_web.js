@@ -48,7 +48,11 @@ const res = []; const ok = (nom, c, info = "") => { res.push(!!c); console.log((
   ok(`défaite après ${essais} essais`, t3.includes("Perdu") || t3.includes("Bravo"), faux.slice(0, 2).join(","));
   // paramètres
   await p.evaluate(() => parametres()); await sleep(200);
-  await p.evaluate(() => { const r = document.querySelectorAll(".curseur input"); const set = (i, v) => { r[i].value = v; r[i].dispatchEvent(new Event("input")); }; set(0, 4); set(1, 10); [...document.querySelectorAll("button")].find(x => x.textContent === "Enregistrer").click(); });
+  ok("paramètres : page centrée", await p.evaluate(() => { const r = document.querySelector(".page-parametres .panneau").getBoundingClientRect(); return Math.abs(r.left + r.width / 2 - innerWidth / 2) < 3; }));
+  // tuiles « − valeur + » : essais 6 → 4 (deux clics sur −), lettres : le minimum monté à 10 pousse le maximum ; taille de la grille 100 → 120 %
+  await p.evaluate(() => { const t = [...document.querySelectorAll(".tuile-reglage")]; const clic = (i, k, n) => { for (let j = 0; j < n; j++) t[i].querySelectorAll(".pas")[k].click(); };
+    clic(0, 0, 5); clic(2, 1, 4); clic(1, 1, 2); [...document.querySelectorAll("button")].find(x => x.textContent === "Enregistrer").click(); });
+  ok("taille de la grille enregistrée (120 %)", await p.evaluate(() => lireConfig().user_zoom === 1.2));
   const conf = await p.evaluate(() => configSolo());
   ok("paramètres enregistrés (4 essais, 10 lettres)", conf.nb_essais === 4 && conf.nb_lettres_min === 10 && conf.nb_lettres_max === 10, JSON.stringify(conf));
   await p.evaluate(() => solo(false)); await sleep(300);

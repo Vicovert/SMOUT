@@ -143,8 +143,10 @@ try:
         elif not pa.rejoindre(code, S.get("mdp", ""), silencieux=True): log("ÉCHEC rejoindre"); fin(False)
         log("a rejoint", code); R["code"] = code
         pump(2); capture("salon_invite")
-        vals = {k: v[2].cget("text") for k, v in lob.lignes_invite.items()}  # l'invité voit les réglages de l'hôte (lecture seule)
-        if not all(vals[k] for k in ("timer", "essais", "lettres")): log("ÉCHEC réglages de l'hôte non visibles", vals); fin(False)
+        tuiles = {"rounds": lob.c_rounds, "timer": lob.s_time, "essais": lob.s_essais, "lettres": lob.c_lettres}  # l'invité voit les réglages de l'hôte (lecture seule)
+        vals = {k: w.get() for k, w in tuiles.items() if w.winfo_ismapped()}
+        if A.statut_salon == "waiting" and (not all(k in vals for k in ("timer", "essais", "lettres")) or any(w.actif for w in tuiles.values())):
+            log("ÉCHEC réglages de l'hôte non visibles", vals); fin(False)
         log("réglages de l'hôte visibles", vals)
     for partie in range(1, S.get("parties", 1) + 1):
         if S["role"] == "host":
