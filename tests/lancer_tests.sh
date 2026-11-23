@@ -15,7 +15,7 @@ xpy() { HOME=$(mktemp -d) xvfb-run -a -s "-screen 0 1200x860x24" $PY "$@"; }
 groupe() { [ -z "$GROUPE" ] || [ "$GROUPE" = "$1" ]; }  # GROUPE=base|croise-a|croise-b|piege : une partie de la suite (jobs parallèles du CI) ; vide = tout
 if groupe base; then
 etape "Règles Firebase v7"; $PY "$ICI/test_regles.py" 2>&1 | tee /tmp/t1.txt | tail -n 1; verifier /tmp/t1.txt
-etape "Solo PC"; (xpy "$ICI/test_solo_base.py" "$DEPOT"; xpy "$ICI/test_solo_72.py" "$DEPOT") 2>&1 | tee /tmp/t2.txt | grep -E "ÉCHEC|False|conformes|Traceback"; verifier /tmp/t2.txt
+etape "Solo PC"; (xpy "$ICI/test_solo_base.py" "$DEPOT"; xpy "$ICI/test_solo_72.py" "$DEPOT") 2>&1 | tee /tmp/t2.txt | grep -E -A14 "ÉCHEC|False|conformes|Traceback"; verifier /tmp/t2.txt
 for t in solo_web solo72_web hors_ligne captures_multi clavier_tel retour_tel horloge_decalee; do etape "Web : $t"; (cd "$ICI/web" && timeout 400 node $t.js) 2>&1 | tee /tmp/t_$t.txt | grep -E "ÉCHEC|conformes|EXCEPTION"; verifier /tmp/t_$t.txt; done
 fi
 S="$ICI/scenario.sh"
