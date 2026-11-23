@@ -282,14 +282,10 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 .curseur .duo .piste { position: absolute; left: 11px; right: 11px; top: 50%; height: 8px; margin-top: -4px; border-radius: 4px; background: var(--tuile); }
 .curseur .duo .rempli { position: absolute; top: 0; bottom: 0; left: var(--pa, 0%); right: calc(100% - var(--pb, 100%)); background: var(--pc); border-radius: 4px; }
 .curseur .duo input { position: absolute; left: 0; top: 0; width: 100%; pointer-events: none; }
-.salon-partie .reglages { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
-.salon-partie .reglage { display: flex; align-items: center; gap: 12px; }
-.salon-partie .reglage > .t2 { width: 150px; flex: none; font-size: 15px; }
 .salon-partie .regle { color: var(--mc); font-weight: 600; font-size: 14px; margin: 4px 0 14px; }
 .grille-modes .choix.mode { padding: 11px 12px 11px 18px; }
 .grille-modes .choix .d:empty { display: none; }
 .choix.mode .t { font-size: 15px; }
-@media (max-width: 520px) { .salon-partie .reglage { flex-direction: column; align-items: stretch; gap: 0; } .salon-partie .reglage > .t2 { width: auto; } }
 
 .salon-tete { gap: 16px; align-items: flex-start; flex-wrap: nowrap; }
 @media (max-width: 600px) {
@@ -308,4 +304,35 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   .theme-apercu canvas { grid-area: cv; width: 150px; height: auto; margin: 0 !important; }
   .theme-apercu .caps { grid-area: caps; align-self: end; margin: 0 0 8px; text-align: left; }
   .theme-apercu .btn { grid-area: btn; align-self: start; height: 46px !important; }
+}
+/* réglages en tuiles « − valeur + » (salon multijoueur, paramètres solo) */
+.caps.section { margin: 0 0 8px; }
+.salon-partie .caps.section { margin-top: 16px; }
+.salon-partie > div:nth-child(2) > .caps.section { margin-top: 0; }
+.grille-reglages { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.salon-partie.rush .grille-reglages, .grille-reglages.deux { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.tuile-reglage { background: color-mix(in srgb, var(--panneau) 50%, var(--fond)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--panneau) 30%, var(--bordure)); border-radius: 14px; padding: 13px 10px 14px; text-align: center; min-width: 0; }
+.tuile-reglage.plage { grid-column: 1 / -1; }
+.tuile-reglage > .caps { font-size: 10px; }
+.tuile-reglage .valeurs { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 10px; min-height: 36px; }
+.tuile-reglage .groupe { display: flex; align-items: center; gap: 12px; }
+.tuile-reglage:not(.plage) .groupe { width: 100%; justify-content: space-between; padding: 0 4px; gap: 6px; }
+.tuile-reglage .v { font-family: var(--f-chiffres); font-weight: 700; font-size: 24px; min-width: 2ch; text-align: center; white-space: nowrap; }
+.tuile-reglage .a { color: var(--texte2); }
+.tuile-reglage .pas { width: 34px; height: 34px; border-radius: 50%; border: 0; padding: 0; flex: none; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--mc, var(--mal)) 20%, transparent); color: var(--mc, var(--mal)); }
+.tuile-reglage .pas:hover:not(:disabled) { background: color-mix(in srgb, var(--mc, var(--mal)) 40%, transparent); }
+.tuile-reglage .pas:disabled { opacity: .35; cursor: default; }
+.tuile-reglage .pas svg { width: 18px; height: 18px; stroke: currentColor; stroke-width: 2.4; fill: none; stroke-linecap: round; }
+.tuile-reglage .v.seul, .tuile-reglage.lecture .pas, .tuile-reglage.plage.lecture .groupe, .tuile-reglage.plage.lecture .a { display: none; }
+.tuile-reglage.plage.lecture .v.seul { display: inline; }
+.tuile-reglage.lecture .groupe { justify-content: center !important; }
+.note-choix { font-size: 14px; margin-top: 10px; }
+.page-parametres { flex: 1; justify-content: center; padding: 0 16px 30px; }
+@media (max-width: 520px) {
+  .grille-modes .choix .d { display: none; } .salon-joueurs { width: 100% !important; }
+  .grille-reglages { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .salon-partie .tuile-reglage[data-cle=essais] { order: 1; } .salon-partie .tuile-reglage[data-cle=timer] { order: 2; grid-column: 1 / -1; } .salon-partie .tuile-reglage.plage { order: 3; }
+  .tuile-reglage { padding: 12px 6px 13px; } .page-parametres .panneau { padding: 18px !important; }
+  .tuile-reglage .v { font-size: 20px; } .tuile-reglage .pas { width: 30px; height: 30px; } .tuile-reglage .valeurs { gap: 10px; } .tuile-reglage .groupe { gap: 8px; }
 }

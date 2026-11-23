@@ -130,7 +130,7 @@ async function jeuPiege(manche) {
     if (!(await attendre(() => M.lobby !== "", 15000))) { log("ÉCHEC rejoindre"); return fin(!!S.attendu_refus); }
     R.code = await ev(() => M.lobby); log("a rejoint", R.code);
     await sleep(1500);  // l'invité voit les réglages de l'hôte (en lecture seule : pas de curseurs)
-    const inv = await ev(() => ({ salon: !!document.querySelector(".salon-partie"), t: document.body.innerText, curseurs: [...document.querySelectorAll(".salon-partie input[type=range]")].filter(x => x.offsetParent !== null).length }));
+    const inv = await ev(() => ({ salon: !!document.querySelector(".salon-partie"), t: document.body.innerText, curseurs: [...document.querySelectorAll(".salon-partie input[type=range], .salon-partie .tuile-reglage .pas")].filter(x => x.offsetParent !== null).length }));
     R.reglages_invite = !inv.salon || (/manches/i.test(inv.t) && /essais/i.test(inv.t) && /lettres/i.test(inv.t) && inv.curseurs === 0);  // (partie déjà lancée : rien à vérifier)
     log(R.reglages_invite ? "réglages de l hôte visibles sans curseurs" : "ÉCHEC réglages de l hôte non visibles", JSON.stringify({ curseurs: inv.curseurs, t: inv.t.slice(0, 400) }));
     if (!R.reglages_invite && !S.attendu_refus) return fin(false);
@@ -142,10 +142,10 @@ async function jeuPiege(manche) {
       if (partie === 1) {
         if (S.mode !== "CLASSIQUE") await clicTexte(".choix", ({ BLAST: "Blast", PRECISION: "Précision", MYSTERE: "Mystère", RUSH: "Rush", ELIMINATION: "Élimination", CHAINE: "Chaîne", COOP: "Coopératif", PIEGE: "Mot piégé" })[S.mode]);
         await sleep(300);
-        const regler = (i, v) => ev((i, v) => { const x = document.querySelectorAll(".salon-partie input[type=range]")[i]; x.value = v; x.dispatchEvent(new Event("input")); }, i, v);
-        await regler(0, S.manches || 1);
-        if (S.timer) await regler(1, S.timer);
-        if (S.essais) await regler(2, S.essais);
+        const regler = (cle, v) => ev((cle, v) => document.querySelector(`.salon-partie .tuile-reglage[data-cle=${cle}]`).fixer(v), cle, v);
+        await regler("rounds", S.manches || 1);
+        if (S.timer) await regler("timer", S.timer);
+        if (S.essais) await regler("essais", S.essais);
       }
       await sleep(1500);
       if (!(await clicTexte("button.lancer", "Lancer"))) { log("ÉCHEC lancer"); return fin(false); }

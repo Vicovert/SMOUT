@@ -53,7 +53,7 @@ class AuthFirebase:
 # ===================================================================== thème
 import design
 from design import (Curseur, P, police, etiquette, espacer, Tuile, Bouton, Panneau, Icone, Avatar, Clavier, Stat, Chips, CarteChoix,
-                    Champ, TuileAction, Interrupteur, Superposition, Stepper, CarteSalon, Defilant, arrondi, melanger, fenetre_aide)
+                    Champ, TuileAction, Interrupteur, Superposition, Stepper, TuileReglage, CarteSalon, Defilant, arrondi, melanger, fenetre_aide)
 
 BG = ACCENT1 = ACCENT2 = MUTED = KEY_BG = TXT1 = None
 ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -71,6 +71,8 @@ MODES = [
 ]
 NOM_MODE = {m: n for m, n, _ in MODES}
 RUSHS = ("RUSH", "CHAINE")  # modes « un maximum de mots avant la fin du temps »
+TEMPS_POSSIBLES = (15, 30, 45, 60, 90, 120, 150, 180, 240, 300, 360, 420, 480, 540, 600)  # pas du réglage du temps (s)
+LARGEUR_REGLAGES = 628  # largeur des réglages du salon (3 cartes de mode de 204 px)
 # chaque mode a sa couleur (identique à COULEURS_MODES de smout.js) et une règle en une phrase
 COULEURS_MODES = {"CLASSIQUE": "#F5B83D", "BLAST": "#FF6B6B", "PRECISION": "#4CC9F0", "MYSTERE": "#A78BFA", "RUSH": "#FF8FC7", "ELIMINATION": "#FF9F43", "CHAINE": "#2DD4BF", "COOP": "#7ED957", "PIEGE": "#5B7CFA"}
 REGLES_MODES = {
@@ -644,36 +646,31 @@ class PageLobby(tk.Frame):
             self.player_slots.append(c)
         ps = Panneau(cols, padding=24); ps.pack(side="left", anchor="n", padx=(22, 0), fill="x", expand=True)
         i = ps.interieur; self.panneau_partie = i
-        # --- hôte : mode (pastilles), règle en une ligne, réglages à curseurs
+        # --- hôte : choix du mode (cartes nom + description), règle du mode choisi
         self.zone_hote = tk.Frame(i, bg=i["bg"]); zh = self.zone_hote
+        etiquette(zh, espacer("Mode de jeu"), "texte", 11, P["texte2"], True).pack(anchor="w", pady=(0, 8))
         gm = tk.Frame(zh, bg=i["bg"]); gm.pack(anchor="w")
         self.cartes_mode = {}
         for k, (m, nom, desc) in enumerate(MODES):
-            cc = CarteChoix(gm, nom, "", lambda m=m: self.set_mode(m), largeur=200, hauteur=44, couleur=COULEURS_MODES[m])
-            cc.grid(row=k // 3, column=k % 3, padx=(0, 8), pady=(0, 8)); self.cartes_mode[m] = cc
-        self.lbl_regle = etiquette(zh, "", "texte", 14, COULEURS_MODES["CLASSIQUE"], True, wraplength=620, justify="left"); self.lbl_regle.pack(anchor="w", pady=(2, 14))
-        self.lignes_reglage = {}
-        def ligne(cle, libelle, fabrique):
-            f = tk.Frame(zh, bg=i["bg"]); f.pack(anchor="w", pady=2)
-            lb = etiquette(f, libelle, "texte", 15, P["texte2"], True, width=16, anchor="w"); lb.pack(side="left")
-            w = fabrique(f); w.pack(side="left"); self.lignes_reglage[cle] = (f, lb); return w
-        self.c_rounds = ligne("rounds", "Manches", lambda f: Curseur(f, 1, 10, 3, 1, lambda v: self.sync_params()))
-        self.s_time = ligne("timer", "Temps par manche", lambda f: Curseur(f, 15, 600, 180, 15, lambda v: self.sync_params(), formater=mm_ss))
-        self.s_essais = ligne("essais", "Essais", lambda f: Curseur(f, 4, 10, 8, 1, lambda v: self.sync_params()))
-        self.c_lettres = ligne("lettres", "Lettres", lambda f: Curseur(f, 6, 10, (6, 7), 1, lambda v: self.sync_params(), plage=True))
-        # --- invité : bandeau du mode choisi par l'hôte + résumé
+            cc = CarteChoix(gm, nom, desc, lambda m=m: self.set_mode(m), largeur=204, hauteur=56, couleur=COULEURS_MODES[m])
+            cc.grid(row=k // 3, column=k % 3, padx=(0 if k % 3 == 0 else 8, 0), pady=(0, 6)); self.cartes_mode[m] = cc
+        self.lbl_regle = etiquette(zh, "", "texte", 14, COULEURS_MODES["CLASSIQUE"], True, wraplength=620, justify="left"); self.lbl_regle.pack(anchor="w", pady=(2, 0))
+        # --- invité : bandeau du mode choisi par l'hôte
         self.zone_invite = tk.Frame(i, bg=i["bg"])
-        self.bandeau = tk.Canvas(self.zone_invite, width=632, height=86, bg=i["bg"], highlightthickness=0); self.bandeau.pack(anchor="w")
-        # réglages choisis par l'hôte, en lecture seule (les mêmes lignes que l'hôte, sans les curseurs)
-        self.lignes_invite = {}
-        zr = tk.Frame(self.zone_invite, bg=i["bg"]); zr.pack(anchor="w", pady=(14, 0))
-        for cle, libelle in (("rounds", "Manches"), ("timer", "Temps par manche"), ("essais", "Essais"), ("lettres", "Lettres"), ("choix", "Choix du mot")):
-            f = tk.Frame(zr, bg=i["bg"]); f.pack(anchor="w", pady=2)
-            lb = etiquette(f, libelle, "texte", 15, P["texte2"], True, width=16, anchor="w"); lb.pack(side="left")
-            val = etiquette(f, "", "texte", 17, P["texte"], True); val.pack(side="left")
-            self.lignes_invite[cle] = (f, lb, val)
-        etiquette(self.zone_invite, "L'hôte choisit le mode et les réglages.", "texte", 14, P["texte2"]).pack(anchor="w", pady=(10, 0))
-        self.btn_lancer = Bouton(i, "Lancer la partie", self.lancer, largeur=632, hauteur=54, taille=17); self.btn_lancer.pack(anchor="w", pady=(16, 0))
+        self.bandeau = tk.Canvas(self.zone_invite, width=LARGEUR_REGLAGES, height=86, bg=i["bg"], highlightthickness=0); self.bandeau.pack(anchor="w")
+        # --- réglages, communs : tuiles « − valeur + » pour l'hôte, les mêmes en lecture seule (sans boutons) pour les invités
+        self.zone_reglages = tk.Frame(i, bg=i["bg"]); zr = self.zone_reglages; zr.pack(anchor="w", pady=(14, 0))
+        etiquette(zr, espacer("Réglages de la partie"), "texte", 11, P["texte2"], True).pack(anchor="w", pady=(0, 8))
+        self.grille_reglages = tk.Frame(zr, bg=i["bg"]); self.grille_reglages.pack(anchor="w")
+        def tuile(lib, *a, **k): return TuileReglage(self.grille_reglages, lib, *a, commande=lambda v: self.sync_params(), **k)
+        self.c_rounds = tuile("Manches", 1, 10, 3)
+        self.s_time = tuile("Temps par manche", 15, 600, 180, formater=mm_ss, valeurs=TEMPS_POSSIBLES)
+        self.s_essais = tuile("Essais", 4, 10, 8)
+        self.c_lettres = tuile("Lettres par mot", 6, 10, (6, 7), plage=True, largeur=LARGEUR_REGLAGES)
+        self.lbl_choix = etiquette(zr, "Choix du mot : sans limite de temps (l'hôte peut forcer le départ).", "texte", 14, P["texte2"])
+        self.note_invite = etiquette(i, "L'hôte choisit le mode et les réglages.", "texte", 14, P["texte2"])
+        self.btn_lancer = Bouton(i, "Lancer la partie", self.lancer, largeur=LARGEUR_REGLAGES, hauteur=54, taille=17); self.btn_lancer.pack(anchor="w", pady=(14, 0))
+        self._placer_tuiles(False)
         self._maj_bandeau()
 
     # --- réglages ---
@@ -710,25 +707,30 @@ class PageLobby(tk.Frame):
         self._sig_bandeau = sig
         rush = mode in RUSHS
         self.lbl_regle.config(text=REGLES_MODES.get(mode, ""), fg=mc)
-        f, _ = self.lignes_reglage["rounds"]
-        if rush: f.pack_forget()
-        elif not f.winfo_ismapped(): f.pack(anchor="w", pady=2, before=self.lignes_reglage["timer"][0])
-        self.lignes_reglage["timer"][1].config(text="Temps de jeu" if rush else "Temps pour deviner" if mode == "PIEGE" else "Temps par manche")
+        self._placer_tuiles(rush)
+        self.s_time.set_libelle("Temps de jeu" if rush else "Temps pour deviner" if mode == "PIEGE" else "Temps par manche")
+        self.c_rounds.set_libelle("Manches max" if mode == "ELIMINATION" else "Manches")
         for w in (self.c_rounds, self.s_time, self.s_essais, self.c_lettres): w.set_couleur(mc)
+        if mode == "PIEGE":
+            if not self.lbl_choix.winfo_ismapped(): self.lbl_choix.pack(anchor="w", pady=(10, 0))
+        else: self.lbl_choix.pack_forget()
         self.btn_lancer.set_couleur(mc)
-        b = self.bandeau; b.delete("all"); W, H = 632, 86
+        b = self.bandeau; b.delete("all"); W, H = LARGEUR_REGLAGES, 86
         arrondi(b, 0, 0, W, H, 14, fill=mc, outline="")
         b.create_text(18, 18, text=espacer("Mode de jeu"), anchor="w", fill=melanger(SOMBRE, mc, 0.35), font=police("texte", 10, True))
         b.create_text(18, 44, text=NOM_MODE.get(mode, mode), anchor="w", fill=SOMBRE, font=police("titre", 26))
         b.create_text(18, 70, text=REGLES_MODES.get(mode, ""), anchor="w", fill=SOMBRE, font=police("texte", 13))
-        texte_lettres = f"{v['min']} lettres" if v["min"] == v["max"] else f"{v['min']} ou {v['max']} lettres" if v["max"] == v["min"] + 1 else f"de {v['min']} à {v['max']} lettres"
-        valeurs = {"rounds": f"{v['rounds']}{' max' if mode == 'ELIMINATION' else ''}", "timer": mm_ss(v["timer"]), "essais": str(v["essais"]), "lettres": texte_lettres, "choix": "sans limite de temps"}
-        for f, _, _ in self.lignes_invite.values(): f.pack_forget()
-        for cle, (f, lb, val) in self.lignes_invite.items():  # dans l'ordre, sans les lignes qui ne concernent pas ce mode
-            if (cle == "rounds" and rush) or (cle == "choix" and mode != "PIEGE"): continue
-            f.pack(anchor="w", pady=2); val.config(text=valeurs[cle])
-        self.lignes_invite["timer"][1].config(text="Temps de jeu" if rush else "Temps pour deviner" if mode == "PIEGE" else "Temps par manche")
-        if self.controller.is_host: self.btn_lancer.set_text(f"Lancer · {NOM_MODE.get(mode, mode)}" if self.controller.nb_joueurs > 1 else "Il faut au moins 2 joueurs")
+        if self.controller.is_host: self.btn_lancer.set_text(f"Lancer · {NOM_MODE.get(mode, mode)}" if self.controller.nb_joueurs > 1 else "En attente d'un 2e joueur…")
+
+    def _placer_tuiles(self, rush):
+        """Manches (sauf modes rush), temps et essais sur une ligne ; les lettres dessous, sur toute la largeur."""
+        if getattr(self, "_rush_place", None) == rush: return
+        self._rush_place = rush
+        haut = [self.s_time, self.s_essais] if rush else [self.c_rounds, self.s_time, self.s_essais]
+        for w in (self.c_rounds, self.s_time, self.s_essais, self.c_lettres): w.grid_forget()
+        n = len(haut); lw = (LARGEUR_REGLAGES - 10 * (n - 1)) // n
+        for k, w in enumerate(haut): w.set_largeur(lw); w.grid(row=0, column=k, padx=(0 if k == 0 else 10, 0), pady=(0, 10))
+        self.c_lettres.grid(row=1, column=0, columnspan=n, sticky="w")
 
     def valeurs(self):
         mi, ma = self.c_lettres.get()
@@ -847,10 +849,13 @@ class PageLobby(tk.Frame):
             self._maj_bandeau()
             if hote != getattr(self, "_vue_hote", None):  # l'hôte règle la partie, les invités voient le résumé
                 self._vue_hote = hote
-                if hote: self.zone_invite.pack_forget(); self.zone_hote.pack(anchor="w", before=self.btn_lancer)
-                else: self.zone_hote.pack_forget(); self.zone_invite.pack(anchor="w", before=self.btn_lancer)
+                if hote:
+                    self.zone_invite.pack_forget(); self.note_invite.pack_forget(); self.zone_hote.pack(anchor="w", before=self.zone_reglages)
+                else:
+                    self.zone_hote.pack_forget(); self.zone_invite.pack(anchor="w", before=self.zone_reglages)
+                    self.note_invite.pack(anchor="w", pady=(12, 0), before=self.btn_lancer)
             if hote:
-                self.btn_lancer.set_variante("principal"); self._sig_bandeau = None; self._maj_bandeau()
+                self.btn_lancer.set_variante("principal" if n > 1 else "tuile"); self._sig_bandeau = None; self._maj_bandeau()
                 self.btn_lancer.activer(n > 1)
             else:
                 self.btn_lancer.set_variante("discret"); self.btn_lancer.set_text("En attente du lancement par l'hôte…"); self.btn_lancer.activer(False)

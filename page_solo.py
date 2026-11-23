@@ -2,7 +2,7 @@ import tkinter as tk
 import json, random, os, sys, time, datetime
 import design
 from design import (P, police, etiquette, espacer, Tuile, Bouton, Panneau, Icone, Clavier, Stat, Chips, Superposition, entete, fenetre_aide,
-                    Champ, Interrupteur, CarteMenu, Curseur, melanger)
+                    Champ, Interrupteur, CarteMenu, Curseur, melanger, TuileReglage)
 
 
 def get_data_path(filename):
@@ -16,6 +16,9 @@ def nombre(n):
     return f"{int(n):,}".replace(",", " ")
 
 def mmss(s): return f"{int(s) // 60:02d}:{int(s) % 60:02d}"
+def lire_zoom():  # taille de la grille choisie par le joueur (commune au solo et au multijoueur)
+    try: return max(0.6, min(1.6, float(design.lire_config().get("user_zoom", 1.0))))
+    except (TypeError, ValueError): return 1.0
 
 # --- Couleurs du thème (mises à jour par apply_theme_solo) ---
 BG = ACCENT1 = ACCENT2 = MUTED = KEY_BG = TXT1 = None
@@ -152,7 +155,14 @@ class PageJeu(tk.Frame):
         self.statut_lettres = {l: None for l in ALPHABET}
         titre = TITRES[mode] + (f" · mot {ctl.marathon['mots'] + 1}" if mode == "marathon" else "") \
             + f" · {len(self.mot)} lettres" + (" · difficile" if ctl.difficile else "")
-        entete(self, titre, ctl.retour_accueil, droite=lambda h: Icone(h, "aide", lambda: self.aide.montrer()))
+        def droite(h):  # taille de la grille (− 100 % +) et aide
+            f = tk.Frame(h, bg=P["fond"])
+            Icone(f, "moins", lambda: self.zoomer(-0.1), 32).pack(side="left")
+            self.lbl_zoom = etiquette(f, f"{round(lire_zoom() * 100)} %", "texte", 13, P["texte2"], width=5); self.lbl_zoom.pack(side="left")
+            Icone(f, "plus", lambda: self.zoomer(0.1), 32).pack(side="left", padx=(0, 14))
+            Icone(f, "aide", lambda: self.aide.montrer()).pack(side="left")
+            return f
+        entete(self, titre, ctl.retour_accueil, droite=droite)
 
         stats = tk.Frame(self, bg=P["fond"]); stats.pack(pady=(10, 0))
         self.s_temps = Stat(stats, "Temps", "00:00"); self.s_temps.pack(side="left", padx=40)
@@ -192,7 +202,14 @@ class PageJeu(tk.Frame):
     def taille_tuile(self):
         h = self.hauteur_fenetre()
         dispo = h - 300 - 3 * (self.hauteur_touche() + 8)
-        return int(max(30, min(58, dispo / self.nb_essais_partie - 8, 560 / len(self.mot) - 8)))
+        return int(max(24, min(80, min(58, dispo / self.nb_essais_partie - 8, 560 / len(self.mot) - 8) * lire_zoom())))
+
+    def zoomer(self, d):
+        z = round(max(0.6, min(1.6, lire_zoom() + d)), 2)
+        design.maj_config(user_zoom=z); self.lbl_zoom.config(text=f"{round(z * 100)} %")
+        t = self.taille_tuile()
+        for ligne in self.grille_labels:
+            for case in ligne: case.set_taille(t)
 
     def score_actuel(self, ecoule):
         return max(0, self.score_initial - (ecoule * 2) - self.penalite_dict)
@@ -379,29 +396,32 @@ class PageStats(tk.Frame):
 
 
 class PageParametres(tk.Frame):
-    """Réglages (ouverts depuis l'icône engrenage de l'accueil)."""
+    """Réglages du solo (ouverts depuis le menu Solo), centrés : mêmes tuiles « − valeur + » que le salon multijoueur."""
     def __init__(self, parent, controller):
         super().__init__(parent, bg=P["fond"]); self.controller = controller
         self.config = charger_config_solo()
-        h = tk.Frame(self, bg=P["fond"]); h.pack(fill="x", padx=28, pady=(18, 0))
-        Icone(h, "retour", controller.ouvrir_menu_solo).pack(side="left")
-        corps = tk.Frame(self, bg=P["fond"]); corps.pack(padx=90, anchor="w")
-        etiquette(corps, "Paramètres", "titre", 46).pack(anchor="w", pady=(0, 6))
-        etiquette(corps, "Réglages des parties normales et du marathon (le mot du jour se joue toujours en 7 essais).", "texte", 16, P["texte2"]).pack(anchor="w", pady=(0, 18))
-        p = Panneau(corps, padding=26, largeur=620); p.pack(anchor="w")
+        entete(self, "", controller.ouvrir_menu_solo)
+        corps = tk.Frame(self, bg=P["fond"]); corps.place(relx=0.5, rely=0.47, anchor="center")
+        etiquette(corps, "Paramètres", "titre", 46).pack()
+        etiquette(corps, "Parties normales et marathon · le mot du jour se joue toujours en 7 essais.", "texte", 16, P["texte2"]).pack(pady=(4, 20))
+        L = 600; p = Panneau(corps, padding=26, largeur=L + 52); p.pack()
         i = p.interieur
-        etiquette(i, "Nombre d'essais", "texte", 17, gras=True).pack(anchor="w")
-        self.c_essais = Curseur(i, 4, 8, self.config["nb_essais"], 1, largeur=560); self.c_essais.pack(anchor="w", pady=(4, 14))
-        etiquette(i, "Longueur des mots", "texte", 17, gras=True).pack(anchor="w")
-        self.c_lettres = Curseur(i, 6, 10, (self.config["nb_lettres_min"], self.config["nb_lettres_max"]), 1, largeur=560, plage=True); self.c_lettres.pack(anchor="w", pady=(4, 14))
-        self.i_diff = Interrupteur(i, "Mode difficile (lettres trouvées obligatoires)", bool(self.config.get("difficile")), largeur=560); self.i_diff.pack(anchor="w", pady=(0, 6))
-        self.i_dalt = Interrupteur(i, "Mode daltonien (orange et bleu)", bool(design.lire_config().get("daltonien")), largeur=560); self.i_dalt.pack(anchor="w", pady=(0, 18))
-        self.btn = Bouton(i, "Enregistrer", self.save, largeur=560, hauteur=54, taille=17); self.btn.pack()
-
+        def section(t, haut=0): etiquette(i, espacer(t), "texte", 11, P["texte2"], True).pack(anchor="w", pady=(haut, 8))
+        section("Partie")
+        g = tk.Frame(i, bg=i["bg"]); g.pack(anchor="w")
+        self.c_essais = TuileReglage(g, "Essais", 4, 8, self.config["nb_essais"], largeur=(L - 10) // 2)
+        self.c_zoom = TuileReglage(g, "Taille de la grille", 60, 160, round(lire_zoom() * 100), pas=10, formater=lambda v: f"{v} %", largeur=(L - 10) // 2)
+        self.c_lettres = TuileReglage(g, "Longueur des mots", 6, 10, (self.config["nb_lettres_min"], self.config["nb_lettres_max"]), plage=True, largeur=L)
+        self.c_essais.grid(row=0, column=0, padx=(0, 10), pady=(0, 10)); self.c_zoom.grid(row=0, column=1, pady=(0, 10))
+        self.c_lettres.grid(row=1, column=0, columnspan=2)
+        section("Options", 20)
+        self.i_diff = Interrupteur(i, "Mode difficile (lettres trouvées obligatoires)", bool(self.config.get("difficile")), largeur=L); self.i_diff.pack(anchor="w", pady=(0, 6))
+        self.i_dalt = Interrupteur(i, "Mode daltonien (orange et bleu)", bool(design.lire_config().get("daltonien")), largeur=L); self.i_dalt.pack(anchor="w", pady=(0, 20))
+        self.btn = Bouton(i, "Enregistrer", self.save, largeur=L, hauteur=54, taille=17); self.btn.pack()
 
     def save(self):
         changement = bool(design.lire_config().get("daltonien")) != self.i_dalt.valeur
         design.maj_config(nb_essais=self.c_essais.get(), nb_lettres_min=self.c_lettres.get()[0], nb_lettres_max=self.c_lettres.get()[1],
-                          difficile=self.i_diff.valeur, daltonien=self.i_dalt.valeur)
+                          difficile=self.i_diff.valeur, daltonien=self.i_dalt.valeur, user_zoom=self.c_zoom.get() / 100)
         if changement and hasattr(self.controller, "apply_theme"): self.controller.apply_theme(self.controller.current_theme_name, save=False)
         self.controller.ouvrir_menu_solo()

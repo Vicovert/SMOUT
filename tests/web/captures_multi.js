@@ -31,8 +31,9 @@ const res = []; const ok = (n, c, i = "") => { res.push(!!c); console.log((c ? "
     await p.screenshot({ path: `/tmp/wm_creation_${l}.png` });
     await p.evaluate(() => [...document.querySelectorAll("button")].find(x => x.textContent === "Créer le salon").click()); await sleep(2500);
     ok(`${l}px salon créé`, await p.evaluate(() => !!M.lobby && M.estHote));
-    ok(`${l}px salon : curseurs (manches, temps, essais, lettres) et plus de pastilles de lettres`, await p.evaluate(() => document.querySelectorAll(".salon-partie input[type=range]").length === 5 && !document.querySelector(".salon-partie .chips")));
-    ok(`${l}px salon : un curseur modifie le réglage`, await p.evaluate(() => { const i = document.querySelector(".salon-partie .curseur input"); i.value = 5; i.dispatchEvent(new Event("input")); return document.querySelector(".salon-partie .curseur .val").textContent === "5"; }));
+    ok(`${l}px salon : réglages en tuiles (manches, temps, essais, lettres), sans curseurs`, await p.evaluate(() => document.querySelectorAll(".salon-partie .tuile-reglage").length === 4 && !document.querySelector(".salon-partie input[type=range]") && !document.querySelector(".salon-partie .chips")));
+    ok(`${l}px salon : le bouton + modifie le réglage`, await p.evaluate(() => { const t = document.querySelector(".salon-partie .tuile-reglage[data-cle=rounds]"); const v0 = M.reglages.rounds; t.querySelectorAll(".pas")[1].click(); return t.querySelector(".v").textContent === "4"; }));
+    ok(`${l}px salon : le temps avance par paliers (3:00 → 4:00)`, await p.evaluate(() => { const t = document.querySelector(".salon-partie .tuile-reglage[data-cle=timer]"); t.querySelectorAll(".pas")[1].click(); return t.querySelector(".v").textContent === "04:00"; }));
     ok(`${l}px salon : 9 modes dont Mot piégé`, await p.evaluate(() => document.querySelectorAll(".choix").length >= 9 && document.body.innerText.includes("Mot piégé")));
     ok(`${l}px salon : rien ne dépasse`, !(await deb()).length, (await deb()).join(" "));
     await p.screenshot({ path: `/tmp/wm_salon_${l}.png`, fullPage: true });

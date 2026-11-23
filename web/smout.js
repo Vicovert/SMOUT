@@ -21,6 +21,7 @@ const MODES = [
   ["PIEGE", "Mot piégé", "Choisis le mot d'un autre"],
 ];
 const RUSHS = ["RUSH", "CHAINE"];
+const TEMPS_POSSIBLES = [15, 30, 45, 60, 90, 120, 150, 180, 240, 300, 360, 420, 480, 540, 600];  // pas du réglage du temps (s)
 // chaque mode a sa couleur (identique à COULEURS_MODES de page_multi.py) et une règle en une phrase
 const COULEURS_MODES = { CLASSIQUE: "#F5B83D", BLAST: "#FF6B6B", PRECISION: "#4CC9F0", MYSTERE: "#A78BFA", RUSH: "#FF8FC7", ELIMINATION: "#FF9F43", CHAINE: "#2DD4BF", COOP: "#7ED957", PIEGE: "#5B7CFA" };
 const REGLES_MODES = {
@@ -311,6 +312,40 @@ function curseur(mini, maxi, valeur, pas, onchange, fmt = String) {
   e.activer = s => { e.actif = s; inp.disabled = !s; };
   aff(); return e;
 }
+/* valeur suivante (s = +1) ou précédente (s = -1) : dans `valeurs` si donné (ex. temps), sinon de `pas` en `pas` */
+function pasSuivant(v, s, mini, maxi, pas = 1, valeurs = null) {
+  if (valeurs) { const l = valeurs.filter(x => s > 0 ? x > v : x < v); return l.length ? (s > 0 ? Math.min(...l) : Math.max(...l)) : v; }
+  return Math.max(mini, Math.min(maxi, v + s * pas));
+}
+/* réglage en tuile : libellé, grande valeur, boutons − / + (masqués en lecture seule : activer(false)) ;
+   plage : deux valeurs (min, max), chacune avec ses boutons, une valeur qui dépasse l'autre la pousse */
+function tuileReglage(libelle, mini, maxi, valeur, onchange, o = {}) {
+  const fmt = o.fmt || String, lib = h("div.caps", {}, libelle), e = h("div.tuile-reglage" + (o.plage ? ".plage" : ""), {}, lib);
+  e.actif = true; e.v = o.plage ? [...valeur] : [valeur];
+  const vals = [], btns = [];
+  const groupe = i => {
+    const v = h("span.v"), m = h("button.pas", { html: svg("moins"), "aria-label": "Moins", onclick: () => chg(i, -1) }), p = h("button.pas", { html: svg("plus"), "aria-label": "Plus", onclick: () => chg(i, 1) });
+    vals.push(v); btns.push([m, p]); return h("div.groupe", {}, m, v, p);
+  };
+  const lt = h("span.v.seul");
+  e.append(o.plage ? h("div.valeurs", {}, groupe(0), h("span.a", {}, "à"), groupe(1), lt) : h("div.valeurs", {}, groupe(0)));
+  function chg(i, s) {
+    if (!e.actif) return; const nv = [...e.v]; nv[i] = pasSuivant(nv[i], s, mini, maxi, o.pas || 1, o.valeurs);
+    if (o.plage) { if (i === 0 && nv[0] > nv[1]) nv[1] = nv[0]; if (i === 1 && nv[1] < nv[0]) nv[0] = nv[1]; }
+    if (nv.join() !== e.v.join()) { e.set(...nv); onchange && onchange(e.get()); }
+  }
+  const aff = () => {
+    e.v.forEach((x, i) => { vals[i].textContent = o.plage ? String(x) : fmt(x); btns[i].forEach((b, k) => b.disabled = pasSuivant(x, k ? 1 : -1, mini, maxi, o.pas || 1, o.valeurs) === x); });
+    lt.textContent = e.v[0] === e.v[1] ? String(e.v[0]) : `${e.v[0]} à ${e.v[1]}`;
+    if (o.plage) { e.vmin = e.v[0]; e.vmax = e.v[1]; } else e.valeur = e.v[0];
+  };
+  e.get = () => o.plage ? [...e.v] : e.v[0];
+  e.set = (...a) => { e.v = (o.plage ? a.slice(0, 2) : [a[0]]).map(x => Math.max(mini, Math.min(maxi, +x))); aff(); };
+  e.fixer = (...a) => { e.set(...a); onchange && onchange(e.get()); };  // (tests) comme un réglage à la main
+  e.activer = s => { e.actif = s; e.classList.toggle("lecture", !s); };
+  e.libelle = t => { lib.textContent = t; };
+  e.set(...(o.plage ? valeur : [valeur])); return e;
+}
 /* plage à deux poignées (ex. nombre de lettres) : une poignée qui dépasse l'autre la pousse */
 function plage(mini, maxi, [a, b], onchange) {
   const mk = x => h("input", { type: "range", min: mini, max: maxi, step: 1, value: x }), lo = mk(a), hi = mk(b), v = h("span.val");
@@ -481,17 +516,20 @@ async function solo(mode = "libre") {
   const scoreInitial = mot.length * 100 * (13 - essais);
   const score = ec => Math.max(0, scoreInitial - ec * 2 - S.penalite);
   const kh = hauteurFenetre() >= 760 ? 50 : 40;
-  const taille = Math.floor(Math.max(26, Math.min(58, (hauteurFenetre() - 300 - 3 * (kh + 8)) / essais - 8, (Math.min(window.innerWidth, 640) - 40) / mot.length - 8)));
+  const taille = () => Math.floor(Math.max(24, Math.min(80, Math.min(58, (hauteurFenetre() - 300 - 3 * (kh + 8)) / essais - 8, (Math.min(window.innerWidth, 640) - 40) / mot.length - 8) * lireZoom())));
   let aide = null;
   const sT = stat("Temps", "00:00"), sS = stat("Score", "0", "var(--mal)"), sE = stat("Essai", "1");
   sE.set("1", null, ` / ${essais}`);
   const sTot = mode === "marathon" ? stat("Total", nombre(marathon.score), "var(--bien)") : null;
-  const g = grille(essais, mot.length, taille);
+  const g = grille(essais, mot.length, taille());
   const msg = h("div.msg", { style: { color: "var(--danger)", margin: "8px 0 4px", textAlign: "center" } });
   const kb = clavier(ajouter, effacer, valider, kh);
   const abandon = h("button.lien", { onclick: () => !S.fini && fin(false) }, "Abandonner");
   const titre = TITRES[mode] + (mode === "marathon" ? ` · mot ${marathon.mots + 1}` : "") + ` · ${mot.length} lettres` + (difficile ? " · difficile" : "");
-  ecran(entete(titre, quitter, icone("aide", () => aide.montrer(), false, "Aide")),
+  // taille de la grille (− 100 % +) et aide
+  const zm = h("span.t2", { style: { fontSize: "13px", minWidth: "44px", textAlign: "center" } }, `${Math.round(lireZoom() * 100)} %`);
+  const zoom = d => { const z = Math.round(Math.max(0.6, Math.min(1.6, lireZoom() + d)) * 100) / 100; majConfig({ user_zoom: z }); zm.textContent = `${Math.round(z * 100)} %`; g.cases.flat().forEach(t => t.taille(taille())); };
+  ecran(entete(titre, quitter, h("div.ligne", {}, icone("moins", () => zoom(-0.1), false, "Réduire"), zm, icone("plus", () => zoom(0.1), false, "Agrandir"), icone("aide", () => aide.montrer(), false, "Aide"))),
     h("div.centre", { style: { gap: "0" } }, h("div.stats", { style: { marginTop: "10px" } }, sT, sS, sE, sTot), h("div", { style: { marginTop: "18px" } }, g), msg, kb, h("div", { style: { margin: "14px 0 20px" } }, abandon)));
   enJeu = true;
   aide = fenetreAide();  // après ecran() : sinon le nettoyage de l'écran la supprimerait
@@ -657,19 +695,23 @@ function majStatuts(statut, lettres, res) {
 
 /* ------------------------------------------------------------------ paramètres */
 function parametres() {
+  // centrée, avec les mêmes tuiles « − valeur + » que le salon multijoueur
   const c = configSolo(), cf = lireConfig();
-  const cE = curseur(4, 8, c.nb_essais, 1, null), cL = plage(6, 10, [c.nb_lettres_min, c.nb_lettres_max]);
+  const cE = tuileReglage("Essais", 4, 8, c.nb_essais, null), cL = tuileReglage("Longueur des mots", 6, 10, [c.nb_lettres_min, c.nb_lettres_max], null, { plage: true });
+  const cZ = tuileReglage("Taille de la grille", 60, 160, Math.round(lireZoom() * 100), null, { pas: 10, fmt: v => `${v} %` });
   const cDiff = caseACocher("Mode difficile (lettres trouvées obligatoires)", !!c.difficile), cDalt = caseACocher("Mode daltonien (orange et bleu)", !!cf.daltonien);
-  const lab = t => h("div.gras", { style: { fontSize: "17px", margin: "0 0 10px" } }, t);
-  ecran(entete("", menuSolo), h("div", { style: { padding: "0 6vw" } },
-    h("div.titre", { style: { fontSize: "46px", margin: "0 0 6px" } }, "Paramètres"),
-    h("div.t2", { style: { fontSize: "16px", marginBottom: "24px" } }, "Réglages des parties normales et du marathon (le mot du jour se joue toujours en 7 essais)."),
-    h("div.panneau", { style: { padding: "30px", maxWidth: "620px" } }, lab("Nombre d'essais"), cE, h("div", { style: { height: "22px" } }), lab("Longueur des mots"), cL,
-      h("div", { style: { height: "22px" } }), cDiff, h("div", { style: { height: "10px" } }), cDalt,
-      h("div", { style: { height: "26px" } }), bouton("Enregistrer", () => {
-        majConfig({ nb_essais: cE.valeur, nb_lettres_min: cL.vmin, nb_lettres_max: cL.vmax, difficile: cDiff.valeur, daltonien: cDalt.valeur });
-        appliquerTheme(themeActuel); menuSolo(); }, { grand: true, largeur: 560 }))));
+  ecran(entete("", menuSolo), h("div.centre.page-parametres", {},
+    h("div.titre", { style: { fontSize: "46px", textAlign: "center" } }, "Paramètres"),
+    h("div.t2", { style: { fontSize: "16px", margin: "4px 0 20px", textAlign: "center" } }, "Parties normales et marathon · le mot du jour se joue toujours en 7 essais."),
+    h("div.panneau", { style: { padding: "26px", width: "min(652px, 100%)" } },
+      h("div.caps.section", {}, "Partie"), h("div.grille-reglages.deux", {}, cE, cZ, cL),
+      h("div.caps.section", { style: { marginTop: "20px" } }, "Options"), cDiff, h("div", { style: { height: "10px" } }), cDalt,
+      h("div", { style: { height: "22px" } }), bouton("Enregistrer", () => {
+        majConfig({ nb_essais: cE.valeur, nb_lettres_min: cL.vmin, nb_lettres_max: cL.vmax, difficile: cDiff.valeur, daltonien: cDalt.valeur, user_zoom: cZ.valeur / 100 });
+        appliquerTheme(themeActuel); menuSolo(); }, { grand: true, largeur: 600 }))));
 }
+// taille de la grille choisie par le joueur (commune au solo et au multijoueur)
+function lireZoom() { const z = +lireConfig().user_zoom; return z ? Math.max(0.6, Math.min(1.6, z)) : 1; }
 
 /* ------------------------------------------------------------------ thèmes */
 function miniTheme(nom, t, choisi, actuel, onclick, onSuppr) {
@@ -1045,26 +1087,26 @@ function salon() {
     icone("copier", () => { navigator.clipboard?.writeText(M.lobby); lblCode.textContent = "Code copié ✓"; setTimeout(() => lblCode.textContent = "Code du salon", 1500); }, true, "Copier le code"));
   const slots = [0, 1, 2, 3].map(() => h("div.joueur"));
   const cartes = {};
-  const gm = h("div.grille-modes", {}, MODES.map(([m, n]) => { const c = cartes[m] = choix(n, "", () => setMode(m)); c.classList.add("mode"); c.style.setProperty("--mc", COULEURS_MODES[m]); return c; }));
-  // bandeau du mode choisi : nom, règle, résumé des réglages (lisible aussi par les joueurs qui ne sont pas l'hôte)
-  const bNom = h("div.n"), bRegle = h("div.r"), bResume = h("div.resume");
+  const gm = h("div.grille-modes", {}, MODES.map(([m, n, d]) => { const c = cartes[m] = choix(n, d, () => setMode(m)); c.classList.add("mode"); c.style.setProperty("--mc", COULEURS_MODES[m]); return c; }));
+  // bandeau du mode choisi par l'hôte (vu par les autres joueurs)
+  const bNom = h("div.n"), bRegle = h("div.r");
   const bandeau = h("div.bandeau-mode", {}, h("div.caps", {}, "Mode de jeu"), bNom, bRegle);
-  // réglages choisis par l'hôte, en lecture seule (les mêmes lignes que l'hôte, sans les curseurs)
-  const vInv = {}, lInv = {}, ligneInv = (cle, t) => { vInv[cle] = h("div.gras", { style: { fontSize: "17px" } }); lInv[cle] = h("div.t2.gras", {}, t); return h("div.reglage", {}, lInv[cle], vInv[cle]); };
-  const zoneInvite = h("div.reglages", { style: { marginTop: "14px" } }, ligneInv("rounds", "Manches"), ligneInv("timer", "Temps par manche"), ligneInv("essais", "Essais"), ligneInv("lettres", "Lettres"), ligneInv("choix", "Choix du mot"));
   const R0 = M.reglages;  // réglages en cours (conservés après « Rejouer dans ce salon »)
-  const cRounds = curseur(1, 10, R0.rounds ?? 3, 1, sync), sEssais = curseur(4, 10, R0.essais ?? 8, 1, sync), sTemps = curseur(15, 600, R0.timer ?? 180, 15, sync, mmss);
-  const cLettres = plage(6, 10, [R0.min ?? 6, R0.max ?? 7], sync);
+  // réglages en tuiles « − valeur + » : l'hôte les modifie, les autres joueurs voient les mêmes tuiles sans boutons
+  const cRounds = tuileReglage("Manches", 1, 10, R0.rounds ?? 3, sync), sEssais = tuileReglage("Essais", 4, 10, R0.essais ?? 8, sync);
+  const sTemps = tuileReglage("Temps par manche", 15, 600, R0.timer ?? 180, sync, { fmt: mmss, valeurs: TEMPS_POSSIBLES });
+  const cLettres = tuileReglage("Lettres par mot", 6, 10, [R0.min ?? 6, R0.max ?? 7], sync, { plage: true });
+  [["rounds", cRounds], ["timer", sTemps], ["essais", sEssais], ["lettres", cLettres]].forEach(([k, w]) => w.dataset.cle = k);
   const lancer = bouton("Lancer la partie", lancerPartie, { grand: true, largeur: 9999 }); lancer.style.width = "100%"; lancer.disabled = true;
-  const reglage = (t, w) => h("div.reglage", {}, h("div.t2.gras", {}, t), w);
-  const regle = h("div.regle"), rTemps = h("div.t2.gras"), rManches = reglage("Manches", cRounds);
-  const zoneHote = h("div", {}, gm, regle, h("div.reglages", {}, rManches, h("div.reglage", {}, rTemps, sTemps), reglage("Essais", sEssais), reglage("Lettres", cLettres)));
+  const regle = h("div.regle"), noteChoix = h("div.t2.note-choix", {}, "Choix du mot : sans limite de temps (l'hôte peut forcer le départ).");
+  const zoneHote = h("div", {}, h("div.caps.section", {}, "Mode de jeu"), gm, regle);
+  const zoneReglages = h("div", {}, h("div.caps.section", {}, "Réglages de la partie"), h("div.grille-reglages", {}, cRounds, sTemps, sEssais, cLettres), noteChoix);
   const noteInvite = h("div.t2", { style: { fontSize: "14px", marginTop: "14px" } }, "L'hôte choisit le mode et les réglages.");
-  const panneauPartie = h("div.panneau.salon-partie", { style: { flex: 1, minWidth: "min(300px, 100%)", padding: "22px" } }, bandeau, zoneInvite, zoneHote, noteInvite, h("div", { style: { marginTop: "20px" } }, lancer));
+  const panneauPartie = h("div.panneau.salon-partie", { style: { flex: 1, minWidth: "min(300px, 100%)", padding: "22px" } }, bandeau, zoneHote, zoneReglages, noteInvite, h("div", { style: { marginTop: "18px" } }, lancer));
   ecran(barre, h("div", { style: { padding: "18px 4vw 30px" } },
     h("div.ligne.salon-tete", {}, h("div", { style: { minWidth: "0" } }, titre, statut), h("div", { style: { marginLeft: "auto" } }, boite)),
     h("div.ligne", { style: { marginTop: "20px", gap: "20px", alignItems: "flex-start", flexWrap: "wrap" } },
-      h("div.panneau", { style: { width: "320px", maxWidth: "100%" } }, h("div.gras", { style: { fontSize: "18px", marginBottom: "4px" } }, "Joueurs"), slots),
+      h("div.panneau.salon-joueurs", { style: { width: "320px", maxWidth: "100%" } }, h("div.gras", { style: { fontSize: "18px", marginBottom: "4px" } }, "Joueurs"), slots),
       panneauPartie)));
   majModes();
   function majModes() {
@@ -1072,16 +1114,12 @@ function salon() {
     const coul = COULEURS_MODES[modeActif] || COULEURS_MODES.CLASSIQUE;
     panneauPartie.style.setProperty("--mc", coul);
     bNom.textContent = NOM_MODE[modeActif] || modeActif; bRegle.textContent = regle.textContent = REGLES_MODES[modeActif] || "";
-    const v = valeurs(), rush = RUSHS.includes(modeActif);
-    rManches.classList.toggle("cache", rush); rTemps.textContent = rush ? "Temps de jeu" : modeActif === "PIEGE" ? "Temps pour deviner" : "Temps par manche";
-    const lt = v.min === v.max ? `${v.min} lettres` : v.max === v.min + 1 ? `${v.min} ou ${v.max} lettres` : `de ${v.min} à ${v.max} lettres`;
-    vInv.rounds.textContent = `${v.rounds}${modeActif === "ELIMINATION" ? " max" : ""}`; vInv.timer.textContent = mmss(v.timer); vInv.essais.textContent = String(v.essais); vInv.lettres.textContent = lt; vInv.choix.textContent = "sans limite de temps";
-    lInv.timer.textContent = rush ? "Temps de jeu" : modeActif === "PIEGE" ? "Temps pour deviner" : "Temps par manche";
-    vInv.rounds.parentNode.classList.toggle("cache", rush); vInv.choix.parentNode.classList.toggle("cache", modeActif !== "PIEGE");
-    bResume.innerHTML = "";
-    bResume.append(...[rush ? `${mmss(v.timer)} de jeu` : `${v.rounds} manche${v.rounds > 1 ? "s" : ""}${modeActif === "ELIMINATION" ? " max" : ""}`, modeActif === "PIEGE" ? "choix du mot sans limite" : null, rush ? null : `${mmss(v.timer)} ${modeActif === "PIEGE" ? "pour deviner" : "par manche"}`,
-      rush ? null : `${v.essais} essais`, v.min === v.max ? `${v.min} lettres` : `${v.min} à ${v.max} lettres`].filter(Boolean).map(x => h("span", {}, x)));
-    if (M.estHote) lancer.textContent = M.nbJoueurs > 1 ? `Lancer · ${NOM_MODE[modeActif]}` : "Il faut au moins 2 joueurs";
+    const rush = RUSHS.includes(modeActif);
+    cRounds.classList.toggle("cache", rush); panneauPartie.classList.toggle("rush", rush);
+    sTemps.libelle(rush ? "Temps de jeu" : modeActif === "PIEGE" ? "Temps pour deviner" : "Temps par manche");
+    cRounds.libelle(modeActif === "ELIMINATION" ? "Manches max" : "Manches");
+    noteChoix.classList.toggle("cache", modeActif !== "PIEGE");
+    if (M.estHote) lancer.textContent = M.nbJoueurs > 1 ? `Lancer · ${NOM_MODE[modeActif]}` : "En attente d'un 2e joueur…";
   }
   function valeurs() { return { rounds: cRounds.valeur, essais: sEssais.valeur, min: cLettres.vmin, max: cLettres.vmax, timer: sTemps.valeur }; }
   function sync() {
@@ -1129,8 +1167,8 @@ function salon() {
         const n = pids.length;
         statut.textContent = `En attente des joueurs · ${n} sur 4` + (M.reglages.visible ? "" : "  ·  salon privé");
         [cRounds, sEssais, cLettres, sTemps].forEach(w => w.activer(M.estHote)); Object.values(cartes).forEach(c => c.disabled = !M.estHote);
-        zoneHote.classList.toggle("cache", !M.estHote); noteInvite.classList.toggle("cache", M.estHote); bandeau.classList.toggle("cache", M.estHote); zoneInvite.classList.toggle("cache", M.estHote);
-        if (M.estHote) { lancer.className = "btn grand lancer"; lancer.disabled = n < 2; majModes(); }
+        zoneHote.classList.toggle("cache", !M.estHote); noteInvite.classList.toggle("cache", M.estHote); bandeau.classList.toggle("cache", M.estHote);
+        if (M.estHote) { lancer.className = n < 2 ? "btn grand discret" : "btn grand lancer"; lancer.disabled = n < 2; majModes(); }
         else { lancer.className = "btn grand discret"; lancer.textContent = "En attente du lancement par l'hôte…"; lancer.disabled = true; }
       }
       await new Promise(r => setTimeout(r, 800));

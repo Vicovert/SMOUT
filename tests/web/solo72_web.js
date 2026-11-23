@@ -21,7 +21,7 @@ const res = []; const ok = (nom, c, info = "") => { res.push(!!c); console.log((
   ok("Solo → page intermédiaire Jouer / Marathon / Paramètres", await p.evaluate(() => [...document.querySelectorAll(".carte-menu .t")].map(x => x.textContent).join("|") === "Jouer|Marathon|Paramètres"));
   await p.screenshot({ path: "/tmp/w_menu_solo.png" });
   await p.evaluate(() => [...document.querySelectorAll(".carte-menu")].find(x => x.textContent.includes("Paramètres")).click()); await sleep(200);
-  ok("Paramètres accessible depuis le solo", (await texte(p)).includes("Nombre d'essais"));
+  ok("Paramètres accessible depuis le solo", /taille de la grille/i.test(await texte(p)) && /longueur des mots/i.test(await texte(p)));
   await p.evaluate(() => accueil());
   // marathon : mots forcés via Math.random = 0 → premier mot de la liste filtrée
   const premier = await p.evaluate(() => { const c = configSolo(); return MOTS.liste.filter(m => m.length >= c.nb_lettres_min && m.length <= c.nb_lettres_max)[0]; });

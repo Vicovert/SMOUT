@@ -2,6 +2,13 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
+## 8.14
+- Salon multijoueur repensé : sections « Mode de jeu » et « Réglages de la partie » ; cartes de mode avec leur description (masquée sur téléphone) ; les curseurs sont remplacés par des tuiles « − valeur + » (manches, temps, essais sur une ligne, lettres min/max dessous). Le temps avance par paliers (15 s … 1 min … 10 min). Les invités voient les mêmes tuiles, sans boutons, sous le bandeau du mode. Bouton « En attente d'un 2e joueur… » neutre tant qu'on est seul.
+- Paramètres solo : page centrée, mêmes tuiles que le salon ; nouveau réglage « Taille de la grille » (60 à 160 %).
+- Solo : boutons − / + de taille de grille dans la barre du haut (comme en multijoueur ; réglage commun au solo et au multi).
+- Web, téléphone : panneau « Joueurs » du salon en pleine largeur.
+- `VERSION_JEU` inchangée (8.10, protocole identique) : pas de règles Firebase à republier, compatible avec les joueurs en 8.10.
+
 ## 8.13
 - Menu Solo plus attrayant (design « C » validé par Victor), PC et web : titre « SOLO » en tuiles colorées, grand bouton « Jouer » en dégradé, puis Marathon (violet, record en sous-titre) et Paramètres (réglages en cours), chacun avec son icône (▶, ∞, engrenage). `CarteMenu` gagne `icone`, `degrade`, `rond`, `grand`.
 

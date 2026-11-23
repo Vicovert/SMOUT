@@ -13,6 +13,7 @@ _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travai
 - [ ] Coller les instructions de projet (`claude/instructions-projet.md`) dans les réglages du projet.
 
 ## En cours
+- 8.14 (branche `travail-8.14`) : salon multijoueur et paramètres solo en tuiles « − valeur + », page Paramètres centrée, taille de grille en solo. **En attente de la validation graphique de Victor** avant fusion.
 - Configuration de l'espace de travail : terminée (PR #1), Claude fusionne désormais lui-même les PR.
 
 ## Prochaines pistes (non commencées)
