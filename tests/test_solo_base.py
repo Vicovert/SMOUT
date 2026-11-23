@@ -39,6 +39,14 @@ print("Thème perso créé et appliqué :", app.current_theme_name == "MON TEST"
 print("Sauvegardé dans la config :", "MON TEST" in D.lire_config().get("custom_themes", {}))
 # thème perso portant le nom d'un thème intégré (bug 7.0)
 import tkinter.messagebox as mb; avert = []; mb.showwarning = lambda *a, **k: avert.append(a)
+
+# diagnostic CI : quand un rappel Tkinter échoue, on affiche la fonction et les arguments (la trace seule n'indique pas qui l'a appelée)
+import tkinter as _tkdiag
+_appel0 = _tkdiag.CallWrapper.__call__
+def _appel(self, *a):
+    try: return _appel0(self, *a)
+    except Exception as ex: print("RAPPEL TK EN ECHEC :", getattr(self.func, "__qualname__", self.func), "args=", a, "|", ex, flush=True); raise
+_tkdiag.CallWrapper.__call__ = _appel
 app.show_custom_creator(); pump()
 pc = [w for w in app.container.winfo_children() if hasattr(w, "save")]
 if pc:
