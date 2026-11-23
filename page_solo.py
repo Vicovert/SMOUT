@@ -2,7 +2,7 @@ import tkinter as tk
 import json, random, os, sys, time, datetime
 import design
 from design import (P, police, etiquette, espacer, Tuile, Bouton, Panneau, Icone, Clavier, Stat, Chips, Superposition, entete, fenetre_aide,
-                    Champ, Interrupteur, CarteMenu, Curseur)
+                    Champ, Interrupteur, CarteMenu, Curseur, melanger)
 
 
 def get_data_path(filename):
@@ -306,32 +306,28 @@ COULEUR_MARATHON = "#A78BFA"  # couleur propre au Marathon (même que COULEUR_MA
 
 def resume_reglages(c):
     mn, mx = c["nb_lettres_min"], c["nb_lettres_max"]
-    longueur = f"mots de {mn} lettres" if mn == mx else f"mots de {mn} à {mx} lettres"
+    longueur = f"{mn} lettres" if mn == mx else f"{mn} à {mx} lettres"
     return f"{c['nb_essais']} essais · {longueur}" + (" · difficile" if c.get("difficile") else "")
 
 
 class PageMenuSolo(tk.Frame):
-    """Page intermédiaire du solo : titre en tuiles, bilan, partie normale, marathon, paramètres (réglages en cours)."""
+    """Page intermédiaire du solo : titre en tuiles, grand bouton « Jouer », puis Marathon et Paramètres (chacun avec son icône)."""
     def __init__(self, parent, controller):
         super().__init__(parent, bg=P["fond"]); self.controller = controller
         entete(self, "", controller.creer_menu_accueil)
-        st = design.lire_stats(); s = st["solo"]; rec = st["marathon"]["record"]
-        taux = round(100 * s["victoires"] / s["parties"]) if s["parties"] else 0
+        rec = design.lire_stats()["marathon"]["record"]
         centre = tk.Frame(self, bg=P["fond"]); centre.place(relx=0.5, rely=0.46, anchor="center")
         titre = tk.Frame(centre, bg=P["fond"]); titre.pack(pady=(0, 4))
         for ch, e in zip("SOLO", ("bien", "mal", "bien", "mal")):
-            t = Tuile(titre, 64); t.config(text=ch, bg=P[e]); t.pack(side="left", padx=5)
-        etiquette(centre, "À votre rythme", "texte", 18, P["texte2"]).pack(pady=(6, 10))
-        bilan = Panneau(centre, padding=14, largeur=796); bilan.pack(pady=(0, 8))
-        l = tk.Frame(bilan.interieur, bg=bilan.interieur["bg"]); l.pack()
-        for k, (lib, v, coul) in enumerate((("Parties", s["parties"], None), ("Réussite", f"{taux}%", None), ("Série", s["serie"], None), ("Record marathon", rec, COULEUR_MARATHON))):
-            Stat(l, lib, str(v), coul, taille=30).grid(row=0, column=k, padx=17)
-        ligne = tk.Frame(centre, bg=P["fond"]); ligne.pack()
-        CarteMenu(ligne, "Partie normale", "Un mot, à votre rythme", lambda: controller.ouvrir_solo(False), largeur=390, hauteur=150,
-                  couleur=P["bien"], texte=P["sur_bien"], deco=("absent", "mal", "bien", "bien", "bien")).pack(side="left", padx=(0, 16))
-        CarteMenu(ligne, "Marathon", "Enchaînez les mots jusqu'à l'erreur", controller.ouvrir_marathon, largeur=390, hauteur=150,
-                  badge=f"Record {rec}" if rec else None, couleur=COULEUR_MARATHON, texte="#14182A", deco=("bien", "bien", "bien", "bien", "mal")).pack(side="left")
-        CarteMenu(centre, "Paramètres", resume_reglages(charger_config_solo()), controller.ouvrir_parametres, largeur=796, hauteur=84).pack(pady=(14, 0))
+            t = Tuile(titre, 60); t.config(text=ch, bg=P[e]); t.pack(side="left", padx=4)
+        etiquette(centre, "À votre rythme", "texte", 18, P["texte2"]).pack(pady=(6, 14))
+        CarteMenu(centre, "Jouer", "Partie normale · un mot, à votre rythme", lambda: controller.ouvrir_solo(False), largeur=796, hauteur=170,
+                  couleur=P["bien"], texte=P["sur_bien"], degrade=melanger(P["bien"], P["mal"], 0.45), icone="jouer", rond=True, grand=True).pack()
+        ligne = tk.Frame(centre, bg=P["fond"]); ligne.pack(pady=(14, 0))
+        CarteMenu(ligne, "Marathon", f"Record {rec}" if rec else "Jusqu'à l'erreur", controller.ouvrir_marathon, largeur=390, hauteur=96,
+                  couleur=COULEUR_MARATHON, texte="#14182A", icone="infini").pack(side="left", padx=(0, 16))
+        CarteMenu(ligne, "Paramètres", resume_reglages(charger_config_solo()), controller.ouvrir_parametres, largeur=390, hauteur=96,
+                  icone="engrenage", fond_icone=melanger(P["panneau"], P["texte"], 0.08)).pack(side="left")
 
 
 class PageStats(tk.Frame):

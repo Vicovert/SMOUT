@@ -75,20 +75,19 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 .carte-menu.solo .chevron, .carte-menu.multi .chevron, .carte-menu.mdj .chevron { color: inherit; opacity: .7; }
 .carte-menu.solo .s, .carte-menu.multi .s, .carte-menu.mdj .s, .carte-menu.mdj .d { color: inherit; opacity: .8; }
 /* Menu Solo */
-.titre-solo { gap: 10px; margin-bottom: 4px; }
-.bilan-solo { display: flex; gap: 34px; justify-content: center; background: var(--panneau); border-radius: 16px; padding: 14px 30px; width: min(796px, 92vw); margin-bottom: 6px; }
-.menu-ligne.grandes .carte-menu { height: 150px; }
+.titre-solo { gap: 8px; margin-bottom: 4px; }
+.carte-menu .ico { width: 56px; height: 56px; border-radius: 16px; background: rgba(255,255,255,.18); display: flex; align-items: center; justify-content: center; flex: none; margin-right: 20px; }
+.carte-menu .ico svg { width: 30px; height: 30px; }
+.carte-menu.hero { height: 170px; padding: 0 34px; background: linear-gradient(135deg, var(--bien), color-mix(in srgb, var(--bien) 55%, var(--mal))); color: var(--sur-bien); }
+.carte-menu.hero .ico { width: 88px; height: 88px; border-radius: 50%; margin-right: 26px; }
+.carte-menu.hero .ico svg { width: 48px; height: 48px; }
+.carte-menu.hero .t { font-size: 38px; }
+.carte-menu.hero .s, .carte-menu.marathon .s { color: inherit; opacity: .8; font-size: 17px; }
+.carte-menu.hero:hover, .carte-menu.marathon:hover { filter: brightness(1.08); }
 .carte-menu.marathon { background: var(--mc); color: #14182A; }
-.carte-menu.marathon:hover { filter: brightness(1.08); }
-.carte-menu.marathon .s, .carte-menu.marathon .d, .carte-menu.marathon .chevron { color: inherit; opacity: .8; }
-.carte-menu .deco { display: flex; gap: 4px; margin-bottom: 12px; }
-.carte-menu .deco .tuile { box-shadow: inset 0 0 0 1.5px rgba(0,0,0,.12); }
-.carte-menu.solo .deco .tuile.bien { background: var(--sur-bien); opacity: .9; }
-.menu-ligne.ligne-params { margin-top: 4px; }
-.menu-ligne.ligne-params .carte-menu { height: 84px; }
-.menu-ligne.grandes, .menu-ligne.ligne-params, .bilan-solo { flex: none; }
-.menu-ligne.grandes .carte-menu { position: relative; }
-.menu-ligne.grandes .carte-menu .d { position: absolute; top: 16px; right: 18px; white-space: nowrap; font-size: 14px; background: rgba(20,24,42,.14); padding: 4px 10px; border-radius: 999px; }
+.carte-menu.params .ico { background: rgba(255,255,255,.08); }
+.menu-ligne.petites { margin-top: 2px; }
+.menu-ligne.petites .carte-menu { height: 96px; padding: 0 22px; }
 .carte-menu .t { font-family: var(--f-titre); font-size: 26px; font-weight: 700; }
 .carte-menu .s { color: var(--texte2); font-size: 16px; margin-top: 4px; }
 .carte-menu .d { margin-left: auto; color: var(--mal); font-weight: 600; }
@@ -196,12 +195,14 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   .menu-ligne .carte-menu { padding: 0 14px; height: 118px; }
   .menu-ligne .carte-menu .s { font-size: 13px; }
   .menu-ligne .carte-menu .chevron { display: none; }
-  .bilan-solo { gap: 10px; padding: 12px 10px; justify-content: space-around; }
-  .bilan-solo .caps { font-size: 10px; letter-spacing: .06em; }
-  .menu-ligne.grandes .carte-menu { height: 140px; }
-  .menu-ligne.grandes .carte-menu .d { top: 8px; right: 8px; font-size: 12px; padding: 3px 8px; }
-  .menu-ligne.grandes .carte-menu .deco { margin-top: 16px; }
-  .carte-menu .deco .tuile { --t: 16px !important; }
+  .carte-menu.hero { height: 130px; padding: 0 20px; }
+  .carte-menu.hero .ico { width: 64px; height: 64px; margin-right: 16px; }
+  .carte-menu.hero .ico svg { width: 34px; height: 34px; }
+  .carte-menu.hero .t { font-size: 30px; }
+  .menu-ligne.petites { flex-direction: column; }
+  .menu-ligne.petites .carte-menu { flex: none; width: 100%; height: 84px; padding: 0 16px; }
+  .menu-ligne.petites .carte-menu .ico { width: 48px; height: 48px; margin-right: 14px; }
+  .menu-ligne.petites .carte-menu .s { font-size: 14px; }
   .clavier { width: calc(100vw - 8px); max-width: 100%; gap: 6px; }
   .clavier .rangs { gap: 8px; }
   .clavier .rang { gap: 4px; }

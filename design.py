@@ -295,12 +295,36 @@ class Panneau(tk.Canvas):
         self.tag_lower("fond")
 
 
+def glyphe(c, nom, cx, cy, r, couleur):
+    """Pictogrammes des cartes du menu Solo : jouer (triangle), infini (∞), engrenage (roue dentée)."""
+    import math
+    if nom == "jouer":
+        c.create_polygon(cx - r*0.35, cy - r*0.5, cx + r*0.6, cy, cx - r*0.35, cy + r*0.5, outline=couleur, fill="", width=max(2, r/9), joinstyle="round")
+    elif nom == "infini":
+        pts = []
+        for i in range(61):
+            t = 2 * math.pi * i / 60
+            d = 1 + math.sin(t) ** 2
+            pts += [cx + r * 0.8 * math.cos(t) / d * 1.5, cy + r * 0.8 * math.sin(t) * math.cos(t) / d * 1.5]
+        c.create_line(*pts, fill=couleur, width=max(2, r/7), smooth=True, capstyle="round", joinstyle="round")
+    elif nom == "engrenage":
+        pts = []
+        for i in range(8):
+            a0 = i * math.pi / 4
+            for da, rr in ((-0.20, 0.72), (-0.13, 1.0), (0.13, 1.0), (0.20, 0.72)):
+                pts += [cx + math.cos(a0 + da) * r * rr * 0.92, cy + math.sin(a0 + da) * r * rr * 0.92]
+        c.create_polygon(*pts, outline=couleur, fill="", width=max(2, r/9), joinstyle="round")
+        c.create_oval(cx - r*0.3, cy - r*0.3, cx + r*0.3, cy + r*0.3, outline=couleur, width=max(2, r/9))
+
+
 class CarteMenu(tk.Canvas):
-    """Carte cliquable de l'accueil : titre, sous-titre, chevron ou badge. Avec `couleur`, la carte est pleine (texte `texte`)."""
-    def __init__(self, parent, titre, sous_titre, commande, largeur=540, hauteur=94, badge=None, couleur=None, texte=None, deco=None):
+    """Carte cliquable : titre, sous-titre, chevron ou badge. Avec `couleur`, la carte est pleine (texte `texte`).
+    Avec `icone` (jouer, infini, engrenage), un pictogramme est dessiné à gauche ; `degrade` = 2e couleur d'un dégradé horizontal ;
+    `rond` = pictogramme dans un disque ; `grand` = titre en 38 px."""
+    def __init__(self, parent, titre, sous_titre, commande, largeur=540, hauteur=94, badge=None, couleur=None, texte=None, icone=None, degrade=None, rond=False, grand=False, fond_icone=None):
         super().__init__(parent, width=largeur, height=hauteur, bg=fond_parent(parent), highlightthickness=0, cursor="hand2")
         self.titre, self.sous, self.commande, self.badge, self.l, self.h = titre, sous_titre, commande, badge, largeur, hauteur
-        self.couleur, self.texte, self.deco = couleur, texte, deco  # deco : états des petites tuiles dessinées en haut (bien, mal, absent)
+        self.couleur, self.texte, self.icone, self.degrade, self.rond, self.grand, self.fond_icone = couleur, texte, icone, degrade, rond, grand, fond_icone
         self.survol = False
         self.bind("<Enter>", lambda e=None: self._s(True)); self.bind("<Leave>", lambda e=None: self._s(False))
         self.bind("<ButtonRelease-1>", lambda e=None: self.commande())
@@ -314,26 +338,26 @@ class CarteMenu(tk.Canvas):
             t2, tb = melanger(t1, self.couleur, 0.15), t1
         else:
             fond, t1, t2, tb = (P["survol"] if self.survol else P["panneau"]), P["texte"], P["texte2"], P["mal"]
-        arrondi(self, 1, 1, self.l - 1, self.h - 1, 16, fill=fond, outline="")
-        if self.deco:  # grande carte : petites tuiles en haut, titre et sous-titre en bas, badge en pastille
-            for i, e in enumerate(self.deco):
-                x = 30 + i * 26
-                arrondi(self, x, 26, x + 22, 48, 4, fill=(P["sur_bien"] if e == "bien" and self.couleur == P["bien"] else P[e]), outline=melanger(fond, "#000000", 0.18))
-            self.create_text(30, self.h - 54, text=self.titre, anchor="w", fill=t1, font=police("titre", 26))
-            self.create_text(30, self.h - 26, text=self.sous, anchor="w", fill=t2, font=police("texte", 16))
-            if self.badge:
-                f = police("texte", 14, True); w = tkfont.Font(font=f).measure(self.badge) + 22
-                arrondi(self, self.l - 18 - w, 14, self.l - 18, 42, 14, fill=melanger(fond, "#14182A", 0.16), outline="")
-                self.create_text(self.l - 18 - w / 2, 28, text=self.badge, fill=t1, font=f)
-            else:
-                x, y = self.l - 38, self.h / 2
-                self.create_line(x - 4, y - 8, x + 4, y, x - 4, y + 8, fill=t2, width=2, capstyle="round", joinstyle="round")
-            return
-        self.create_text(30, self.h / 2 - 12, text=self.titre, anchor="w", fill=t1, font=police("titre", 26))
-        self.create_text(30, self.h / 2 + 17, text=self.sous, anchor="w", fill=t2, font=police("texte", 16))
+        if self.degrade:  # dégradé horizontal : deux extrémités arrondies, bandes de 2 px entre les deux
+            fin = eclaircir(self.degrade, 1.08) if self.survol else self.degrade
+            arrondi(self, 1, 1, 36, self.h - 1, 16, fill=fond, outline=""); arrondi(self, self.l - 36, 1, self.l - 1, self.h - 1, 16, fill=fin, outline="")
+            for x in range(18, self.l - 18, 2): self.create_rectangle(x, 1, x + 2, self.h, fill=melanger(fond, fin, x / self.l), outline="")
+        else:
+            arrondi(self, 1, 1, self.l - 1, self.h - 1, 16, fill=fond, outline="")
+        x0 = 30
+        if self.icone:
+            d = 88 if self.rond else (56 if self.h > 90 else 48); x0 = 34 + d + 22
+            cx, cy = 34 + d / 2, self.h / 2
+            ton = self.fond_icone or melanger(fond, t1, 0.18)
+            if self.rond: self.create_oval(cx - d/2, cy - d/2, cx + d/2, cy + d/2, fill=ton, outline="")
+            else: arrondi(self, cx - d/2, cy - d/2, cx + d/2, cy + d/2, 16, fill=ton, outline="")
+            glyphe(self, self.icone, cx, cy, d * 0.27, t1)
+        ty = 38 if self.grand else 26
+        self.create_text(x0, self.h / 2 - (14 if self.grand else 12), text=self.titre, anchor="w", fill=t1, font=police("titre", ty))
+        self.create_text(x0, self.h / 2 + (24 if self.grand else 17), text=self.sous, anchor="w", fill=t2, font=police("texte", 17 if self.grand else 16))
         if self.badge:
             self.create_text(self.l - 30, self.h / 2, text=self.badge, anchor="e", fill=tb, font=police("texte", 15, True))
-        else:
+        elif not self.icone:
             x, y = self.l - 38, self.h / 2
             self.create_line(x - 4, y - 8, x + 4, y, x - 4, y + 8, fill=t2, width=2, capstyle="round", joinstyle="round")
 

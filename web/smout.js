@@ -239,6 +239,7 @@ const SVG = {
   copier: '<rect x="9" y="9" width="12" height="12" rx="3"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/>',
   rafraichir: '<path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/>',
   plus: '<path d="M12 5v14M5 12h14"/>', moins: '<path d="M5 12h14"/>',
+  engrenage: '<circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>', jouer: '<path d="M8 5l11 7-11 7z"/>', infini: '<path d="M5 12c0-2.5 1.8-4 3.8-4 3.5 0 3.5 8 7.2 8 2 0 3-1.7 3-4s-1-4-3-4c-3.7 0-3.7 8-7.2 8-2 0-3.8-1.5-3.8-4z"/>',
   chevron: '<path d="M9 6l6 6-6 6"/>', check: '<path d="M5 12l5 5 9-10"/>',
   couronne: '<path d="M3 18h18l-2-10-5 5-2-7-2 7-5-5z"/>',
   stats: '<path d="M6 20v-7M12 20V6M18 20v-10"/>',
@@ -420,28 +421,25 @@ function accueil() {
     h("div.t2", { style: { textAlign: "center", padding: "0 0 22px", fontSize: "14px" } }, `SMOUT v${VERSION_APP} · version en ligne`));
   enAccueil = true;
 }
-/* page intermédiaire du solo : titre en tuiles, bilan, deux grandes cartes colorées, réglages en cours */
+/* page intermédiaire du solo : titre en tuiles, grand bouton « Jouer », puis Marathon et Paramètres (chacun avec son icône) */
 const COULEUR_MARATHON = "#A78BFA";  // couleur propre au Marathon (même que COULEUR_MARATHON de page_solo.py)
 function resumeReglages(c) {
-  const l = c.nb_lettres_min === c.nb_lettres_max ? `mots de ${c.nb_lettres_min} lettres` : `mots de ${c.nb_lettres_min} à ${c.nb_lettres_max} lettres`;
+  const l = c.nb_lettres_min === c.nb_lettres_max ? `${c.nb_lettres_min} lettres` : `${c.nb_lettres_min} à ${c.nb_lettres_max} lettres`;
   return `${c.nb_essais} essais · ${l}` + (c.difficile ? " · difficile" : "");
 }
 function menuSolo() {
-  const st = lireStats(), s = st.solo, rec = st.marathon.record, c = configSolo();
-  const taux = s.parties ? Math.round(100 * s.victoires / s.parties) : 0;
-  const deco = etats => h("div.deco", {}, etats.map(e => { const t = tuile(22, true); t.maj("", e); return t; }));
-  const carte = (t, sub, f, b, cls = "", d = null) => h("button.carte-menu" + cls, { onclick: f }, h("div", {}, d, h("div.t", {}, t), h("div.s", {}, sub)), b ? h("div.d", {}, b) : h("span.chevron", { html: svg("chevron", 22) }));
-  const titre = h("div.logo.titre-solo", {}, [..."SOLO"].map((ch, i) => { const t = tuile(Math.min(64, Math.floor((window.innerWidth - 80) / 4.6))); t.maj(ch, ["bien", "mal", "bien", "mal"][i]); t.style.boxShadow = "none"; return t; }));
-  const bilan = h("div.bilan-solo", {}, stat("Parties", String(s.parties), null, 30), stat("Réussite", `${taux}%`, null, 30), stat("Série", String(s.serie), null, 30), stat("Record marathon", String(rec), COULEUR_MARATHON, 30));
-  const marathon = carte("Marathon", "Enchaînez les mots jusqu'à l'erreur", () => solo("marathon"), rec ? `Record ${rec}` : null, ".marathon", deco(["bien", "bien", "bien", "bien", "mal"]));
+  const rec = lireStats().marathon.record, c = configSolo();
+  const carte = (cls, icone, t, sub, f) => h("button.carte-menu" + cls, { onclick: f }, h("span.ico", { html: svg(icone) }), h("div", {}, h("div.t", {}, t), h("div.s", {}, sub)));
+  const taille = Math.min(60, Math.floor((window.innerWidth - 80) / 4.8));
+  const titre = h("div.logo.titre-solo", {}, [..."SOLO"].map((ch, i) => { const t = tuile(taille); t.maj(ch, ["bien", "mal", "bien", "mal"][i]); t.style.boxShadow = "none"; return t; }));
+  const marathon = carte(".marathon", "infini", "Marathon", rec ? `Record ${rec}` : "Jusqu'à l'erreur", () => solo("marathon"));
   marathon.style.setProperty("--mc", COULEUR_MARATHON);
   ecran(entete("", accueil),
     h("div.centre", { style: { flex: 1, justifyContent: "center", gap: "12px", padding: "0 0 40px" } },
       titre,
-      h("div.t2", { style: { fontSize: "18px", margin: "6px 0 10px", textAlign: "center" } }, "À votre rythme"),
-      bilan,
-      h("div.menu-ligne.grandes", {}, carte("Partie normale", "Un mot, à votre rythme", () => solo("libre"), null, ".solo", deco(["absent", "mal", "bien", "bien", "bien"])), marathon),
-      h("div.menu-ligne.ligne-params", {}, carte("Paramètres", resumeReglages(c), parametres))));
+      h("div.t2", { style: { fontSize: "18px", margin: "6px 0 14px", textAlign: "center" } }, "À votre rythme"),
+      h("div.menu-ligne", {}, carte(".hero", "jouer", "Jouer", "Partie normale · un mot, à votre rythme", () => solo("libre"))),
+      h("div.menu-ligne.petites", {}, marathon, carte(".params", "engrenage", "Paramètres", resumeReglages(c), parametres))));
 }
 function changerPseudo(apres) {
   if (typeof apres !== "function") apres = accueil;  // appelée aussi comme gestionnaire de clic
