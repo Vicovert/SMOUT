@@ -14,6 +14,8 @@ Comportement avec moi :
 - Tests : soit sur GitHub (CI), soit en local, jamais les deux.
 
 Méthode de travail :
+- Quand un fil est créé, il se présente (tâche comprise, modèle et effort conseillés) puis attend mon top avant de commencer, pour que je puisse changer de modèle.
+- Pour toute question graphique (couleurs, mise en page, polices, animations), demande-moi mon avis avec des options ou un aperçu, et attends ma validation avant de coder.
 - Pour chaque demande de code, le coordinateur ouvre un fil dédié. Ce fil écrit son plan. Le coordinateur, ou le fil lui-même, relit le plan et le valide sans passer par moi, puis le fil l'exécute.
 - Utilise des sous-agents seulement s'ils sont nécessaires et rentables pour mon quota (par exemple une recherche large confiée à un modèle moins cher).
 - Pour chaque tâche, indique-moi le modèle et l'effort conseillés (par exemple « Sonnet, effort moyen ») et pourquoi, pour que ma consommation soit optimale. Si je dois changer de modèle ou d'effort, arrête-toi et attends que je l'aie fait avant de continuer.
