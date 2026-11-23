@@ -2,6 +2,13 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
+## 8.16
+- Mot piégé : on voit en permanence chez les autres joueurs (sauf soi) le mot qu'ils doivent trouver (« Mot à trouver : … » sous leur grille, dès que la devinette est lancée), ce qu'ils tapent en direct (ligne en cours, publiée au plus 5 fois par seconde) et les lettres de leurs essais. Avec « Cible cachée », la cible du mot qu'on a choisi n'est révélée qu'à partir de la devinette.
+- Thème de chaque joueur : sa grille garde SES couleurs (bien placé, mal placé, absent, fond) chez tous les autres, dans tous les modes multijoueur, PC et web (`players/<uid>/theme`, publié au début de chaque manche).
+- Mot du jour : la journée ne compte comme jouée que lorsque le mot a été vu (victoire, défaite ou abandon). En quittant avant, on reprend avec ses essais déjà faits, ses pénalités et son temps (`mdj_en_cours` dans la config), PC et web.
+- Règles Firebase : `players/<uid>/frappe` (≤ 12 caractères) et `players/<uid>/theme` (couleurs ≤ 9 caractères) validés ; **à republier** (non bloquant : sans elles, tout fonctionne mais sans validation). `VERSION_JEU` inchangée (8.10).
+- Tests : règles 77/77, mot du jour repris (PC et web), robots du Mot piégé : frappe publiée, mots et thèmes des autres affichés (PC et web, croisés).
+
 ## 8.15
 - 8 joueurs par salon au lieu de 4 (PC et web) : liste des salons « n/8 », 8 places dans le salon (plus compactes), 2 couleurs d'avatar de plus. **Règles Firebase à republier** (`index/nb` ≤ 8) ; `VERSION_JEU` inchangée (8.10). Aucun mode n'est limité à 4 ; Blast garde ses points pour les 4 premiers (4, 3, 2, 1).
 - Page de jeu : les grilles des adversaires s'adaptent au nombre de joueurs (calcul commun `disposition_adv` / `dispositionAdv`) : 1 à 3 adversaires = nom et score à droite de la grille ; au-delà, plusieurs colonnes et nom + score au-dessus de la grille si les cases sont plus grandes ainsi (jusqu'à 3 colonnes, 7 adversaires).

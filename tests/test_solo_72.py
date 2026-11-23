@@ -65,7 +65,18 @@ ok("menu solo : Jouer / Marathon / Paramètres", all(x in t for x in ("Jouer", "
 # --- mot du jour + stats
 D.maj_config(last_mdj="")
 app.ouvrir_solo(True); pump(); j = jeu(); taper(j, j.mot); pump(0.3)
-st = D.lire_stats(); ok("mot du jour → stats mdj", st["mdj"]["victoires"] == 1)
+st = D.lire_stats(); ok("mot du jour → stats mdj", st["mdj"]["victoires"] >= 1)
+# --- mot du jour quitté en cours : la journée ne compte pas, on reprend avec ses essais
+D.maj_config(last_mdj="", mdj_en_cours=None)
+app.ouvrir_solo(True); pump(); j = jeu(); essai = [m for m in sorted(j.controller.banque_verif) if len(m) == len(j.mot) and m[0] == j.mot[0] and m != j.mot][0]; taper(j, essai); pump(0.3)
+j.controller.retour_accueil(); pump(0.3)
+ok("mot du jour quitté en cours : pas compté comme joué", D.serie_mot_du_jour()[1] is False and D.lire_config().get("last_mdj") != __import__("datetime").date.today().isoformat())
+app.ouvrir_solo(True); pump(0.5); j = jeu()
+ok("mot du jour repris avec son essai déjà fait", j.ligne_actuelle == 1 and "".join(c.cget("text") for c in j.grille_labels[0]) == essai and len(j.historique_complet) == 1)
+taper(j, j.mot); pump(0.3)
+ok("mot du jour terminé : plus rien à reprendre", not D.lire_config().get("mdj_en_cours"))
+D.maj_config(last_mdj="")
+app.ouvrir_solo(True); pump(); j = jeu(); taper(j, j.mot); pump(0.3)
 app.ouvrir_stats(); pump(); capture("stats"); ok("écran statistiques", True)
 # --- daltonien
 app.ouvrir_parametres(); pump(); p = app.container.winfo_children()[0]

@@ -102,6 +102,18 @@ def jeu_piege(manche):
     if J.fini_local: return
     secret = db()["v7"]["pieges"][A.lobby_code][J.piege_id][A.player_id]["mot"]  # le robot « triche » via l'admin du faux serveur
     R["mots"].append(secret)
+    if manche == 1:  # frappe en direct, mots à trouver des autres et thèmes des autres (vérifiés dans la base et à l'écran)
+        j0 = J.tape; J.tape = list(secret[:3]); J.maj_affichage(); pump(1.3)
+        fr = db()["v7"]["lobbies"][A.lobby_code]["players"][A.player_id].get("frappe")
+        if fr != secret[:3]: log("ÉCHEC frappe en direct non publiée", fr, secret[:3]); fin(False)
+        log("frappe en direct publiée :", fr); J.tape = j0; J.maj_affichage()
+        d0 = db()["v7"]; pl = d0["lobbies"][A.lobby_code]["players"]
+        for pid, a in J.adv_widgets.items():
+            mot_adv = (d0["pieges"][A.lobby_code][J.piege_id].get(pid) or {}).get("mot")
+            if mot_adv and not attendre(lambda: mot_adv in a.lbl_mot.cget("text"), 20): log("ÉCHEC le mot à trouver de l'adversaire n'est pas affiché", mot_adv, a.lbl_mot.cget("text")); fin(False)
+            th = (pl.get(pid) or {}).get("theme") or {}
+            if not attendre(lambda: a.pal is not None and th.get("b") and a.pal["bien"].lower() == th["b"].lower(), 10): log("ÉCHEC thème de l'adversaire non appliqué à sa grille", th); fin(False)
+        log("mots à trouver et thèmes des autres affichés")
     if S.get("jeu", "gagne") == "gagne": coups = [secret]
     else: coups = sorted(m for m in A.banque_verif if len(m) == len(secret) and m[0] == secret[0] and m != secret and m.isascii())[:int(conf["essais"])]
     for w in coups:

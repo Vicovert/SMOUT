@@ -59,6 +59,14 @@
               },
               "score": {
                 ".validate": "newData.isNumber()"
+              },
+              "frappe": {
+                ".validate": "newData.isString() && newData.val().length <= 12"
+              },
+              "theme": {
+                "$k": {
+                  ".validate": "newData.isString() && newData.val().length <= 9"
+                }
               }
             }
           },
@@ -186,6 +194,14 @@
               },
               "score": {
                 ".validate": "newData.isNumber()"
+              },
+              "frappe": {
+                ".validate": "newData.isString() && newData.val().length <= 12"
+              },
+              "theme": {
+                "$k": {
+                  ".validate": "newData.isString() && newData.val().length <= 9"
+                }
               },
               "preuve": {
                 ".validate": "newData.isString() && newData.val().length <= 64"

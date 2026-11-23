@@ -145,8 +145,7 @@ class PageJeu(tk.Frame):
                 Bouton(c, "Retour à l'accueil", ctl.retour_accueil, largeur=240, hauteur=52).pack()
                 return
             self.mot = design.mot_graine(sorted(mots), "mdj:" + auj); self.nb_essais_partie = 7  # même mot sur PC et sur le web
-            # la partie compte dès qu'elle commence (on ne peut plus la rejouer en fermant la fenêtre)
-            conf["last_mdj"] = auj; ctl.sauver_parametres()
+            # la journée ne compte comme jouée que lorsque le mot a été vu (victoire, défaite ou abandon) : en quittant avant, on reprend avec ses essais
         else:
             mi, ma = conf["nb_lettres_min"], conf["nb_lettres_max"]; filtre = [m for m in mots if mi <= len(m) <= ma]
             self.mot = random.choice(filtre if filtre else mots); self.nb_essais_partie = conf["nb_essais"]
@@ -190,6 +189,26 @@ class PageJeu(tk.Frame):
         self.timer_gen = getattr(self, "timer_gen", 0) + 1
         self.debut_temps, self.timer_actif = time.time(), True; self.update_loop(self.timer_gen)
         self.winfo_toplevel().bind("<Key>", self.clavier_physique); self.maj_affichage()
+        if mode == "mdj": self.reprendre_mdj()
+
+    def reprendre_mdj(self):
+        """Mot du jour quitté avant d'avoir vu le mot : on retrouve ses essais, son score et son temps (jamais une grille vierge avec les indices en poche)."""
+        sauve = design.lire_config().get("mdj_en_cours") or {}
+        if sauve.get("date") != datetime.date.today().isoformat() or not sauve.get("lignes"): return
+        for tentative in sauve["lignes"][:self.nb_essais_partie - 1]:
+            if len(tentative) != len(self.mot): continue
+            self.mot_tape = list(tentative)
+            for i, ch in enumerate(tentative): self.grille_labels[self.ligne_actuelle][i].config(text=ch)
+            self.appliquer_essai(tentative)
+            self.ligne_actuelle += 1; self.mot_tape = [self.mot[0]]
+        self.penalite_dict = int(sauve.get("penalite") or 0)
+        self.debut_temps = time.time() - int(sauve.get("ecoule") or 0)
+        self.s_essai.set(str(self.ligne_actuelle + 1)); self.maj_affichage()
+
+    def sauver_mdj(self):
+        """Mot du jour en cours : essais validés, pénalités et temps écoulé (relus par reprendre_mdj)."""
+        lignes = ["".join(ch for ch, _ in l) for l in self.historique_complet]
+        design.maj_config(mdj_en_cours={"date": datetime.date.today().isoformat(), "lignes": lignes, "penalite": self.penalite_dict, "ecoule": int(time.time() - self.debut_temps)})
 
     def hauteur_fenetre(self):
         try: h = self.winfo_toplevel().winfo_height()
@@ -233,6 +252,16 @@ class PageJeu(tk.Frame):
         if self.controller.difficile:
             err = design.verifier_difficile(self.mot_tape, [("".join(ch for ch, _ in l), [e for _, e in l]) for l in self.historique_complet])
             if err: self.message(err, duree=2200); return
+        self.appliquer_essai(tentative)
+        if tentative == self.mot: self.fini_local = True; self.gestion_fin("VICTOIRE")
+        elif self.ligne_actuelle + 1 >= self.nb_essais_partie: self.fini_local = True; self.gestion_fin("PERDU")
+        else:
+            self.ligne_actuelle += 1; self.mot_tape = [self.mot[0]]
+            self.s_essai.set(str(self.ligne_actuelle + 1)); self.maj_affichage()
+            if self.controller.mode == "mdj": self.sauver_mdj()
+
+    def appliquer_essai(self, tentative):
+        """Évalue l'essai (mot_tape) : couleurs de la ligne, clavier, historique."""
         res = design.evaluer(self.mot_tape, self.mot)
         for i, char in enumerate(self.mot_tape):
             cur = self.statut_lettres.get(char)
@@ -242,11 +271,6 @@ class PageJeu(tk.Frame):
         self.maj_clavier(); self.historique_complet.append([(self.mot_tape[i], res[i]) for i in range(len(self.mot))])
         for i, etat in enumerate(res): self.grille_labels[self.ligne_actuelle][i].config(bg=P[etat])
         for case in self.grille_labels[self.ligne_actuelle]: case.set_curseur(False)
-        if tentative == self.mot: self.fini_local = True; self.gestion_fin("VICTOIRE")
-        elif self.ligne_actuelle + 1 >= self.nb_essais_partie: self.fini_local = True; self.gestion_fin("PERDU")
-        else:
-            self.ligne_actuelle += 1; self.mot_tape = [self.mot[0]]
-            self.s_essai.set(str(self.ligne_actuelle + 1)); self.maj_affichage()
 
     def gestion_fin(self, statut):
         ctl = self.controller; mode = ctl.mode
@@ -276,6 +300,7 @@ class PageJeu(tk.Frame):
         self.winfo_toplevel().unbind("<Key>")
         if mode == "mdj":
             ctl.config["last_mdj"] = datetime.date.today().isoformat(); ctl.sauver_parametres()
+            design.maj_config(mdj_en_cours=None)  # le mot est vu : plus rien à reprendre
             design.enregistrer_resultat_mdj(victoire)
         essais_txt = f"{essais_n} / {self.nb_essais_partie}" if victoire else f"– / {self.nb_essais_partie}"
         design.enregistrer_partie({"libre": "solo", "mdj": "mdj"}[mode], victoire, essais_n, score, self.mot)

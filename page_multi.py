@@ -202,6 +202,25 @@ def resource_path(relative_path):
 def get_txt_color(hex_color):
     return design.contraste(hex_color, "white", "#1a1a1a")
 
+# Thème de chaque joueur : ses couleurs sont publiées avec son pseudo (players/<uid>/theme) et dessinent SA grille chez les autres.
+CLES_THEME = {"f": "fond", "v": "vide", "t": "tuile", "b": "bien", "m": "mal", "a": "absent", "x": "texte", "y": "texte_absent", "s": "sur_bien", "u": "sur_mal"}
+
+def palette_publique():
+    """Couleurs de ce thème, sous la forme compacte envoyée aux autres joueurs."""
+    return {k: P[v] for k, v in CLES_THEME.items() if isinstance(P.get(v), str)}
+
+def palette_depuis(th):
+    """Palette complète d'un autre joueur à partir de ce qu'il a publié (les couleurs manquantes ou invalides gardent celles de cet appareil)."""
+    pal = dict(P)
+    if isinstance(th, dict):
+        for k, v in CLES_THEME.items():
+            c = th.get(k)
+            if isinstance(c, str) and len(c) == 7 and c[0] == "#": pal[v] = c
+    pal["ombre_bien"], pal["ombre_mal"] = pal["bien"], pal["mal"]
+    pal["sombre"] = design.luminance(pal["fond"]) < 0.5
+    return pal
+
+
 def en_codes(etats):
     """États ("bien"/"mal"/"absent") -> codes neutres envoyés aux autres joueurs (B = bien placé, M = mal placé, A = absent).
     On ne déduit jamais l'état d'une couleur : un thème perso peut avoir deux couleurs identiques."""
@@ -933,7 +952,7 @@ class Adversaire(tk.Frame):
     """Mini-grille d'un adversaire + nom, score et avancement (dense : nom et score au-dessus de la grille, pour les salons nombreux)."""
     def __init__(self, parent, nom, essais, longueur, taille=14, index=0, dense=False):
         super().__init__(parent, bg=P["fond"])
-        self.taille, self.index, self.dense = taille, index, dense
+        self.taille, self.index, self.dense, self.pal, self._th = taille, index, dense, None, None
         if dense:
             info = tk.Frame(self, bg=P["fond"]); info.pack(side="top", anchor="w", pady=(0, 3))
             self.zone = tk.Frame(self, bg=P["fond"]); self.zone.pack(side="top", anchor="w")
@@ -959,7 +978,16 @@ class Adversaire(tk.Frame):
             ligne = []
             for c in range(longueur):
                 t = Tuile(self.zone, self.taille, rayon=3, mini=True); t.config(bg=KEY_BG); t.grid(row=r, column=c, padx=1.5, pady=1.5); ligne.append(t)
+                if self.pal: tk.Canvas.configure(t, bg=self.pal["fond"]); t.set_palette(self.pal); t.config(bg=self.pal["tuile"])
             self.grille.append(ligne)
+
+    def set_theme(self, th):
+        """Dessine cette grille avec le thème du joueur (th = ce qu'il a publié)."""
+        if th == self._th: return
+        self._th = th; self.pal = palette_depuis(th)
+        self.zone.config(bg=self.pal["fond"], padx=4, pady=4)
+        for ligne in self.grille:
+            for t in ligne: tk.Canvas.configure(t, bg=self.pal["fond"]); t.set_palette(self.pal); t.config(bg=self.pal["tuile"])
 
 
 class PageJeu(tk.Frame):
@@ -967,6 +995,7 @@ class PageJeu(tk.Frame):
         super().__init__(parent, bg=P["fond"]); self.controller, self.active_sync = controller, False
         self.user_zoom = self.me_charger_zoom()
         self.sync_gen = 0
+        self._frappe_prog, self._frappe_env, self._frappe_voulue = None, None, ""  # frappe en direct (Mot piégé)
         # En-tête
         h = tk.Frame(self, bg=P["fond"]); h.pack(fill="x", padx=28, pady=(18, 0))
         Icone(h, "retour", self.quitter_jeu).pack(side="left")
@@ -1090,6 +1119,9 @@ class PageJeu(tk.Frame):
                 a = Adversaire(self.adv_container, p["name"].capitalize(), conf.get("essais", 6), len(self.mot), t_adv, idx + 1, dense)
                 a.grid(row=idx // cols, column=idx % cols, sticky="nw", padx=(0 if idx % cols == 0 else 18, 0), pady=(0, 14 if len(opponents) > 2 else 26))
                 self.adv_widgets[pid] = a; self.adv_grids[pid] = a.grille; self.adv_last_word_len[pid] = len(self.mot)
+                if isinstance(p.get("theme"), dict): a.set_theme(p["theme"])
+        self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}", {"theme": palette_publique(), "frappe": None})  # mon thème, pour les autres joueurs
+        self._frappe_env, self._frappe_voulue = None, ""
 
         if self.piege: self.piege_demarrer(dm)
         gen = self.sync_gen
@@ -1185,6 +1217,7 @@ class PageJeu(tk.Frame):
             pdat = p.get(pid, {})
             nom = pdat.get("name", a.lbl_nom.cget("text")).capitalize() + (" ♛" if pid == hid else "")
             if a.lbl_nom.cget("text") != nom: a.lbl_nom.config(text=nom)
+            if isinstance(pdat.get("theme"), dict): a.set_theme(pdat["theme"])  # sa grille garde SES couleurs
             a.lbl_score.config(text=nombre(pdat.get("score", 0) if isinstance(pdat.get("score", 0), (int, float)) else 0))
             # avancement
             lignes = md.get(pid) or {}
@@ -1226,22 +1259,31 @@ class PageJeu(tk.Frame):
                     if self.adv_last_word_len.get(pid) != exp_len:
                         self.recreer_grille_adv(pid, exp_len)
             grid = self.adv_grids[pid]
-            cible = [[("", KEY_BG) for _ in row] for row in grid]
+            pal = getattr(self.adv_widgets.get(pid), "pal", None)
+            vide = pal["tuile"] if pal else KEY_BG
+            code_coul = (lambda c: {"B": pal["bien"], "M": pal["mal"]}.get(c, pal["absent"])) if pal else couleur_code
+            cible = [[("", vide) for _ in row] for row in grid]
+            nb_lignes = 0
             if pid in md:
                 data_p = md[pid]
                 adv_idx = p.get(pid, {}).get("rush_index", p.get(pid, {}).get("score", 0))
-                show_letters = (adv_idx < self.rush_index) if mode in RUSHS else (self.fini_local or mode == "COOP")
+                show_letters = (adv_idx < self.rush_index) if mode in RUSHS else (self.fini_local or mode in ("COOP", "PIEGE"))  # Mot piégé : on voit les lettres de tout le monde
                 lignes = list(enumerate(data_p)) if isinstance(data_p, list) else list(data_p.items()) if isinstance(data_p, dict) else []
                 for l_idx, content in lignes:
                     try: idx = int(l_idx)
                     except (ValueError, TypeError): continue
                     if not content or idx >= len(grid): continue
                     if mode in RUSHS and content.get("w_idx") != adv_idx: continue
+                    nb_lignes = max(nb_lignes, idx + 1)
                     for c_idx, code in enumerate(content.get("c", [])):
-                        if c_idx < len(grid[idx]): cible[idx][c_idx] = ("", couleur_code(code))
+                        if c_idx < len(grid[idx]): cible[idx][c_idx] = ("", code_coul(code))
                     if show_letters:
                         for c_idx, char in enumerate(content.get("l", [])):
                             if c_idx < len(grid[idx]): cible[idx][c_idx] = (char, cible[idx][c_idx][1])
+            if mode == "PIEGE" and not fs.get(pid) and nb_lignes < len(grid):  # frappe en direct : la ligne qu'il est en train de remplir
+                frappe = p.get(pid, {}).get("frappe")
+                if isinstance(frappe, str):
+                    for c_idx, char in enumerate(frappe[:len(grid[nb_lignes])]): cible[nb_lignes][c_idx] = (char, code_coul("B") if c_idx == 0 else vide)
             for r, row in enumerate(grid):
                 for c, t in enumerate(row):
                     txt, coul = cible[r][c]
@@ -1381,6 +1423,33 @@ class PageJeu(tk.Frame):
             if voir: self.btn_forcer.pack(pady=(10, 0))
             else: self.btn_forcer.pack_forget()
 
+    def piege_frappe(self):
+        """Mot piégé, devinette : publie (au plus 5 fois par seconde) la ligne en cours de frappe, pour que les autres la voient en direct."""
+        if not (self.piege and getattr(self, "phase", "") == "devine"): return
+        txt = "".join(self.tape) if (self.attente_verdict is None and not self.fini_local) else ""
+        self._frappe_voulue = txt
+        if self._frappe_prog is None and txt != self._frappe_env:
+            try: self._frappe_prog = self.after(200, self._frappe_envoyer)
+            except tk.TclError: pass
+
+    def _frappe_envoyer(self):
+        self._frappe_prog = None
+        if self._frappe_voulue != self._frappe_env and self.active_sync:
+            self._frappe_env = self._frappe_voulue
+            self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}", {"frappe": self._frappe_voulue or None})
+
+    def piege_maj_mots_autres(self, d):
+        """Une fois la devinette lancée, le mot à trouver de chaque autre joueur s'affiche sous sa grille (jamais le nôtre : la base le refuse)."""
+        if not self.piege_fin_connue(): return
+        cache, pret = bool(self.controller.settings_config.get("piege_cache")), d.get("piege_pret") or {}
+        for pid, a in self.adv_widgets.items():
+            if pid not in pret or not a.winfo_exists(): continue
+            if pid == self.piege_cible and not cache and self.piege_mon_mot: continue  # « Ton mot : … » est déjà affiché sous sa grille
+            sec = self.piege_mot(pid)
+            if sec:
+                txt = ("Mot : " if a.dense else "Mot à trouver : ") + sec["mot"]
+                if a.lbl_mot.cget("text") != txt: a.lbl_mot.config(text=txt)
+
     def piege_maj_mon_mot(self, d=None):
         """Affiche le mot qu'on a choisi pour sa cible (jamais ceux choisis par ou pour les autres)."""
         if not self.piege_mon_mot and self.piege_cible and ((d or self.last_sync_data or {}).get("piege_pret") or {}).get(self.piege_cible):
@@ -1517,7 +1586,7 @@ class PageJeu(tk.Frame):
         if self.controller.is_host and not self.piege_fin_connue():
             attendus = [t for t, c in self.piege_de.items() if t in actifs and c in actifs]
             if attendus and all(t in pret for t in attendus): self.piege_poser_fin()
-        self.piege_maj_etat(d); self.piege_maj_mon_mot(d)
+        self.piege_maj_etat(d); self.piege_maj_mon_mot(d); self.piege_maj_mots_autres(d); self.piege_frappe()
         # 1. notre choix : mot au hasard si l'hôte a forcé le démarrage
         if self.phase == "choix" and not self.choix_envoi and self.piege_fin_connue() and maintenant > self.piege_fin:
             if pret.get(self.piege_cible): self.phase = "attente"; self.piege_construire_attente("Mot tiré au hasard")
@@ -1850,6 +1919,7 @@ class PageJeu(tk.Frame):
         elif k in ("Return", "KP_Enter"): self.valider()
 
     def maj_affichage(self):
+        self.piege_frappe()
         if self.fini_local: return
         if getattr(self, "piege", False) and self.phase != "devine":
             if self.phase == "choix": self.piege_rendre_choix()
