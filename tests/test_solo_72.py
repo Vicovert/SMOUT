@@ -61,7 +61,7 @@ def textes(w):
 app.creer_menu_accueil(); pump(); t = textes(app.container)
 ok("accueil : Solo, Mot du jour, Multijoueur seulement", all(x in t for x in ("Solo", "Mot du jour", "Multijoueur")) and not any(x in t for x in ("Marathon", "Défi entre amis")), str(t))
 app.ouvrir_menu_solo(); pump(); t = textes(app.container); capture("menu_solo")
-ok("menu solo : Partie normale / Marathon / Paramètres", all(x in t for x in ("Partie normale", "Marathon", "Paramètres")), str(t))
+ok("menu solo : Jouer / Marathon / Paramètres", all(x in t for x in ("Jouer", "Marathon", "Paramètres")), str(t))
 # --- mot du jour + stats
 D.maj_config(last_mdj="")
 app.ouvrir_solo(True); pump(); j = jeu(); taper(j, j.mot); pump(0.3)
