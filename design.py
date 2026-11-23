@@ -282,7 +282,7 @@ class Panneau(tk.Canvas):
         self.interieur = tk.Frame(self, bg=self.couleur)
         self._win = self.create_window(padding, padding, window=self.interieur, anchor="nw")
         self._taille = (0, 0)
-        self.interieur.bind("<Configure>", lambda e: self.after_idle(self._maj))
+        self.interieur.bind("<Configure>", lambda e=None: self.after_idle(self._maj))
         self.after_idle(self._maj)
 
     def _maj(self):
@@ -578,7 +578,7 @@ class Clavier(tk.Frame):
             if i == 2: self._speciale(f, "Effacer", self.on_effacer, "tuile")
             for ch in rang:
                 c = tk.Canvas(f, width=touche, height=hauteur, bg=fond_parent(parent), highlightthickness=0, cursor="hand2")
-                c.pack(side="left", padx=4); c.bind("<ButtonRelease-1>", lambda e, ch=ch: self.on_lettre(ch))
+                c.pack(side="left", padx=4); c.bind("<ButtonRelease-1>", lambda e=None, ch=ch: e is not None and self.on_lettre(ch))  # e absent : appel parasite de Tk, ignoré
                 self.canvas[ch] = c; self.etats[ch] = None; self._dessiner(ch)
             if i == 2: self._speciale(f, "Valider", self.on_valider, "principal")
     def _speciale(self, f, texte, cmd, variante):
