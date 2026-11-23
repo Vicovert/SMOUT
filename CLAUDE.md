@@ -29,6 +29,8 @@ Pour chaque tâche, **indiquer le modèle et l'effort conseillés** (ex. « Sonn
 
 ## Méthode de travail (fils du projet)
 - **Honnêteté** : dire ce qui a été vérifié, ce qui ne l'a pas été, et ce qui a échoué. Poser autant de questions que nécessaire avant de coder quand la demande est ambiguë.
+- **Démarrage d'un fil : attendre le top de Victor.** Un nouveau fil se présente (tâche comprise, modèle et effort conseillés), puis **attend que Victor donne le top** avant de lire le code ou de travailler, pour qu'il puisse changer de modèle d'abord.
+- **Questions graphiques : avis et validation de Victor.** Pour tout choix visuel (couleurs, mise en page, polices, animations, icônes), proposer des options ou un aperçu et **attendre la validation de Victor** avant de coder.
 - **Plan validé par Claude** : pour une demande de code, le fil rédige un plan, le relit et le valide lui-même (ou le coordinateur le fait) ; Victor n'est sollicité que pour les choix qui changent le but et les règles Firebase (qu'il publie lui-même).
 - **Fusion des PR par Claude** : Victor ne fusionne jamais lui-même. Claude squash-merge ses PR dans `main` dès que les tests sont verts (CI ou local, voir « Tests »), sans demander, **après avoir créé la sauvegarde** (voir « Versions et releases »), puis vérifie la release et le site. Une PR de documentation seule qui modifie aussi un workflow se fusionne avec `[skip ci]` dans le titre, sinon une fausse release est créée.
 - **Instruction répétée** : quand Victor donne **2 fois** la même instruction (dans un même fil ou d'un fil à l'autre), l'ajouter à ce `CLAUDE.md` dans la section qui convient, dans le même fil.
