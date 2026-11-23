@@ -121,6 +121,7 @@ def valider(N, cible):
         if existe(n):
             if not re.fullmatch(r"[0-9]{4}", cible[2]) or not all(k in n for k in ("owner", "maj", "version")): return False
             if set(n) - {"owner", "hote", "nb", "prive", "visible", "status", "version", "maj"}: return False
+            if "nb" in n and not (isinstance(n["nb"], (int, float)) and 0 <= n["nb"] <= 8): return False  # 8 joueurs au plus (database.rules.json)
     if len(cible) >= 3 and cible[1] == "lobbies":
         lob = lire(N, cible[:3])
         if existe(lob):

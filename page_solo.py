@@ -319,6 +319,7 @@ class PageJeu(tk.Frame):
             case.set_curseur(i == len(self.mot_tape))
 
 
+COULEUR_PARAMETRES = "#EDEFF7"  # bouton Paramètres clair, bien distinct du fond (même que .carte-menu.params du web)
 COULEUR_MARATHON = "#A78BFA"  # couleur propre au Marathon (même que COULEUR_MARATHON de smout.js)
 
 def resume_reglages(c):
@@ -344,7 +345,7 @@ class PageMenuSolo(tk.Frame):
         CarteMenu(ligne, "Marathon", f"Record {rec}" if rec else "Jusqu'à l'erreur", controller.ouvrir_marathon, largeur=390, hauteur=96,
                   couleur=COULEUR_MARATHON, texte="#14182A", icone="infini").pack(side="left", padx=(0, 16))
         CarteMenu(ligne, "Paramètres", resume_reglages(charger_config_solo()), controller.ouvrir_parametres, largeur=390, hauteur=96,
-                  icone="engrenage", fond_icone=melanger(P["panneau"], P["texte"], 0.08)).pack(side="left")
+                  couleur=COULEUR_PARAMETRES, texte="#14182A", icone="engrenage").pack(side="left")
 
 
 class PageStats(tk.Frame):

@@ -21,6 +21,7 @@ const MODES = [
   ["PIEGE", "Mot piégé", "Choisis le mot d'un autre"],
 ];
 const RUSHS = ["RUSH", "CHAINE"];
+const MAX_JOUEURS = 8;  // joueurs par salon (identique au PC et aux règles Firebase : index/nb ≤ 8)
 const TEMPS_POSSIBLES = [15, 30, 45, 60, 90, 120, 150, 180, 240, 300, 360, 420, 480, 540, 600];  // pas du réglage du temps (s)
 // chaque mode a sa couleur (identique à COULEURS_MODES de page_multi.py) et une règle en une phrase
 const COULEURS_MODES = { CLASSIQUE: "#F5B83D", BLAST: "#FF6B6B", PRECISION: "#4CC9F0", MYSTERE: "#A78BFA", RUSH: "#FF8FC7", ELIMINATION: "#FF9F43", CHAINE: "#2DD4BF", COOP: "#7ED957", PIEGE: "#5B7CFA" };
@@ -31,7 +32,7 @@ const REGLES_MODES = {
   CHAINE: "Chaque mot commence par la dernière lettre du précédent.", COOP: "Une seule grille pour l'équipe, essais partagés.",
   PIEGE: "Choisis en secret le mot qu'un autre joueur devra deviner. 1 point si tu trouves le tien." };  // modes « un maximum de mots avant la fin du temps »
 const NOM_MODE = Object.fromEntries(MODES.map(m => [m[0], m[1]]));
-const COULEURS_AVATAR = ["#F5B83D", "#8FB3FF", "#7ED6A8", "#F2A1C5", "#C4A7FF", "#FFB38A"];
+const COULEURS_AVATAR = ["#F5B83D", "#8FB3FF", "#7ED6A8", "#F2A1C5", "#C4A7FF", "#FFB38A", "#7FD8F0", "#D6E58A"];
 
 /* ------------------------------------------------------------------ couleurs (identique à design.py) */
 const hexRgb = h => { h = h.replace("#", ""); return [0, 2, 4].map(i => parseInt(h.substr(i, 2), 16)); };
@@ -163,6 +164,21 @@ function fusionCoop(md, essais) {
   return tout.slice(0, essais);
 }
 
+/* adversaires (mini-grilles) : [colonnes, taille de case, dense] qui remplissent au mieux la zone larg x haut (px) ; même calcul que disposition_adv de page_multi.py
+   (dense : nom et score au-dessus de la grille, à partir de 3 adversaires si cela permet des cases plus grandes) */
+function dispositionAdv(nb, essais, longueur, larg, haut) {
+  if (nb <= 0) return [1, 14, false];
+  const plafond = { 1: 30, 2: 24 }[nb] || 20; let meilleur = null;
+  for (const dense of nb >= 3 ? [false, true] : [false]) for (let cols = 1; cols <= Math.min(nb, 4); cols++) {
+    const rangs = Math.ceil(nb / cols);
+    for (let t = plafond; t > 5; t--) {
+      const lb = longueur * (t + 3) + (dense ? 8 : 124), hb = Math.max(essais * (t + 3) + (dense ? 52 : 0), 66);
+      if (cols * lb + (cols - 1) * 18 <= larg && rangs * hb + (rangs - 1) * 14 <= haut) { if (!meilleur || t > meilleur[1]) meilleur = [cols, t, dense]; break; }
+    }
+  }
+  return meilleur || [Math.min(nb, 2), 6, nb >= 3];
+}
+
 /* Mot piégé (identique aux fonctions piege_* de page_multi.py) */
 const PIEGE_FIN_INFINIE = 32503680000000;  // fin du choix (ms, an 3000) tant que l'hôte ne l'a pas fixée : on choisit sans limite de temps
 // {cible: choisisseur} pour la manche : ordre circulaire tiré au lancement, décalage différent à chaque manche
@@ -174,9 +190,18 @@ function piegePaires(ordre, joueurs, manche) {
   for (let i = 0; i < n; i++) r[part[i]] = part[((i - d) % n + n) % n];
   return r;
 }
-// réglages d'une manche (écrits par l'hôte) : paires, identifiant de manche, fin du choix (infinie : l'hôte la fixe quand tous ont choisi, ou en forçant)
-function piegeReglages(ordre, joueurs, manche, graine, debut) {
-  return { piege_ordre: [...ordre], piege_de: piegePaires(ordre, joueurs, manche), piege_id: `p${graine}`, piege_fin_choix: PIEGE_FIN_INFINIE };
+// réglages d'une manche (écrits par l'hôte) : paires tirées au hasard à chaque manche (en évitant celles de la manche précédente quand c'est possible),
+// identifiant de manche, fin du choix (infinie : l'hôte la fixe quand tous ont choisi, ou en forçant). Les paires sont écrites dans le salon : tout le monde les lit.
+function piegeReglages(ordre, joueurs, manche, graine, debut, precedent) {
+  joueurs = [...joueurs]; ordre = ordre || [];
+  const part = ordre.filter(u => joueurs.includes(u)).concat(joueurs.filter(u => !ordre.includes(u)).sort());
+  let mel = part, paires = {};
+  for (let essai = 0; essai < 30 && part.length > 1; essai++) {
+    mel = [...part]; for (let i = mel.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [mel[i], mel[j]] = [mel[j], mel[i]]; }
+    paires = piegePaires(mel, joueurs, 1);
+    if (!precedent || part.length < 3 || Object.entries(paires).every(([c, ch]) => precedent[c] !== ch)) break;
+  }
+  return { piege_ordre: [...mel], piege_de: paires, piege_id: `p${graine}`, piege_fin_choix: PIEGE_FIN_INFINIE };
 }
 // [points du devineur, points du choisisseur] : k = essai gagnant (1…), 0 si le mot n'est pas trouvé
 function piegePointsPaire(essaisMax, k) { return [k > 0 ? 1 : 0, 0]; }  // 1 point à celui qui trouve son mot, 0 sinon ; le choisisseur ne marque rien
@@ -955,7 +980,7 @@ async function rejoindre(c, motDePasse, silencieux = false, score = null) {
   if (preuve) joueur.preuve = preuve;
   if (!(await FB.ok("PUT", `lobbies/${c}/players/${FB.uid}`, joueur))) { if (!silencieux) alert("Salon introuvable"); return false; }
   const d = await FB.get(`lobbies/${c}`) || {};
-  if (Object.keys(d.players || {}).length > 4) { await FB.ok("DELETE", `lobbies/${c}/players/${FB.uid}`); alert("Ce salon est déjà complet (maximum 4 joueurs)."); return true; }
+  if (Object.keys(d.players || {}).length > MAX_JOUEURS) { await FB.ok("DELETE", `lobbies/${c}/players/${FB.uid}`); alert(`Ce salon est déjà complet (maximum ${MAX_JOUEURS} joueurs).`); return true; }
   M.estHote = false; M.lobby = c; M.score = score || 0; M.reprise = score !== null; M.vuOk = Date.now();
   Object.assign(M.reglages, { password: motDePasse, visible: (d.settings || {}).visible !== false });
   M.demarrerBattement(); salon();
@@ -1037,7 +1062,7 @@ async function rejoindreSalon() {
     const idx = await FB.get(`index/${c}`);
     if (!idx || FB.maintenant() * 1000 - (idx.maj || 0) > 30000) return alert("Salon introuvable");
     if (idx.version !== VERSION_JEU) return alert(`Ce salon utilise une autre version du jeu (${idx.version || "?"}). Mets SMOUT à jour.`);
-    if ((idx.nb || 0) >= 4) return alert("Ce salon est déjà complet (maximum 4 joueurs).");
+    if ((idx.nb || 0) >= MAX_JOUEURS) return alert(`Ce salon est déjà complet (maximum ${MAX_JOUEURS} joueurs).`);
     codeCible = c;
     if (idx.prive) { mdp.value = ""; erreurMdp.textContent = ""; vueMdp.montrer(); mdp.focus(); } else rejoindre(c, "");
   }
@@ -1085,7 +1110,7 @@ function salon() {
   const lblCode = h("div.caps", {}, "Code du salon");
   const boite = h("div.code-boite", {}, h("div", {}, lblCode, h("div.chiffres", { style: { fontSize: "40px", color: "var(--mal)" } }, M.lobby)),
     icone("copier", () => { navigator.clipboard?.writeText(M.lobby); lblCode.textContent = "Code copié ✓"; setTimeout(() => lblCode.textContent = "Code du salon", 1500); }, true, "Copier le code"));
-  const slots = [0, 1, 2, 3].map(() => h("div.joueur"));
+  const slots = Array.from({ length: MAX_JOUEURS }, () => h("div.joueur"));
   const cartes = {};
   const gm = h("div.grille-modes", {}, MODES.map(([m, n, d]) => { const c = cartes[m] = choix(n, d, () => setMode(m)); c.classList.add("mode"); c.style.setProperty("--mc", COULEURS_MODES[m]); return c; }));
   // bandeau du mode choisi par l'hôte (vu par les autres joueurs)
@@ -1098,9 +1123,9 @@ function salon() {
   const cLettres = tuileReglage("Lettres par mot", 6, 10, [R0.min ?? 6, R0.max ?? 7], sync, { plage: true });
   [["rounds", cRounds], ["timer", sTemps], ["essais", sEssais], ["lettres", cLettres]].forEach(([k, w]) => w.dataset.cle = k);
   const lancer = bouton("Lancer la partie", lancerPartie, { grand: true, largeur: 9999 }); lancer.style.width = "100%"; lancer.disabled = true;
-  const regle = h("div.regle"), noteChoix = h("div.t2.note-choix", {}, "Choix du mot : sans limite de temps (l'hôte peut forcer le départ).");
+  const regle = h("div.regle"), noteChoix = h("div.t2.note-choix"), cCache = caseACocher("Cible cachée : on choisit son mot sans savoir pour qui", !!R0.piege_cache, () => sync());
   const zoneHote = h("div", {}, h("div.caps.section", {}, "Mode de jeu"), gm, regle);
-  const zoneReglages = h("div", {}, h("div.caps.section", {}, "Réglages de la partie"), h("div.grille-reglages", {}, cRounds, sTemps, sEssais, cLettres), noteChoix);
+  const zoneReglages = h("div", {}, h("div.caps.section", {}, "Réglages de la partie"), h("div.grille-reglages", {}, cRounds, sTemps, sEssais, cLettres), h("div", { style: { marginTop: "10px" } }, cCache), noteChoix);
   const noteInvite = h("div.t2", { style: { fontSize: "14px", marginTop: "14px" } }, "L'hôte choisit le mode et les réglages.");
   const panneauPartie = h("div.panneau.salon-partie", { style: { flex: 1, minWidth: "min(300px, 100%)", padding: "22px" } }, bandeau, zoneHote, zoneReglages, noteInvite, h("div", { style: { marginTop: "18px" } }, lancer));
   ecran(barre, h("div", { style: { padding: "18px 4vw 30px" } },
@@ -1118,10 +1143,11 @@ function salon() {
     cRounds.classList.toggle("cache", rush); panneauPartie.classList.toggle("rush", rush);
     sTemps.libelle(rush ? "Temps de jeu" : modeActif === "PIEGE" ? "Temps pour deviner" : "Temps par manche");
     cRounds.libelle(modeActif === "ELIMINATION" ? "Manches max" : "Manches");
-    noteChoix.classList.toggle("cache", modeActif !== "PIEGE");
+    noteChoix.classList.toggle("cache", modeActif !== "PIEGE"); cCache.classList.toggle("cache", modeActif !== "PIEGE" || !M.estHote);
+    noteChoix.textContent = "Choix du mot : sans limite de temps (l'hôte peut forcer le départ)." + (M.estHote ? "" : cCache.valeur ? " La cible est cachée : tu ne sauras pas pour qui tu choisis." : " La cible est visible : tu sais pour qui tu choisis.");
     if (M.estHote) lancer.textContent = M.nbJoueurs > 1 ? `Lancer · ${NOM_MODE[modeActif]}` : "En attente d'un 2e joueur…";
   }
-  function valeurs() { return { rounds: cRounds.valeur, essais: sEssais.valeur, min: cLettres.vmin, max: cLettres.vmax, timer: sTemps.valeur }; }
+  function valeurs() { return { rounds: cRounds.valeur, essais: sEssais.valeur, min: cLettres.vmin, max: cLettres.vmax, timer: sTemps.valeur, piege_cache: cCache.valeur && modeActif === "PIEGE" }; }
   function sync() {
     if (!M.estHote || gen !== M.gen) return;
     FB.patch(`lobbies/${M.lobby}/settings`, Object.assign({ game_mode: modeActif, host_id: FB.uid, visible: M.reglages.visible, version: VERSION_JEU }, valeurs()));
@@ -1158,14 +1184,14 @@ function salon() {
         barre.droite.textContent = M.estHote ? "Vous êtes l'hôte" : "L'hôte règle la partie";
         if (!M.estHote) {  // l'hôte garde ses propres réglages (la base peut avoir un temps de retard)
           modeActif = s.game_mode || "CLASSIQUE"; M.reglages.game_mode = modeActif;
-          cRounds.set(s.rounds ?? 3); sEssais.set(s.essais ?? 8); cLettres.set(s.min ?? 6, s.max ?? 7); sTemps.set(s.timer ?? 180);
+          cRounds.set(s.rounds ?? 3); sEssais.set(s.essais ?? 8); cLettres.set(s.min ?? 6, s.max ?? 7); sTemps.set(s.timer ?? 180); cCache.valeur = !!s.piege_cache; cCache.classList.toggle("on", cCache.valeur);
         }
         majModes();
         if (d.status === "playing") { Object.assign(M.reglages, s); M.reglages.round_num = s.current_round || 1; partie(); return; }
         const pids = Object.keys(p);
         slots.forEach((sl, i) => { const pid = pids[i]; if (pid) dessinerJoueur(sl, i, p[pid].name, pid === hid, serverNow > 0 && (serverNow - (p[pid].last_seen || 0)) / 1000 > 12, pid === FB.uid); else dessinerJoueur(sl, i); });
         const n = pids.length;
-        statut.textContent = `En attente des joueurs · ${n} sur 4` + (M.reglages.visible ? "" : "  ·  salon privé");
+        statut.textContent = `En attente des joueurs · ${n} sur ${MAX_JOUEURS}` + (M.reglages.visible ? "" : "  ·  salon privé");
         [cRounds, sEssais, cLettres, sTemps].forEach(w => w.activer(M.estHote)); Object.values(cartes).forEach(c => c.disabled = !M.estHote);
         zoneHote.classList.toggle("cache", !M.estHote); noteInvite.classList.toggle("cache", M.estHote); bandeau.classList.toggle("cache", M.estHote);
         if (M.estHote) { lancer.className = n < 2 ? "btn grand discret" : "btn grand lancer"; lancer.disabled = n < 2; majModes(); }
@@ -1179,7 +1205,7 @@ function salon() {
     let joueurs = [FB.uid];
     if (modeActif === "PIEGE") { const dd = await M.lireSalon(); if (gen !== M.gen) return; if (dd && Object.keys(dd.players || {}).length) { const pl = dd.players, mx = Math.max(0, ...Object.values(pl).map(v => v.last_seen || 0)); joueurs = Object.keys(pl).filter(pid => mx - (pl[pid].last_seen || 0) <= 25000); if (!joueurs.length) joueurs = [FB.uid]; } }
     const ns = { game_mode: modeActif, rush_seed: 1000 + Math.floor(Math.random() * 999000), version: VERSION_JEU, rounds: v.rounds, current_round: 1, essais: v.essais, min: v.min, max: v.max,
-      timer: v.timer, host_id: FB.uid, visible: sc.visible !== false, start_time: FB.maintenant() };
+      timer: v.timer, host_id: FB.uid, visible: sc.visible !== false, piege_cache: !!v.piege_cache, start_time: FB.maintenant() };
     if (modeActif === "PIEGE") {  // ordre circulaire tiré au hasard, puis paires « qui choisit pour qui » de la 1re manche
       const ordre = [...joueurs]; for (let i = ordre.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [ordre[i], ordre[j]] = [ordre[j], ordre[i]]; }
       Object.assign(ns, piegeReglages(ordre, joueurs, 1, ns.rush_seed, ns.start_time));
@@ -1232,15 +1258,23 @@ async function partie() {
   const kb = clavier(ajouter, effacer, valider, kh);
   // l'hôte peut ramener tout le monde au salon en cours de partie (avec confirmation)
   const btnSalon = h("button.lien.cache", { onclick: () => { if (M.estHote && confirm("Ramener tous les joueurs au salon ?\nLa partie en cours sera annulée.")) M.ramenerAuSalon(); } }, "Retour au salon");
-  const advZone = h("div.col", { style: { gap: "26px", padding: "20px 40px 0 10px", minWidth: "260px" } });
+  const advZone = h("div", { style: { display: "grid", gap: "14px 18px", padding: "20px 40px 0 10px", alignContent: "start" } });
   const adv = {};
   const opp = Object.entries((dm || {}).players || {}).filter(([pid]) => pid !== FB.uid);
-  const tAdv = Math.floor(Math.max(8, Math.min({ 1: 30, 2: 24 }[opp.length] || 18, ((hauteurFenetre() - 160) / Math.max(1, opp.length) - 30) / (conf.essais || 6) - 3)));  // adaptée au nombre de joueurs
+  const large = window.innerWidth > 900;
+  const [colsAdv, tAdv, denseAdv] = dispositionAdv(opp.length, conf.essais || 6, Math.max(G.mot.length, conf.max || 7), large ? Math.max(300, window.innerWidth - 640) : window.innerWidth - 24, large ? hauteurFenetre() - 140 : 560);  // adaptée au nombre de joueurs
+  advZone.style.gridTemplateColumns = `repeat(${colsAdv}, auto)`; if (opp.length > 2) advZone.style.rowGap = "14px"; else advZone.style.rowGap = "26px"; if (!large) advZone.style.justifyContent = "center";
   function construireAdv(pid, nom, longueur) {
     const g = grille(conf.essais || 6, longueur, tAdv, true);
-    if (!adv[pid]) { const nm = h("div.gras", { style: { fontSize: "17px" } }, nom), sc = h("div.chiffres", { style: { fontSize: "22px", color: "var(--mal)" } }, "0"), et = h("div.t2", { style: { fontSize: "14px" } }), mm = h("div.gras", { style: { fontSize: "14px", color: "var(--mal)", marginTop: "4px" } });
-      const bloc = h("div.ligne", { style: { alignItems: "flex-start", gap: "16px" } }, h("div"), h("div", {}, nm, sc, et, mm)); advZone.append(bloc); adv[pid] = { bloc, nm, sc, et, mm }; }
-    adv[pid].bloc.firstChild.replaceWith(g); adv[pid].g = g; adv[pid].longueur = longueur;
+    if (!adv[pid]) {
+      const f = denseAdv ? [14, 15, 12] : [17, 22, 14];
+      const nm = h("div.gras", { style: { fontSize: f[0] + "px" } }, nom), sc = h("div.chiffres", { style: { fontSize: f[1] + "px", color: "var(--mal)" } }, "0"), et = h("div.t2", { style: { fontSize: f[2] + "px" } }), mm = h("div.gras", { style: { fontSize: (denseAdv ? 12 : 14) + "px", color: "var(--mal)", marginTop: denseAdv ? "0" : "4px" } });
+      const slot = h("div");
+      const bloc = denseAdv ? h("div", { style: { display: "flex", flexDirection: "column", gap: "3px" } }, h("div.ligne", { style: { gap: "8px", alignItems: "baseline" } }, nm, sc), slot, et, mm)
+        : h("div.ligne", { style: { alignItems: "flex-start", gap: "16px" } }, slot, h("div", {}, nm, sc, et, mm));
+      advZone.append(bloc); adv[pid] = { bloc, slot, nm, sc, et, mm };
+    }
+    adv[pid].slot.replaceChildren(g); adv[pid].g = g; adv[pid].longueur = longueur;
   }
   opp.forEach(([pid, p]) => construireAdv(pid, capitaliser(p.name), G.mot.length));
   const zm = h("span.t2", { style: { fontSize: "13px", minWidth: "44px", textAlign: "center" } }, `${Math.round((lireConfig().user_zoom || 1) * 100)} %`);
@@ -1374,11 +1408,11 @@ async function partie() {
   }
   function piegeConstruireChoix(d) {
     piegeVider();
-    const mi = conf.min || 6, ma = conf.max || 7, nom = capitaliser(piegeNoms(d)[G.piegeCible] || "?");
-    info.textContent = `${NOM_MODE.PIEGE} · choisis le mot de ${nom}`;
+    const mi = conf.min || 6, ma = conf.max || 7, cache = !!conf.piege_cache, nom = cache ? "un autre joueur" : capitaliser(piegeNoms(d)[G.piegeCible] || "?");  // option du salon : cible cachée
+    info.textContent = cache ? `${NOM_MODE.PIEGE} · choisis un mot pour un autre joueur` : `${NOM_MODE.PIEGE} · choisis le mot de ${nom}`;
     const rg = h("div.ligne", { style: { gap: "8px", justifyContent: "center", margin: "12px 0 4px", flexWrap: "wrap" } });
     G.casesChoix = Array.from({ length: ma }, () => { const t = tuile(tailleMoi()); rg.append(t); return t; });
-    zoneMoi.append(h("div.centre", {}, h("div.gras", { style: { fontSize: "19px" } }, `Choisis le mot que ${nom} devra deviner`),
+    zoneMoi.append(h("div.centre", {}, h("div.gras", { style: { fontSize: "19px" } }, cache ? "Choisis le mot que devra deviner un autre joueur (tu ne sais pas qui)" : `Choisis le mot que ${nom} devra deviner`),
       h("div.t2", { style: { fontSize: "14px", marginTop: "2px" } }, piegeTexteLongueur(mi, ma) + (ma > mi ? " (cases en pointillé facultatives)" : "") + " · un mot du dictionnaire · gardé secret · pas de limite de temps"), rg));
     G.ligne = 0; piegeRendreChoix(); piegeZoneHote();
   }
@@ -1405,7 +1439,7 @@ async function partie() {
       const sec = G.mots[G.piegeCible] || piegeMot(G.piegeCible);  // reprise : relu en arrière-plan (autorisé : on est son choisisseur)
       if (sec && sec.de === FB.uid) G.monMot = sec.mot;
     }
-    const a = adv[G.piegeCible];  // affiché sous la mini-grille du joueur concerné
+    const a = conf.piege_cache ? null : adv[G.piegeCible];  // affiché sous la mini-grille du joueur concerné (sauf cible cachée)
     if (G.monMot && a && a.mm.textContent !== `Ton mot : ${G.monMot}`) a.mm.textContent = `Ton mot : ${G.monMot}`;
   }
   // hôte : fixe la fin du choix à maintenant ; chacun passe à la devinette, ceux qui n'ont rien choisi ont un mot au hasard
@@ -1628,7 +1662,7 @@ async function partie() {
     if (Number(s.current_round) < Number(s.rounds)) {
       Object.assign(s, { rush_seed: 1000 + Math.floor(Math.random() * 999000), current_round: Number(s.current_round) + 1, start_time: FB.maintenant() });
       const maj = { settings: s, status: "playing", match_data: null, fini_states: null };
-      if (piege) { Object.assign(s, piegeReglages(s.piege_ordre || [], actifsP, s.current_round, s.rush_seed, s.start_time)); Object.assign(maj, { piege_pret: null, piege_essais: null, piege_verdicts: null }); }
+      if (piege) { Object.assign(s, piegeReglages(s.piege_ordre || [], actifsP, s.current_round, s.rush_seed, s.start_time, s.piege_de)); Object.assign(maj, { piege_pret: null, piege_essais: null, piege_verdicts: null }); }
       Object.assign(M.reglages, s);
       FB.patch(`lobbies/${M.lobby}`, maj);
     } else { M.statut = "finished"; FB.patch(`lobbies/${M.lobby}`, fin); }
