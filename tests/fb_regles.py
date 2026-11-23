@@ -129,6 +129,8 @@ def valider(N, cible):
             if s is not None and not all(k in s for k in ("essais", "min", "max", "rounds", "host_id", "timer", "version")): return False
             for pid, p in (lob.get("players") or {}).items():
                 if not isinstance(p, dict) or "name" not in p or "score" not in p: return False
+                if "frappe" in p and not (isinstance(p["frappe"], str) and len(p["frappe"]) <= 12): return False  # frappe en direct (Mot piégé)
+                if "theme" in p and not (isinstance(p["theme"], dict) and all(isinstance(c, str) and len(c) <= 9 for c in p["theme"].values())): return False  # couleurs du thème du joueur
             for t, c in ((s or {}).get("piege_de") or {}).items():
                 if not isinstance(c, str) or c == t: return False
             sous = cible[3:]

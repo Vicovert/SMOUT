@@ -20,7 +20,7 @@ print("Victoire au clavier physique :", j.fini_local and j.overlay_fin.winfo_ism
 # mot du jour
 D.maj_config(last_mdj="", mdj_serie=3, mdj_dernier_gagne=(__import__("datetime").date.today() - __import__("datetime").timedelta(days=1)).isoformat())
 app.ouvrir_solo(True); pump(); j = app.container.winfo_children()[0].jeu
-print("Mot du jour en 7 essais :", j.nb_essais_partie == 7, "| marqué joué dès le début :", D.lire_config().get("last_mdj") == __import__("datetime").date.today().isoformat())
+print("Mot du jour en 7 essais :", j.nb_essais_partie == 7, "| pas marqué joué avant d'avoir vu le mot :", D.lire_config().get("last_mdj") != __import__("datetime").date.today().isoformat())
 j.mot_tape = list(j.mot); j.valider(); pump(0.3)
 print("Série après victoire (3 → 4) :", D.serie_mot_du_jour())
 app.creer_menu_accueil(); pump()
@@ -39,6 +39,19 @@ print("Thème perso créé et appliqué :", app.current_theme_name == "MON TEST"
 print("Sauvegardé dans la config :", "MON TEST" in D.lire_config().get("custom_themes", {}))
 # thème perso portant le nom d'un thème intégré (bug 7.0)
 import tkinter.messagebox as mb; avert = []; mb.showwarning = lambda *a, **k: avert.append(a)
+
+# diagnostic CI : quand un rappel Tkinter échoue, on affiche la fonction, les arguments et le widget (la trace seule n'indique pas qui l'a appelé)
+import tkinter as _tkdiag
+def _appel(self, *args):
+    try:
+        if self.subst: args = self.subst(*args)
+        return self.func(*args)
+    except SystemExit: raise
+    except Exception as ex:
+        print("RAPPEL TK EN ECHEC :", getattr(self.func, "__qualname__", self.func), "| args =", args, "| widget =", type(self.widget).__name__, getattr(self.widget, "_w", "?"), "|", ex, flush=True)
+        import traceback; traceback.print_stack(limit=9)  # ce que le test faisait quand Tk a appelé le rappel sans événement
+        self.widget._report_exception()
+_tkdiag.CallWrapper.__call__ = _appel
 app.show_custom_creator(); pump()
 pc = [w for w in app.container.winfo_children() if hasattr(w, "save")]
 if pc:

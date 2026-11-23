@@ -56,6 +56,19 @@ async function jeuPiege(manche) {
   const uid = await ev(() => FB.uid), pid = await ev(() => M.reglages.piege_id), code = R.code;
   const secret = (await db()).v7.pieges[code][pid][uid].mot;  // le robot « triche » via l'admin du faux serveur
   R.mots.push(secret);
+  if (manche === 1) {  // frappe en direct, mots à trouver des autres et thèmes des autres (vérifiés dans la base et à l'écran)
+    await p.keyboard.type(secret.slice(1, 3).toLowerCase(), { delay: 15 }); await sleep(1300);
+    const d0 = await db(), pl = d0.v7.lobbies[code].players, fr = (pl[uid] || {}).frappe;
+    if (fr !== secret.slice(0, 3).toUpperCase()) { log("ÉCHEC frappe en direct non publiée", fr, secret.slice(0, 3)); return fin(false); }
+    log("frappe en direct publiée :", fr); await p.keyboard.press("Backspace"); await p.keyboard.press("Backspace");
+    const autres = Object.keys(pl).filter(u => u !== uid);
+    for (const u of autres) {
+      const motAdv = ((d0.v7.pieges[code][pid] || {})[u] || {}).mot, th = (pl[u] || {}).theme || {};
+      if (motAdv && !(await attendre(m => [...document.querySelectorAll("div.gras")].some(x => /^(Mot à trouver|Mot|Ton mot) : /.test(x.textContent) && x.textContent.endsWith(m)), 20000, motAdv))) { log("ÉCHEC le mot à trouver de l'adversaire n'est pas affiché", motAdv); return fin(false); }
+      if (th.b && !(await attendre(b => [...document.querySelectorAll(".grille.mini")].some(g => g.parentElement.style.getPropertyValue("--bien").toLowerCase() === b.toLowerCase()), 10000, th.b))) { log("ÉCHEC thème de l'adversaire non appliqué à sa grille", JSON.stringify(th)); return fin(false); }
+    }
+    log("mots à trouver et thèmes des autres affichés");
+  }
   const essais = await ev(() => M.reglages.essais || 6);
   const coups = (S.jeu || "gagne") === "gagne" ? [secret]
     : await ev((m, n) => [...MOTS.multiBanque].filter(x => x.length === m.length && x[0] === m[0] && x !== m).sort().slice(0, n), secret, essais);

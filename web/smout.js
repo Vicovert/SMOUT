@@ -85,6 +85,9 @@ function appliquerTheme(nom) {
   for (const [k, v] of Object.entries(P)) if (typeof v === "string") r.setProperty("--" + k.replace(/_/g, "-"), v);
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", P.fond);
 }
+// Thème de chaque joueur : ses couleurs sont publiées avec son pseudo (players/<uid>/theme) et dessinent SA grille chez les autres (identique à CLES_THEME de page_multi.py)
+const CLES_THEME = { f: "fond", v: "vide", t: "tuile", b: "bien", m: "mal", a: "absent", x: "texte", y: "texte_absent", s: "sur_bien", u: "sur_mal" };
+const palettePublique = () => Object.fromEntries(Object.entries(CLES_THEME).filter(([, v]) => typeof P[v] === "string").map(([k, v]) => [k, P[v]]));
 const nomTheme = n => D.noms_themes[n] || (n === n.toUpperCase() ? n.charAt(0) + n.slice(1).toLowerCase() : n);
 const espacer = t => t.toUpperCase();
 const nombre = n => Math.trunc(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
@@ -532,7 +535,7 @@ async function solo(mode = "libre") {
     return;
   }
   let mot, essais;
-  if (mode === "mdj") { mot = await motGraine(trier(MOTS.liste), "mdj:" + auj); essais = 7; majConfig({ last_mdj: auj }); }
+  if (mode === "mdj") { mot = await motGraine(trier(MOTS.liste), "mdj:" + auj); essais = 7; }  // la journée ne compte comme jouée que lorsque le mot est vu (victoire, défaite ou abandon) : en quittant avant, on reprend avec ses essais
   else {
     const f = MOTS.liste.filter(m => m.length >= conf.nb_lettres_min && m.length <= conf.nb_lettres_max);
     const l = f.length ? f : MOTS.liste; mot = l[Math.floor(Math.random() * l.length)]; essais = conf.nb_essais;
@@ -561,6 +564,7 @@ async function solo(mode = "libre") {
   const minuteur = setInterval(() => { if (S.fini) return; const ec = Math.floor((Date.now() - S.debut) / 1000); sT.set(mmss(ec)); sS.set(nombre(score(ec))); }, 1000);
   nettoyageEcran.push(() => clearInterval(minuteur));
   sS.set(nombre(score(0)));
+  if (mode === "mdj") reprendreMdj();
   document.onkeydown = e => {
     if (S.fini || e.ctrlKey || e.metaKey || e.altKey || !aide.classList.contains("cache")) return;
     const c = e.key.length === 1 ? e.key.toUpperCase() : "";
@@ -586,7 +590,24 @@ async function solo(mode = "libre") {
     g.cases[S.ligne].forEach((c, i) => c.maj(S.tape[i], res[i], false));
     if (t === mot) fin(true);
     else if (S.ligne + 1 >= essais) fin(false);
-    else { S.ligne++; S.tape = [mot[0]]; sE.set(String(S.ligne + 1)); maj(); }
+    else { S.ligne++; S.tape = [mot[0]]; sE.set(String(S.ligne + 1)); maj(); if (mode === "mdj") sauverMdj(); }
+  }
+  // Mot du jour en cours : essais validés, pénalités et temps écoulé (relus par reprendreMdj)
+  function sauverMdj() { majConfig({ mdj_en_cours: { date: auj, lignes: S.lignes.map(([t]) => t), penalite: S.penalite, ecoule: Math.floor((Date.now() - S.debut) / 1000) } }); }
+  // Mot du jour quitté avant d'avoir vu le mot : on retrouve ses essais, son score et son temps (jamais une grille vierge avec les indices en poche)
+  function reprendreMdj() {
+    const sauve = lireConfig().mdj_en_cours || {};
+    if (sauve.date !== auj || !Array.isArray(sauve.lignes) || !sauve.lignes.length) return;
+    for (const t of sauve.lignes.slice(0, essais - 1)) {
+      if (typeof t !== "string" || t.length !== mot.length) continue;
+      S.tape = [...t]; const res = evaluer(S.tape, mot);
+      majStatuts(S.statut, S.tape, res); S.historique.push(res); S.lignes.push([t, res]);
+      g.cases[S.ligne].forEach((c, i) => c.maj(S.tape[i], res[i], false));
+      S.ligne++;
+    }
+    for (const ch of ALPHABET) kb.setCouleur(ch, S.statut[ch]);
+    S.tape = [mot[0]]; S.penalite = Number(sauve.penalite) || 0; S.debut = Date.now() - (Number(sauve.ecoule) || 0) * 1000;
+    sE.set(String(S.ligne + 1)); maj();
   }
   function fin(victoire) {
     enJeu = false;
@@ -607,7 +628,7 @@ async function solo(mode = "libre") {
       partage = `SMOUT · Marathon · ${m.mots} mot${m.mots > 1 ? "s" : ""} · ${nombre(m.score)} pts` + (difficile ? " · difficile" : "") + `\n${D.url_web}`;
       rejouer = () => { marathon = null; solo("marathon"); }; marathon = null;
     } else {
-      if (mode === "mdj") { majConfig({ last_mdj: aujourdhui() }); enregistrerResultatMdj(victoire); }
+      if (mode === "mdj") { majConfig({ last_mdj: aujourdhui(), mdj_en_cours: null }); enregistrerResultatMdj(victoire); }
       const essaisTxt = victoire ? `${nEssais} / ${essais}` : `– / ${essais}`;
       enregistrerPartie({ libre: "solo", mdj: "mdj" }[mode], victoire, nEssais, sc, mot);
       if (mode === "mdj") {
@@ -1277,6 +1298,33 @@ async function partie() {
     adv[pid].slot.replaceChildren(g); adv[pid].g = g; adv[pid].longueur = longueur;
   }
   opp.forEach(([pid, p]) => construireAdv(pid, capitaliser(p.name), G.mot.length));
+  // thème de chaque joueur : la grille de l'adversaire garde SES couleurs (variables CSS posées sur sa grille)
+  function themeAdv(a, th) {
+    const sig = JSON.stringify(th || null); if (!th || typeof th !== "object" || a.thS === sig) return; a.thS = sig;
+    for (const [k, v] of Object.entries(CLES_THEME)) { const c = th[k]; if (typeof c === "string" && /^#[0-9a-fA-F]{6}$/.test(c)) a.slot.style.setProperty("--" + v.replace(/_/g, "-"), c); }
+    for (const [v, base] of [["ombre-bien", "bien"], ["ombre-mal", "mal"]]) a.slot.style.setProperty("--" + v, a.slot.style.getPropertyValue("--" + base));
+    a.slot.style.background = a.slot.style.getPropertyValue("--fond"); a.slot.style.padding = "4px"; a.slot.style.borderRadius = "8px";
+  }
+  opp.forEach(([pid, p]) => themeAdv(adv[pid], p.theme));
+  FB.patch(`lobbies/${M.lobby}/players/${FB.uid}`, { theme: palettePublique(), frappe: null });  // mon thème, pour les autres joueurs
+  let frappeEnv = null, frappeProg = null, frappeVoulue = "";
+  // Mot piégé, devinette : publie (au plus 5 fois par seconde) la ligne en cours de frappe, pour que les autres la voient en direct
+  function piegeFrappe() {
+    if (!piege || G.phase !== "devine") return;
+    frappeVoulue = (G.attenteVerdict === null && !G.fini) ? G.tape.join("") : "";
+    if (frappeProg === null && frappeVoulue !== frappeEnv) frappeProg = setTimeout(() => { frappeProg = null; if (frappeVoulue !== frappeEnv && enJeu && gen === M.gen) { frappeEnv = frappeVoulue; FB.patch(`lobbies/${M.lobby}/players/${FB.uid}`, { frappe: frappeVoulue || null }); } }, 200);
+  }
+  // une fois la devinette lancée, le mot à trouver de chaque autre joueur s'affiche sous sa grille (jamais le nôtre : la base le refuse)
+  function piegeMajMotsAutres(d) {
+    if (!piegeFinConnue()) return;
+    const cache = !!conf.piege_cache, pret = d.piege_pret || {};
+    for (const [pid, a] of Object.entries(adv)) {
+      if (!(pid in pret)) continue;
+      if (pid === G.piegeCible && !cache && G.monMot) continue;  // « Ton mot : … » est déjà affiché sous sa grille
+      const sec = piegeMot(pid); if (!sec) continue;
+      const txt = (denseAdv ? "Mot : " : "Mot à trouver : ") + sec.mot; if (a.mm.textContent !== txt) a.mm.textContent = txt;
+    }
+  }
   const zm = h("span.t2", { style: { fontSize: "13px", minWidth: "44px", textAlign: "center" } }, `${Math.round((lireConfig().user_zoom || 1) * 100)} %`);
   const zoom = d => { const z = Math.round(Math.max(0.6, Math.min(1.6, (lireConfig().user_zoom || 1) + d)) * 100) / 100; majConfig({ user_zoom: z }); zm.textContent = `${Math.round(z * 100)} %`; gMoi.cases.flat().forEach(t => t.taille(tailleMoi())); G.casesChoix?.forEach?.(t => t.taille(tailleMoi())); };
   ecran(h("div.entete", {}, icone("retour", quitterJeu, false, "Quitter"), info, h("div.ligne", {}, btnSalon, icone("moins", () => zoom(-0.1), false, "Réduire"), zm, icone("plus", () => zoom(0.1), false, "Agrandir"))),
@@ -1294,6 +1342,7 @@ async function partie() {
   function quitterJeu() { M.quitter(); accueil(); }
   const maxTape = () => mode === "MYSTERE" ? G.mot.length - 1 : G.mot.length;
   function maj() {
+    piegeFrappe();
     if (G.fini) return;
     if (piege && G.phase !== "devine") { if (G.phase === "choix") piegeRendreChoix(); return; }
     const l = gMoi.cases[G.ligne];
@@ -1550,7 +1599,7 @@ async function partie() {
       const attendus = Object.entries(G.piegeDe).filter(([t, c]) => actifs.includes(t) && actifs.includes(c)).map(([t]) => t);
       if (attendus.length && attendus.every(t => t in pret)) piegePoserFin();
     }
-    piegeMajEtat(d); piegeMajMonMot(d);
+    piegeMajEtat(d); piegeMajMonMot(d); piegeMajMotsAutres(d); piegeFrappe();
     // 1. notre choix : mot au hasard si l'hôte a forcé le démarrage
     if (G.phase === "choix" && !G.choixEnvoi && piegeFinConnue() && maintenant > G.piegeFin) {
       if (pret[G.piegeCible]) { G.phase = "attente"; piegeConstruireAttente("Mot tiré au hasard"); }
@@ -1704,6 +1753,7 @@ async function partie() {
     for (const [pid, a] of Object.entries(adv)) {
       const pd = p[pid] || {}; const deco = !(p[pid] && (serverNow === 0 || (serverNow - (pd.last_seen || 0)) / 1000 <= 12));
       a.nm.textContent = capitaliser(pd.name || a.nm.textContent) + (pid === hid ? " ♛" : "");
+      themeAdv(a, pd.theme);  // sa grille garde SES couleurs
       a.sc.textContent = nombre(typeof pd.score === "number" ? pd.score : 0);
       const advIdx = pd.rush_index ?? pd.score ?? 0;
       if (piege) { const nAdv = (((d.piege_pret || {})[pid]) || {}).n; if (typeof nAdv === "number" && a.longueur !== nAdv) construireAdv(pid, a.nm.textContent, nAdv); }
@@ -1720,9 +1770,13 @@ async function partie() {
       else if (fs[pid]) { etat = trouve ? `Trouvé en ${lignes.length}` : "Pas trouvé"; if (trouve) coul = "var(--succes)"; }
       else etat = `Essai ${Math.min(lignes.length + 1, conf.essais || 6)}`;
       a.et.textContent = etat; a.et.style.color = coul;
-      const voir = RUSHS.includes(mode) ? advIdx < G.rush : (G.fini || mode === "COOP");
+      const voir = RUSHS.includes(mode) ? advIdx < G.rush : (G.fini || mode === "COOP" || piege);  // Mot piégé : on voit les lettres de tout le monde
       const cible = a.g.cases.map(r => r.map(() => ["", ""]));
       for (const [i, v] of lignes) { if (i >= cible.length) continue; (v.c || []).forEach((c, j) => { if (j < cible[i].length) cible[i][j] = [voir ? ((v.l || [])[j] || "") : "", deCode(c)]; }); }
+      if (piege && !fs[pid] && typeof pd.frappe === "string") {  // frappe en direct : la ligne qu'il est en train de remplir
+        const ligne = Math.max(-1, ...lignes.map(([i]) => i)) + 1;
+        if (ligne < cible.length) [...pd.frappe.slice(0, cible[ligne].length)].forEach((ch, j) => { cible[ligne][j] = [ch, j === 0 ? "bien" : ""]; });
+      }
       a.g.cases.forEach((r, i) => r.forEach((t, j) => t.maj(cible[i][j][0], cible[i][j][1])));
     }
     if (mode === "BLAST" && !G.scoresBlast.has(G.round)) {

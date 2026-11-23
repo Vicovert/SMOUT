@@ -3,6 +3,11 @@
 const puppeteer = require("puppeteer-core");
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const [dossier, L = "1280", H = "860", MODES = "CLASSIQUE,BLAST,PRECISION,MYSTERE,RUSH,ELIMINATION,CHAINE,COOP,PIEGE", NS = "1,2,3,4,5,6,7,8"] = process.argv.slice(2);
+const THEMES_TEST = [
+  { f: "#F4F1EA", v: "#E4E0D6", t: "#D8D3C6", b: "#2E8B57", m: "#E0A82E", a: "#BDB8AA", x: "#1B1A22", y: "#8A857A", s: "#FFFFFF", u: "#1B1A22" },
+  { f: "#0D0221", v: "#1A0B3B", t: "#2B1259", b: "#FF2E88", m: "#00E5FF", a: "#2B1259", x: "#F5F0FF", y: "#8C7BB5", s: "#0D0221", u: "#0D0221" },
+  { f: "#0F2A1D", v: "#153826", t: "#1E4D35", b: "#F2C94C", m: "#EB5757", a: "#1E4D35", x: "#E8F5EC", y: "#6FA283", s: "#0F2A1D", u: "#0F2A1D" },
+  { f: "#2A0F0F", v: "#3A1818", t: "#512424", b: "#FF9F1C", m: "#2EC4B6", a: "#512424", x: "#FFF1E6", y: "#B27C6A", s: "#2A0F0F", u: "#2A0F0F" }];
 const NOMS = ["BOB", "CHLOE", "DAVID", "EMMA", "FELIX", "GABY", "HUGO"];
 const BASE = "http://127.0.0.1:9000";
 async function faux(code, n) {  // n joueurs factices inscrits dans le salon (jetons du faux serveur)
@@ -11,6 +16,11 @@ async function faux(code, n) {  // n joueurs factices inscrits dans le salon (je
     const r = await (await fetch(BASE + "/signup", { method: "POST", body: "{}" })).json();
     const put = () => fetch(`${BASE}/v7/lobbies/${code}/players/${r.localId}.json?auth=${r.idToken}`, { method: "PATCH", body: JSON.stringify({ name: NOMS[i], score: 0, last_seen: { ".sv": "timestamp" } }) });
     await put(); out.push({ uid: r.localId, put });
+    if (process.env.VIVANT) {  // joueurs « vivants » : chacun a SON thème, une ligne déjà jouée et une frappe en cours
+      const th = THEMES_TEST[i % THEMES_TEST.length], H = `${BASE}/v7/lobbies/${code}`, A = `?auth=${r.idToken}`;
+      await fetch(`${H}/players/${r.localId}.json${A}`, { method: "PATCH", body: JSON.stringify({ theme: th, frappe: "AB" + "CDE".slice(0, i % 3) }) });
+      out[i].apres = () => fetch(`${H}/match_data/${r.localId}/0.json${A}`, { method: "PUT", body: JSON.stringify({ c: ["B", "A", "M", "A", "M", "A"], l: ["A", "R", "T", "I", "S", "T"] }) });
+    }
   }
   const t = setInterval(() => out.forEach(o => o.put().catch(() => {})), 4000);
   return { out, stop: () => clearInterval(t), retirer: async i => fetch(`${BASE}/v7/lobbies/${code}/players/${out[i].uid}.json?auth=tok-${out[i].uid}`, { method: "DELETE" }) };
@@ -41,6 +51,7 @@ async function faux(code, n) {  // n joueurs factices inscrits dans le salon (je
       await sleep(1200);
       await p.evaluate(() => document.querySelector(".salon-partie button.lancer").click());
       await p.waitForFunction(() => document.querySelector(".clavier") || /Choisis/.test(document.body.innerText), { timeout: 20000 }); await sleep(1500);
+      for (const o of f.out) if (o.apres) await o.apres(); await sleep(1500);  // lignes déjà jouées (écrites après le lancement : il remet match_data à zéro)
       if (n === 1) { await f.retirer(0); await sleep(2500); }  // seul : le joueur factice est parti
       await p.screenshot({ path: `${dossier}/web_${L}_${mode}_${n}.png`, fullPage: +L < 600 });  // téléphone : page entière (les adversaires sont sous le clavier)
       const deb = await p.evaluate(() => { const r = []; const W = document.documentElement.clientWidth; document.querySelectorAll("body *").forEach(e => { const b = e.getBoundingClientRect(); if (b.width && b.right > W + 1 && getComputedStyle(e).position !== "fixed") r.push(e.className); }); return r.slice(0, 3); });

@@ -77,11 +77,18 @@ const res = []; const ok = (nom, c, info = "") => { res.push(!!c); console.log((
   await p.evaluate(() => solo(true)); await sleep(300);
   await p.evaluate(() => [...document.querySelectorAll("button.lien")].find(x => x.textContent === "Abandonner").click()); await sleep(200);
   ok("abandon au mot du jour → série 0", (await p.evaluate(() => serieMotDuJour())).join() === "0,true");
-  // quitter en cours de mot du jour
-  await p.evaluate(h => majConfig({ mdj_serie: 3, mdj_dernier_gagne: h, last_mdj: "" }), hierStr);
-  await p.evaluate(() => solo(true)); await sleep(200); await p.evaluate(() => document.querySelector(".entete .icone, .icone").click()); await sleep(200);
+  // quitter en cours de mot du jour : la journée ne compte pas (le mot n'a pas été vu) et on reprend avec ses essais
+  await p.evaluate(h => majConfig({ mdj_serie: 3, mdj_dernier_gagne: h, last_mdj: "", mdj_en_cours: null }), hierStr);
+  await p.evaluate(() => solo(true)); await sleep(300);
+  const essaiMdj = await p.evaluate(async () => { const m = await motGraine(trier(MOTS.liste), "mdj:" + aujourdhui()); return [...MOTS.banque].filter(x => x.length === m.length && x[0] === m[0] && x !== m).sort()[0]; });
+  await taper(p, essaiMdj); await sleep(300);
+  await p.evaluate(() => document.querySelector(".entete .icone, .icone").click()); await sleep(300);
   const apres = await p.evaluate(() => serieMotDuJour());
-  ok("quitter le mot du jour en cours le compte comme joué", apres[1] === true, JSON.stringify(apres));
+  ok("quitter le mot du jour en cours ne le compte pas comme joué", apres[1] === false, JSON.stringify(apres));
+  await p.evaluate(() => solo(true)); await sleep(400);
+  ok("le mot du jour reprend avec l'essai déjà fait (essai 2, ligne 1 remplie, lettres sur le clavier)", await p.evaluate(f => true) && await p.evaluate(f => { const g = document.querySelector(".grille"); return g.cases[0].map(t => t.textContent).join("") === f.toUpperCase() && /2/.test(document.querySelector(".stats").textContent) && g.cases[0].every(t => /bien|mal|absent/.test(t.className)); }, essaiMdj), essaiMdj);
+  await p.evaluate(() => [...document.querySelectorAll("button.lien")].find(x => x.textContent === "Abandonner").click()); await sleep(200);
+  ok("abandon : le mot est vu, la journée compte", (await p.evaluate(() => serieMotDuJour()))[1] === true && !(await p.evaluate(() => lireConfig().mdj_en_cours)));
   // thèmes
   const noms = await p.evaluate(() => Object.keys(THEMES));
   let tousOk = true;

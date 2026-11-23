@@ -81,10 +81,11 @@ def jeu_piege(manche):
         if not attendre(lambda: J.phase != "choix", 20): log("ÉCHEC envoi du mot choisi"); fin(False)
         R.setdefault("choisis", []).append(mot); log(f"manche {manche} : mot choisi pour sa cible", mot)
         a = J.adv_widgets.get(J.piege_cible)  # « Ton mot : … » sous la mini-grille du joueur concerné (sauf cible cachée)
-        if S.get("cache"):
+        if S.get("cache"):  # cible cachée : « Ton mot : … » ne s'affiche jamais ; « Mot à trouver : … » n'apparaît que quand la devinette a commencé
             pump(1.5)
-            if a is not None and a.lbl_mot.cget("text"): log("ÉCHEC cible cachée : « Ton mot » révèle la cible", a.lbl_mot.cget("text")); fin(False)
-            log("cible cachée : rien n'est affiché sous la grille de la cible")
+            txt = a.lbl_mot.cget("text") if a is not None else ""
+            if txt.startswith("Ton mot") or (txt and not J.piege_fin_connue()): log("ÉCHEC cible cachée : la cible est révélée trop tôt", txt); fin(False)
+            log("cible cachée : la cible n'est pas révélée pendant le choix")
         elif not attendre(lambda: a is not None and mot in a.lbl_mot.cget("text"), 10): log("ÉCHEC le mot choisi n'est pas affiché sous la grille de sa cible", mot); fin(False)
     elif choix == "rien": log(f"manche {manche} : ne choisit rien (mot au hasard à la fin du décompte)")
     if S.get("forcer_apres") is not None and A.is_host:  # l'hôte force le démarrage (mot au hasard pour ceux qui n'ont pas choisi)
@@ -102,6 +103,18 @@ def jeu_piege(manche):
     if J.fini_local: return
     secret = db()["v7"]["pieges"][A.lobby_code][J.piege_id][A.player_id]["mot"]  # le robot « triche » via l'admin du faux serveur
     R["mots"].append(secret)
+    if manche == 1:  # frappe en direct, mots à trouver des autres et thèmes des autres (vérifiés dans la base et à l'écran)
+        j0 = J.tape; J.tape = list(secret[:3]); J.maj_affichage(); pump(1.3)
+        fr = db()["v7"]["lobbies"][A.lobby_code]["players"][A.player_id].get("frappe")
+        if fr != secret[:3]: log("ÉCHEC frappe en direct non publiée", fr, secret[:3]); fin(False)
+        log("frappe en direct publiée :", fr); J.tape = j0; J.maj_affichage()
+        d0 = db()["v7"]; pl = d0["lobbies"][A.lobby_code]["players"]
+        for pid, a in J.adv_widgets.items():
+            mot_adv = (d0["pieges"][A.lobby_code][J.piege_id].get(pid) or {}).get("mot")
+            if mot_adv and not attendre(lambda: mot_adv in a.lbl_mot.cget("text"), 20): log("ÉCHEC le mot à trouver de l'adversaire n'est pas affiché", mot_adv, a.lbl_mot.cget("text")); fin(False)
+            th = (pl.get(pid) or {}).get("theme") or {}
+            if not attendre(lambda: a.pal is not None and th.get("b") and a.pal["bien"].lower() == th["b"].lower(), 10): log("ÉCHEC thème de l'adversaire non appliqué à sa grille", th); fin(False)
+        log("mots à trouver et thèmes des autres affichés")
     if S.get("jeu", "gagne") == "gagne": coups = [secret]
     else: coups = sorted(m for m in A.banque_verif if len(m) == len(secret) and m[0] == secret[0] and m != secret and m.isascii())[:int(conf["essais"])]
     for w in coups:

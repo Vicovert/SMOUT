@@ -3,7 +3,15 @@ import tkinter as tk
 import tkinter.font as tkfont
 import os, sys, ctypes, colorsys, hashlib
 
-VERSION_APP = "8.15"
+# Tk appelle parfois une liaison (<Leave>, <ButtonRelease-1>, <Configure>…) sans aucun événement quand une fenêtre sous le pointeur est détruite et recréée :
+# le rappel plante alors (« missing 1 required positional argument: 'e' »). Un vrai événement a toujours ses arguments : on ignore ces appels parasites.
+_appel_tk = tk.CallWrapper.__call__
+def _appel_tk_sur(self, *args):
+    if self.subst and not args: return
+    return _appel_tk(self, *args)
+tk.CallWrapper.__call__ = _appel_tk_sur
+
+VERSION_APP = "8.16"
 URL_WEB = "https://vicovert.github.io/SMOUT/"
 
 def mot_graine(liste_triee, graine, index=0):
@@ -173,7 +181,11 @@ class Tuile(tk.Canvas):
         self.taille, self.mini = taille, mini
         self.rayon = rayon if rayon is not None else max(3, int(taille * 0.18))
         self._texte, self._fond, self._fg, self._curseur = "", None, None, False
+        self._pal = None  # palette d'un autre joueur (grilles adverses) ; None = thème de cet appareil
         self._dessiner()
+
+    def set_palette(self, pal):
+        if pal is not self._pal: self._pal = pal; self._dessiner()
 
     def configure(self, cnf=None, **kw):
         if cnf: kw.update(cnf)
@@ -203,13 +215,13 @@ class Tuile(tk.Canvas):
         super().configure(width=taille, height=taille); self._dessiner()
 
     def _style(self):
-        f, txt = self._fond, self._texte
-        if f == P["bien"]: return P["bien"], P["sur_bien"], P["ombre_bien"]
-        if f == P["mal"]: return P["mal"], P["sur_mal"], P["ombre_mal"]
-        if f == P["absent"]: return P["absent"], P["texte_absent"], None
-        if f in (None, P["fond"], P["vide"], P["tuile"]):
-            return (P["tuile"], P["texte"], None) if txt else (P["vide"], P["texte"], None)
-        return f, contraste(f, P["texte"] if not P["sombre"] else "#ffffff"), None
+        f, txt, Q = self._fond, self._texte, (self._pal or P)
+        if f == Q["bien"]: return Q["bien"], Q["sur_bien"], Q["ombre_bien"]
+        if f == Q["mal"]: return Q["mal"], Q["sur_mal"], Q["ombre_mal"]
+        if f == Q["absent"]: return Q["absent"], Q["texte_absent"], None
+        if f in (None, Q["fond"], Q["vide"], Q["tuile"]):
+            return (Q["tuile"], Q["texte"], None) if txt else (Q["vide"], Q["texte"], None)
+        return f, contraste(f, Q["texte"] if not Q["sombre"] else "#ffffff"), None
 
     def _dessiner(self):
         self.delete("all")
@@ -278,7 +290,7 @@ class Panneau(tk.Canvas):
         self.interieur = tk.Frame(self, bg=self.couleur)
         self._win = self.create_window(padding, padding, window=self.interieur, anchor="nw")
         self._taille = (0, 0)
-        self.interieur.bind("<Configure>", lambda e: self.after_idle(self._maj))
+        self.interieur.bind("<Configure>", lambda e=None: self.after_idle(self._maj))
         self.after_idle(self._maj)
 
     def _maj(self):
@@ -574,7 +586,7 @@ class Clavier(tk.Frame):
             if i == 2: self._speciale(f, "Effacer", self.on_effacer, "tuile")
             for ch in rang:
                 c = tk.Canvas(f, width=touche, height=hauteur, bg=fond_parent(parent), highlightthickness=0, cursor="hand2")
-                c.pack(side="left", padx=4); c.bind("<ButtonRelease-1>", lambda e, ch=ch: self.on_lettre(ch))
+                c.pack(side="left", padx=4); c.bind("<ButtonRelease-1>", lambda e=None, ch=ch: e is not None and self.on_lettre(ch))  # e absent : appel parasite de Tk, ignoré
                 self.canvas[ch] = c; self.etats[ch] = None; self._dessiner(ch)
             if i == 2: self._speciale(f, "Valider", self.on_valider, "principal")
     def _speciale(self, f, texte, cmd, variante):

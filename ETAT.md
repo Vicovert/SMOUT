@@ -13,7 +13,7 @@ _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travai
 - [ ] Coller les instructions de projet (`claude/instructions-projet.md`) dans les réglages du projet.
 
 ## En cours
-- 8.16 (en attente des réponses de Victor, modèle conseillé : Opus, effort moyen) : Mot piégé (voir en permanence la frappe et le mot à trouver des autres), thème propre à chaque grille adverse, mot du jour rejouable tant que le mot n'a pas été vu.
+- 8.16 (branche `travail-8.16`, tests CI en cours) : Mot piégé (mot à trouver et frappe en direct des autres), thème propre à chaque grille adverse, mot du jour repris avec ses essais. **Victor : republier `database.rules.json` après la fusion.**
 - Configuration de l'espace de travail : terminée (PR #1), Claude fusionne désormais lui-même les PR.
 
 ## Prochaines pistes (non commencées)
