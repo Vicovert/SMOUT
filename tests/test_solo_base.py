@@ -17,6 +17,13 @@ for ch in j.mot[1:]:
     e = E(); e.char = ch.lower(); e.keysym = ch.lower(); j.clavier_physique(e)
 e = E(); e.char = "\r"; e.keysym = "Return"; j.clavier_physique(e); pump(0.5)
 print("Victoire au clavier physique :", j.fini_local and j.overlay_fin.winfo_ismapped())
+# le réglage « taille » (− 100 % +) agrandit aussi le clavier (8.18)
+app.ouvrir_solo(False); pump(); j = app.container.winfo_children()[0].jeu
+k0 = (int(j.clavier.canvas["A"]["width"]), int(j.clavier.canvas["A"]["height"]))
+j.zoomer(0.2); pump(); k1 = (int(j.clavier.canvas["A"]["width"]), int(j.clavier.canvas["A"]["height"]))
+j.clavier.set_couleur("E", D.P["bien"]); j.zoomer(-0.2); pump()
+print("Taille : le clavier suit le zoom :", k1[0] > k0[0] and k1[1] > k0[1], k0, k1, "| couleurs gardées :", j.clavier.etats.get("E") == D.P["bien"])
+j.ajouter_lettre("E"); print("Clavier utilisable après zoom :", j.mot_tape[-1] == "E")
 # mot du jour
 D.maj_config(last_mdj="", mdj_serie=3, mdj_dernier_gagne=(__import__("datetime").date.today() - __import__("datetime").timedelta(days=1)).isoformat())
 app.ouvrir_solo(True); pump(); j = app.container.winfo_children()[0].jeu

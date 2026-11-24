@@ -191,6 +191,15 @@ function dispositionAdv(nb, essais, longueur, larg, haut) {
   return meilleur || [Math.min(nb, 2), 6, nb >= 3];
 }
 
+// Téléphone (8.18) : les mini-grilles des adversaires en haut de l'écran, jusqu'à 4 par ligne, dans larg × haut.
+function dispositionAdvTel(nb, essais, longueur, larg, haut) {
+  if (nb <= 0) return [1, 8, true];
+  const cols = nb <= 3 ? nb : 4, rangs = Math.ceil(nb / cols), plafond = { 1: 12, 2: 11, 3: 10 }[nb] || 8;
+  const parLarg = Math.floor(((larg - (cols - 1) * 8) / cols - 10) / longueur) - 3;   // case + écart (3 px) ; 10 = marge du cadre
+  const parHaut = Math.floor((haut - rangs * 30 - (rangs - 1) * 6) / rangs / essais) - 3;  // 30 = nom + score, marges
+  return [cols, Math.max(4, Math.min(plafond, parLarg, parHaut)), true];
+}
+
 /* Mot piégé (identique aux fonctions piege_* de page_multi.py) */
 const PIEGE_FIN_INFINIE = 32503680000000;  // fin du choix (ms, an 3000) tant que l'hôte ne l'a pas fixée : on choisit sans limite de temps
 // {cible: choisisseur} pour la manche : ordre circulaire tiré au lancement, décalage différent à chaque manche
@@ -405,7 +414,6 @@ function caseACocher(texte, valeur, onchange) {
 function clavier(onLettre, onEffacer, onValider, hauteurTouche = 50) {
   const e = h("div.clavier", { style: { "--kh": hauteurTouche + "px" } });
   const touches = {}, rangs = h("div.rangs");
-  const tactile = window.matchMedia("(pointer: coarse)").matches || window.innerWidth <= 760;
   // appui immédiat (pas d'attente du « click » ni de zoom au double appui) ; le « click » reste actif pour le clavier physique (detail = 0)
   const touche = (cls, contenu, action, etiquette) => {
     const t = h("button" + cls, { "aria-label": etiquette || contenu, type: "button" }, contenu);
@@ -422,27 +430,7 @@ function clavier(onLettre, onEffacer, onValider, hauteurTouche = 50) {
   });
   e.append(rangs);
   e.setCouleur = (ch, etat) => { const t = touches[ch]; if (t) t.className = "touche" + (etat ? " " + etat : ""); };
-  // Clavier du téléphone : un champ invisible reçoit la saisie du clavier natif (lettres, effacer, entrée), comme le clavier physique sur ordinateur
-  if (tactile) {
-    const SENT = "​", champ = h("input.champ-natif", { type: "text", autocapitalize: "characters", autocorrect: "off", autocomplete: "off", spellcheck: "false", enterkeyhint: "enter", "aria-label": "Clavier du téléphone" });
-    champ.value = SENT; let prec = SENT;
-    const zone = h("button.zone-natif", { type: "button", onclick: () => champ.focus() }, "Touche ici pour écrire avec le clavier du téléphone");
-    const bascule = h("button.lien.bascule-clavier", { type: "button" });
-    champ.addEventListener("input", () => {
-      const v = champ.value;
-      if (v.length < prec.length) for (let i = 0; i < prec.length - v.length; i++) onEffacer();
-      else if (v.startsWith(prec)) for (const c of v.slice(prec.length).normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase()) if (ALPHABET.includes(c)) onLettre(c);
-      prec = v;
-      if (!champ.isComposing && v.length > 24) { champ.value = SENT; prec = SENT; }
-    });
-    champ.addEventListener("compositionend", () => { champ.value = SENT; prec = SENT; });
-    champ.addEventListener("keydown", ev => { ev.stopPropagation(); if (ev.key === "Enter") { ev.preventDefault(); onValider(); } });  // la saisie passe par « input » seulement
-    const maj = natif => { e.classList.toggle("natif", natif); bascule.textContent = natif ? "⌨ Clavier du jeu" : "⌨ Clavier du téléphone"; };
-    const regler = natif => { majConfig({ clavier_natif: natif }); maj(natif); if (natif) { champ.value = SENT; prec = SENT; champ.focus(); } else champ.blur(); };
-    bascule.onclick = () => regler(!e.classList.contains("natif"));
-    maj(!!lireConfig().clavier_natif);
-    e.append(zone, champ, bascule);
-  }
+  e.zoom = z => e.style.setProperty("--kz", z); e.zoom(lireZoom());  // le réglage « taille » (− 100 % +) agrandit aussi le clavier
   return e;
 }
 function superposition(contenu, largeur = 520) {
@@ -605,7 +593,7 @@ async function solo(mode = "libre") {
   const titre = TITRES[mode] + (mode === "marathon" ? ` · mot ${marathon.mots + 1}` : "") + ` · ${mot.length} lettres` + (difficile ? " · difficile" : "");
   // taille de la grille (− 100 % +) et aide
   const zm = h("span.t2", { style: { fontSize: "13px", minWidth: "44px", textAlign: "center" } }, `${Math.round(lireZoom() * 100)} %`);
-  const zoom = d => { const z = Math.round(Math.max(0.6, Math.min(1.6, lireZoom() + d)) * 100) / 100; majConfig({ user_zoom: z }); zm.textContent = `${Math.round(z * 100)} %`; g.cases.flat().forEach(t => t.taille(taille())); };
+  const zoom = d => { const z = Math.round(Math.max(0.6, Math.min(1.6, lireZoom() + d)) * 100) / 100; majConfig({ user_zoom: z }); zm.textContent = `${Math.round(z * 100)} %`; g.cases.flat().forEach(t => t.taille(taille())); kb.zoom(z); };
   ecran(entete(titre, quitter, h("div.ligne", {}, icone("moins", () => zoom(-0.1), false, "Réduire"), zm, icone("plus", () => zoom(0.1), false, "Agrandir"), icone("aide", () => aide.montrer(), false, "Aide"))),
     h("div.centre", { style: { gap: "0" } }, h("div.stats", { style: { marginTop: "10px" } }, sT, sS, sE, sTot), h("div", { style: { marginTop: "18px" } }, g), msg, kb, h("div", { style: { margin: "14px 0 20px" } }, abandon)));
   enJeu = true;
@@ -1403,8 +1391,9 @@ async function partie() {
     G.phase = G.piegeCible && FB.uid in G.piegeDe ? "choix" : "spectateur"; G.etatPiege = null;
   }
 
-  const kh = hauteurFenetre() >= 760 ? 50 : 40;
-  const tailleMoi = () => Math.floor(Math.max(24, Math.min(70, Math.min(58, (hauteurFenetre() - 250 - 3 * (kh + 8)) / (conf.essais || 6) - 8, (Math.min(window.innerWidth - (window.innerWidth > 900 ? 330 : 0), 640) - 30) / Math.max(G.mot.length, 5) - 8) * (lireConfig().user_zoom || 1))));
+  const kh = hauteurFenetre() >= 760 ? 50 : 40, large = window.innerWidth > 900;
+  let hautTel = null;  // téléphone : hauteur laissée à ma grille par les adversaires (en haut) et le clavier (en bas), mesurée par ajusterTel
+  const tailleMoi = () => Math.floor(Math.max(large ? 24 : 18, Math.min(70, Math.min(58, (hautTel === null ? hauteurFenetre() - 250 - 3 * (kh + 8) : hautTel) / (conf.essais || 6) - (large ? 8 : 5), (large ? (Math.min(window.innerWidth - 330, 640) - 30) / Math.max(G.mot.length, 5) - 8 : (Math.min(window.innerWidth, 640) - 24) / Math.max(G.mot.length, 5) - 5)) * (lireConfig().user_zoom || 1))));
   const info = h("div.milieu"), sM = stat("Manche", "1"), sT = stat("Temps", "00:00"), sS = stat("Score", nombre(M.score), "var(--mal)");
   sM.set(String(G.round), null, ` / ${conf.rounds || 1}`);
   const zoneMoi = h("div", { style: { marginTop: "16px" } }); let gMoi = grille(conf.essais || 6, G.mot.length, tailleMoi()); zoneMoi.append(gMoi);
@@ -1414,23 +1403,26 @@ async function partie() {
   const kb = clavier(ajouter, effacer, valider, kh);
   // l'hôte peut ramener tout le monde au salon en cours de partie (avec confirmation)
   const btnSalon = h("button.lien.cache", { onclick: () => { if (M.estHote && confirm("Ramener tous les joueurs au salon ?\nLa partie en cours sera annulée.")) M.ramenerAuSalon(); } }, "Retour au salon");
-  const advZone = h("div", { style: { display: "grid", gap: "14px 18px", padding: "20px 40px 0 10px", alignContent: "start" } });
+  const advZone = h("div" + (large ? "" : ".adv-tel"), { style: large ? { display: "grid", gap: "14px 18px", padding: "20px 40px 0 10px", alignContent: "start" } : {} });
   const adv = {};
   const opp = Object.entries((dm || {}).players || {}).filter(([pid]) => pid !== FB.uid);
-  const large = window.innerWidth > 900;
-  const [colsAdv, tAdv, denseAdv] = dispositionAdv(opp.length, conf.essais || 6, Math.max(G.mot.length, conf.max || 7), large ? Math.max(300, window.innerWidth - 640) : window.innerWidth - 24, large ? hauteurFenetre() - 140 : 560);  // adaptée au nombre de joueurs
-  advZone.style.gridTemplateColumns = `repeat(${colsAdv}, auto)`; if (opp.length > 2) advZone.style.rowGap = "14px"; else advZone.style.rowGap = "26px"; if (!large) advZone.style.justifyContent = "center";
+  const [colsAdv, tAdv, denseAdv] = large ? dispositionAdv(opp.length, conf.essais || 6, Math.max(G.mot.length, conf.max || 7), Math.max(300, window.innerWidth - 640), hauteurFenetre() - 140)  // adaptée au nombre de joueurs
+    : dispositionAdvTel(opp.length, conf.essais || 6, Math.max(G.mot.length, conf.max || 7), Math.min(window.innerWidth, 640) - 24, hauteurFenetre() * (opp.length > 4 ? 0.25 : 0.2) * (hauteurFenetre() < 700 ? 0.8 : 1));
+  if (large) { advZone.style.gridTemplateColumns = `repeat(${colsAdv}, auto)`; advZone.style.rowGap = opp.length > 2 ? "14px" : "26px"; }
+  else advZone.style.gridTemplateColumns = `repeat(${colsAdv}, minmax(0, 1fr))`;
   function construireAdv(pid, nom, longueur) {
     const g = grille(conf.essais || 6, longueur, tAdv, true);
     if (!adv[pid]) {
-      const f = denseAdv ? [14, 15, 12] : [17, 22, 14];
+      const f = !large ? [12, 12, 10] : denseAdv ? [14, 15, 12] : [17, 22, 14];
       const nm = h("div.gras", { style: { fontSize: f[0] + "px" } }, nom), sc = h("div.chiffres", { style: { fontSize: f[1] + "px", color: "var(--mal)" } }, "0"), et = h("div.t2", { style: { fontSize: f[2] + "px" } }), mm = h("div.gras", { style: { fontSize: (denseAdv ? 12 : 14) + "px", color: "var(--mal)", marginTop: denseAdv ? "0" : "4px" } });
       const slot = h("div");
-      const bloc = denseAdv ? h("div", { style: { display: "flex", flexDirection: "column", gap: "3px" } }, h("div.ligne", { style: { gap: "8px", alignItems: "baseline" } }, nm, sc), slot, et, mm)
+      const bloc = !large ? h("div.adv", {}, h("div.ligne", { style: { gap: "6px", alignItems: "baseline", justifyContent: "center" } }, nm, sc), slot, et, mm)  // téléphone : cadre compact
+        : denseAdv ? h("div", { style: { display: "flex", flexDirection: "column", gap: "3px" } }, h("div.ligne", { style: { gap: "8px", alignItems: "baseline" } }, nm, sc), slot, et, mm)
         : h("div.ligne", { style: { alignItems: "flex-start", gap: "16px" } }, slot, h("div", {}, nm, sc, et, mm));
       advZone.append(bloc); adv[pid] = { bloc, slot, nm, sc, et, mm };
     }
     adv[pid].slot.replaceChildren(g); adv[pid].g = g; adv[pid].longueur = longueur;
+    if (enJeu) ajusterTel();
   }
   opp.forEach(([pid, p]) => construireAdv(pid, capitaliser(p.name), G.mot.length));
   // thème de chaque joueur : la grille de l'adversaire garde SES couleurs (variables CSS posées sur sa grille)
@@ -1461,11 +1453,24 @@ async function partie() {
     }
   }
   const zm = h("span.t2", { style: { fontSize: "13px", minWidth: "44px", textAlign: "center" } }, `${Math.round((lireConfig().user_zoom || 1) * 100)} %`);
-  const zoom = d => { const z = Math.round(Math.max(0.6, Math.min(1.6, (lireConfig().user_zoom || 1) + d)) * 100) / 100; majConfig({ user_zoom: z }); zm.textContent = `${Math.round(z * 100)} %`; gMoi.cases.flat().forEach(t => t.taille(tailleMoi())); G.casesChoix?.forEach?.(t => t.taille(tailleMoi())); };
+  const zoom = d => { const z = Math.round(Math.max(0.6, Math.min(1.6, (lireConfig().user_zoom || 1) + d)) * 100) / 100; majConfig({ user_zoom: z }); zm.textContent = `${Math.round(z * 100)} %`; gMoi.cases.flat().forEach(t => t.taille(tailleMoi())); G.casesChoix?.forEach?.(t => t.taille(tailleMoi())); kb.zoom(z); };
   ecran(h("div.entete", {}, (e => { e.dataset.dialogue = "1"; return e; })(icone("retour", quitterJeu, false, "Quitter")), info, h("div.ligne", {}, btnSalon, icone("moins", () => zoom(-0.1), false, "Réduire"), zm, icone("plus", () => zoom(0.1), false, "Agrandir"))),
-    h("div.ligne", { style: { alignItems: "flex-start", flexWrap: "wrap", justifyContent: "center" } },
+    large ? h("div.ligne", { style: { alignItems: "flex-start", flexWrap: "wrap", justifyContent: "center" } },
       h("div.centre", { style: { flex: 1, minWidth: "320px" } }, h("div.stats", { style: { marginTop: "4px", gap: "min(68px, 7.5vw)" } }, sM, sT, sS), zoneMoi, h("div.ligne", { style: { gap: "8px", margin: "8px 0 4px" } }, msg, lienDef), suivant, h("div", { style: { margin: "4px 0 16px" } }, kb)),
-      advZone));
+      advZone)
+    // téléphone (8.18) : tout sur un écran, sans défiler : adversaires en haut, ma grille au milieu, clavier en bas
+    : h("div.centre.jeu-tel", {}, h("div.stats", { style: { gap: "min(68px, 7.5vw)" } }, sM, sT, sS), advZone, zoneMoi, h("div.ligne", { style: { gap: "8px", margin: "4px 0 2px" } }, msg, lienDef), suivant, h("div.bas-tel", {}, kb)));
+  if (!large) zoneMoi.style.marginTop = "6px";
+  // téléphone : ma grille prend la hauteur qui reste entre les adversaires et le clavier
+  function ajusterTel() {
+    if (large || !zoneMoi.isConnected) return;
+    const bas = kb.getBoundingClientRect().bottom + window.scrollY + 6, prise = bas - zoneMoi.offsetHeight;
+    const h0 = Math.max(120, hauteurFenetre() - prise);
+    if (hautTel !== null && Math.abs(h0 - hautTel) < 4) return;
+    hautTel = h0; gMoi.cases.flat().forEach(t => t.taille(tailleMoi())); G.casesChoix?.forEach?.(t => t.taille(tailleMoi()));
+  }
+  ajusterTel();
+  if (!large && window.ResizeObserver) { const ro = new ResizeObserver(() => requestAnimationFrame(ajusterTel)); ro.observe(zoneMoi.parentNode); nettoyageEcran.push(() => ro.disconnect()); }  // textes qui apparaissent, mot piégé…
   enJeu = true;
   info.textContent = `${NOM_MODE[mode] || mode} · ${G.mot.length} lettres`;
   document.onkeydown = e => {
@@ -2046,6 +2051,19 @@ async function resultats() {
     if (enJeu && !(b && b.dataset.dialogue) && !confirm("Quitter la partie en cours ?")) return;  // multijoueur : la fenêtre « Quitter la partie ? » s'en charge
     if (b) b.click(); else accueil();
   });
+}
+
+/* ------------------------------------------------------------------ pas de zoom de la page (double appui, pincement)
+   touch-action: manipulation (style.css) suffit sur Android et iOS récents ; ceci couvre les navigateurs qui l'ignorent. */
+{
+  let dernier = 0;
+  document.addEventListener("touchend", e => {
+    const t = Date.now(), cible = e.target;
+    if (t - dernier < 350 && cible && !cible.closest("input, textarea, select, .touche")) { e.preventDefault(); cible.click && cible.click(); }  // 2e appui rapide : un clic, pas un zoom
+    dernier = t;
+  }, { passive: false });
+  document.addEventListener("touchmove", e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+  for (const g of ["gesturestart", "gesturechange", "dblclick"]) document.addEventListener(g, e => e.preventDefault(), { passive: false });
 }
 
 /* ------------------------------------------------------------------ démarrage */

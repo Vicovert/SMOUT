@@ -77,6 +77,8 @@ acc = m.frames["PageAccueil"]
 ok("en pause : « Reprendre » proposé sur l'accueil du multijoueur", bool(acc.zone_reprise.winfo_children()))
 acc.reprendre(design.lire_config()["partie_en_cours"]); pump(3)
 ok("« Reprendre » ramène dans la partie en cours", m.lobby_code == code and J.active_sync)
+k0 = int(J.clavier.canvas["A"]["height"]); J.adjust_zoom(0.2); pump(0.3); k1 = int(J.clavier.canvas["A"]["height"]); J.adjust_zoom(-0.2); pump(0.3)
+ok("en partie : « + » agrandit aussi le clavier", k1 > k0 and int(J.clavier.canvas["A"]["height"]) == k0, (k0, k1))
 
 # départ définitif de l'hôte : relais au premier arrivé (BOB), pas au plus petit identifiant (CHLOE)
 J.quitter_definitif(); time.sleep(2.5)
