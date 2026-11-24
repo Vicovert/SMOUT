@@ -56,6 +56,8 @@ def peut_lire(uid, p):
         if len(p) >= 4 and p[3] == uid: return True
         return lire(DATA, ["v7", "lobbies", p[2], "settings", "host_id"]) == uid
     if len(p) >= 3 and p[1] == "comptes": return p[2] == uid  # compte : lisible par son seul propriétaire
+    if p[1:2] == ["codes_amis"] or (len(p) >= 3 and p[1] == "profils"): return True  # 9.2 : codes amis et profils publics
+    if len(p) >= 3 and p[1] in ("amis", "amis_demandes", "invitations"): return p[2] == uid  # 9.2 : sa liste, ses demandes, ses invitations
     if len(p) >= 5 and p[1] == "pieges":  # mot piégé : lisible par les participants de la manche, sauf par celui qui doit le deviner
         return (uid != p[4] and participant(DATA, p[2], uid)) or existe(lire(DATA, ["v7", "lobbies", p[2], "spectateurs", uid]))  # les spectateurs voient tout
     return False
@@ -80,6 +82,22 @@ def regle_ecriture(uid, niveau, D, N):
         if not re.fullmatch(r"[0-9]{4}", code): return False
         lob = lire(D, ["v7", "lobbies", code])
         return not existe(lob) or (lire(lob, ["settings", "host_id"]) == uid)
+    if len(niveau) == 3 and niveau[1] == "codes_amis":  # 9.2 : code ami → joueur (créé ou effacé par son propriétaire)
+        d, n = lire(D, niveau), lire(N, niveau)
+        return (not existe(d) and n == uid) or (not existe(n) and d == uid)
+    if len(niveau) == 3 and niveau[1] == "profils": return niveau[2] == uid
+    if len(niveau) == 4 and niveau[1] == "amis":
+        u, a = niveau[2], niveau[3]
+        if uid == u: return True
+        return uid == a and (not existe(lire(N, niveau)) or existe(lire(D, ["v7", "amis_demandes", a, u])))
+    if len(niveau) == 4 and niveau[1] == "amis_demandes":
+        cible, de = niveau[2], niveau[3]
+        return (uid == de and de != cible) or (uid == cible and not existe(lire(N, niveau)))
+    if len(niveau) == 4 and niveau[1] == "invitations":
+        cible, code = niveau[2], niveau[3]; d, n = lire(D, niveau), lire(N, niveau)
+        if uid == cible and not existe(n): return True
+        if existe(n) and (n or {}).get("de") == uid and existe(lire(D, ["v7", "lobbies", code, "players", uid])) and existe(lire(D, ["v7", "amis", cible, uid])): return True
+        return not existe(n) and (d or {}).get("de") == uid
     if len(niveau) == 4 and niveau[1] == "demandes":  # 9.1 : demande pour regarder une partie en cours
         code, pid = niveau[2], niveau[3]; d, n = lire(D, niveau), lire(N, niveau)
         if uid == pid:
@@ -124,7 +142,7 @@ def regle_ecriture(uid, niveau, D, N):
             pid = sous[1]; d, n = lire(d_lob, ["spectateurs", pid]), lire(n_lob, ["spectateurs", pid])
             if uid == pid:
                 if existe(d) or not existe(n): return True
-                if d_lob.get("status") != "waiting": return False
+                if d_lob.get("status") != "waiting" and not existe(lire(D, ["v7", "invitations", pid, code])): return False  # 9.2 : invité par un ami
                 sec = lire(D, ["v7", "secrets", code])
                 return sec is None or (n or {}).get("preuve") == sec
             return not existe(n) and existe(d) and (d.get("last_seen") or 0) < maintenant() - 25000
@@ -168,6 +186,25 @@ def valider(N, cible):
         n = lire(N, cible[:4])
         if existe(n):
             if not isinstance(n, dict) or set(n) - {"name", "t", "preuve"} or not isinstance(n.get("name"), str) or len(n["name"]) > 30: return False
+            if not isinstance(n.get("t"), (int, float)) or n["t"] > maintenant() + 5000: return False
+    if len(cible) >= 3 and cible[1] == "codes_amis":
+        n = lire(N, cible[:3])
+        if existe(n) and (not re.fullmatch(r"[A-Z2-9]{6}", cible[2]) or not isinstance(n, str)): return False
+    if len(cible) >= 3 and cible[1] == "profils":
+        n = lire(N, cible[:3])
+        if existe(n):
+            if not isinstance(n, dict) or set(n) - {"pseudo", "code", "vu", "salon", "cree"}: return False
+            if "pseudo" in n and not (isinstance(n["pseudo"], str) and len(n["pseudo"]) <= 30): return False
+            if "vu" in n and not (isinstance(n["vu"], (int, float)) and n["vu"] <= maintenant() + 5000): return False
+            if "salon" in n and not (isinstance(n["salon"], str) and len(n["salon"]) <= 4): return False
+    if len(cible) >= 4 and cible[1] == "amis":
+        n = lire(N, cible[:4])
+        if existe(n) and (n is not True or cible[2] == cible[3]): return False
+    if len(cible) >= 4 and cible[1] in ("amis_demandes", "invitations"):
+        n = lire(N, cible[:4])
+        if existe(n):
+            cles = {"pseudo", "t"} if cible[1] == "amis_demandes" else {"de", "pseudo", "t"}
+            if not isinstance(n, dict) or set(n) != cles or not isinstance(n.get("pseudo"), str) or len(n["pseudo"]) > 30: return False
             if not isinstance(n.get("t"), (int, float)) or n["t"] > maintenant() + 5000: return False
     if len(cible) >= 3 and cible[1] == "comptes":
         n = lire(N, cible[:3])
