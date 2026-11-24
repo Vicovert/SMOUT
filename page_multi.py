@@ -1320,7 +1320,7 @@ class PageJeu(tk.Frame):
                 self.controller.current_score = int(self.round_actuel) - 1
                 self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/players/{self.controller.player_id}", {"score": self.controller.current_score})
         self.coop_n, self.coop_attente, self.coop_md, self.coop_sig = 0, [], {}, None
-        self.piege = mode == "PIEGE"
+        self.piege = mode == "PIEGE"; self.attente_verdict = None  # (frappe en direct : pas d'attente héritée d'un Mot piégé précédent)
         if self.piege: self.piege_init(conf)
 
         self.ligne, self.fini_local, self.temps_restant = 0, False, conf.get("timer", 180)
@@ -1519,10 +1519,11 @@ class PageJeu(tk.Frame):
                     if show_letters:
                         for c_idx, char in enumerate(content.get("l", [])):
                             if c_idx < len(grid[idx]): cible[idx][c_idx] = (char, cible[idx][c_idx][1])
-            if mode == "PIEGE" and not fs.get(pid) and nb_lignes < len(grid):  # frappe en direct : la ligne qu'il est en train de remplir
+            voir_frappe = mode == "PIEGE" or (self.fini_local and mode not in RUSHS and mode != "COOP")  # 9.3 : tous les modes, une fois sa manche finie
+            if voir_frappe and not fs.get(pid) and nb_lignes < len(grid):  # frappe en direct : la ligne qu'il est en train de remplir
                 frappe = p.get(pid, {}).get("frappe")
                 if isinstance(frappe, str):
-                    for c_idx, char in enumerate(frappe[:len(grid[nb_lignes])]): cible[nb_lignes][c_idx] = (char, code_coul("B") if c_idx == 0 else vide)
+                    for c_idx, char in enumerate(frappe[:len(grid[nb_lignes])]): cible[nb_lignes][c_idx] = (char, code_coul("B") if c_idx == 0 and mode != "MYSTERE" else vide)
             for r, row in enumerate(grid):
                 for c, t in enumerate(row):
                     txt, coul = cible[r][c]
@@ -1660,9 +1661,11 @@ class PageJeu(tk.Frame):
             else: self.btn_forcer.pack_forget()
 
     def piege_frappe(self):
-        """Mot piégé, devinette : publie (au plus 5 fois par seconde) la ligne en cours de frappe, pour que les autres la voient en direct."""
-        if not (self.piege and getattr(self, "phase", "") == "devine"): return
-        txt = "".join(self.tape) if (self.attente_verdict is None and not self.fini_local) else ""
+        """Publie (au plus 5 fois par seconde) la ligne en cours de frappe : Mot piégé (devinette) et, depuis la 9.3, tous les modes sauf
+        Rush/Chaîne (chacun son mot) et Coopératif (grille commune). Les autres ne la voient qu'une fois LEUR manche finie (comme piegeFrappe du site)."""
+        mode = self.controller.settings_config.get("game_mode", "CLASSIQUE")
+        if self.controller.spectateur or mode in RUSHS or mode == "COOP" or (self.piege and getattr(self, "phase", "") != "devine"): return
+        txt = "".join(self.tape) if (getattr(self, "attente_verdict", None) is None and not self.fini_local) else ""
         self._frappe_voulue = txt
         if self._frappe_prog is None and txt != self._frappe_env:
             try: self._frappe_prog = self.after(200, self._frappe_envoyer)

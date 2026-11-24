@@ -2,6 +2,14 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
+## 9.3
+- Retour de Victor (téléphone) : une fois son mot trouvé, on ne voyait pas ce que les autres tapent et valident. Corrigé :
+  - frappe en direct dans tous les modes (sauf Rush/Chaîne, chacun son mot, et Coopératif, grille commune), visible seulement une fois SA manche finie (pas de triche) ; PC et web ;
+  - téléphone : manche finie → ma grille et le clavier s'effacent, les grilles des autres s'agrandissent sur toute la place (comme la vue spectateur) ; les mini-cases réaffichent leurs lettres quand elles grandissent ;
+  - le spectateur web voit aussi lettres et frappe dès le début (comme sur PC).
+- Les classements (mot du jour, marathon) et la fiche joueur passent en 9.4.
+- Tests : `tests/web/frappe_web.js` (6).
+
 ## 9.2
 - Liste d'amis (comptes e-mail seulement ; maquettes validées par Victor), PC et web : écran Amis (icône sur l'accueil et dans le Multijoueur, pastille = demandes reçues) avec mon code ami (6 caractères, « Donne-le pour ajouter des amis. »), ajout par code, demandes reçues (Accepter / Refuser), liste avec statut (En ligne, Dans un salon · code, Hors ligne · il y a…), Inviter / Rejoindre / Retirer.
 - Bandeau en haut de tous les écrans (pas en pleine partie) : « X t'invite dans son salon · Rejoindre / Ignorer » ou « X veut être ton ami · Voir / Ignorer ».
