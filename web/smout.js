@@ -357,12 +357,12 @@ function tuile(taille, mini = false) {
   const t = h("div.tuile" + (mini ? ".mini" : ""), { style: { "--t": taille + "px" } });
   t.etat = ""; t.lettre = "";
   t.maj = (lettre, etat, curseur = false) => {
-    if (lettre !== undefined && lettre !== t.lettre) { t.lettre = lettre; t.textContent = mini && taille < 14 ? "" : lettre; }
+    if (lettre !== undefined && lettre !== t.lettre) { t.lettre = lettre; t.textContent = mini && taille < 14 ? "" : lettre; }  // (taille : la taille actuelle, voir t.taille)
     if (etat !== undefined) { t.etat = etat; }
     const cls = "tuile" + (mini ? " mini" : "") + (t.etat ? " " + t.etat : (t.lettre ? " saisie" : "")) + (curseur ? " curseur" : "");
     if (t.className !== cls) t.className = cls;
   };
-  t.taille = n => t.style.setProperty("--t", n + "px");
+  t.taille = n => { t.style.setProperty("--t", n + "px"); const avant = taille; taille = n; if ((avant < 14) !== (n < 14) && mini) t.textContent = taille < 14 ? "" : t.lettre; };  // 9.3 : agrandie → lettre affichée
   return t;
 }
 function grille(lignes, colonnes, taille, mini = false) {
@@ -1745,7 +1745,7 @@ async function partie() {
   if (large) { advZone.style.gridTemplateColumns = `repeat(${colsAdv}, auto)`; advZone.style.rowGap = opp.length > 2 ? "14px" : "26px"; }
   else advZone.style.gridTemplateColumns = `repeat(${colsAdv}, minmax(0, 1fr))`;
   function construireAdv(pid, nom, longueur) {
-    const g = grille(conf.essais || 6, longueur, tAdv, true);
+    const g = grille(conf.essais || 6, longueur, G.tAdv || tAdv, true);
     if (!adv[pid]) {
       const f = !large ? [12, 12, 10] : denseAdv ? [14, 15, 12] : [17, 22, 14];
       const nm = h("div.gras", { style: { fontSize: f[0] + "px" } }, nom), sc = h("div.chiffres", { style: { fontSize: f[1] + "px", color: "var(--mal)" } }, "0"), et = h("div.t2", { style: { fontSize: f[2] + "px" } }), mm = h("div.gras", { style: { fontSize: (denseAdv ? 12 : 14) + "px", color: "var(--mal)", marginTop: denseAdv ? "0" : "4px" } });
@@ -1769,10 +1769,11 @@ async function partie() {
   opp.forEach(([pid, p]) => themeAdv(adv[pid], p.theme));
   FB.patch(`lobbies/${M.lobby}/players/${FB.uid}`, { theme: palettePublique(), frappe: null });  // mon thème, pour les autres joueurs
   let frappeEnv = null, frappeProg = null, frappeVoulue = "";
-  // Mot piégé, devinette : publie (au plus 5 fois par seconde) la ligne en cours de frappe, pour que les autres la voient en direct
+  // publie (au plus 5 fois par seconde) la ligne en cours de frappe : Mot piégé (devinette) et, depuis la 9.3, tous les modes
+  // sauf Rush/Chaîne (chacun son mot) et Coopératif (grille commune). Les autres ne la voient qu'une fois LEUR manche finie (pas de triche).
   function piegeFrappe() {
-    if (!piege || G.phase !== "devine") return;
-    frappeVoulue = (G.attenteVerdict === null && !G.fini) ? G.tape.join("") : "";
+    if (spect || RUSHS.includes(mode) || mode === "COOP" || (piege && G.phase !== "devine")) return;
+    frappeVoulue = (G.attenteVerdict == null && !G.fini) ? G.tape.join("") : "";
     if (frappeProg === null && frappeVoulue !== frappeEnv) frappeProg = setTimeout(() => { frappeProg = null; if (frappeVoulue !== frappeEnv && enJeu && gen === M.gen) { frappeEnv = frappeVoulue; FB.patch(`lobbies/${M.lobby}/players/${FB.uid}`, { frappe: frappeVoulue || null }); } }, 200);
   }
   // une fois la devinette lancée, le mot à trouver de chaque autre joueur s'affiche sous sa grille (jamais le nôtre : la base le refuse)
@@ -1854,8 +1855,17 @@ async function partie() {
     o.montrer();
   }
   const maxTape = () => mode === "MYSTERE" ? G.mot.length - 1 : G.mot.length;
+  // 9.3, téléphone : manche finie → ma grille et le clavier s'effacent, les grilles des autres prennent la place (lettres et frappe lisibles)
+  function agrandirAdv() {
+    G.agrandi = true; if (large || !opp.length) return;
+    zoneMoi.classList.add("cache"); kb.parentNode && kb.parentNode.classList.add("cache");
+    const [cols, t] = dispositionAdv(opp.length, conf.essais || 6, Math.max(G.mot.length, conf.max || 7), Math.min(window.innerWidth, 640) - 24, hauteurFenetre() - 230, 44);
+    G.tAdv = t; advZone.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`; advZone.classList.add("adv-grand");
+    Object.values(adv).forEach(a => a.g && a.g.cases.flat().forEach(x => x.taille(t)));
+  }
   function maj() {
     piegeFrappe();
+    if (G.fini && !G.agrandi && !spect) agrandirAdv();
     if (G.fini) return;
     if (piege && G.phase !== "devine") { if (G.phase === "choix") piegeRendreChoix(); return; }
     const l = gMoi.cases[G.ligne];
@@ -2265,6 +2275,7 @@ async function partie() {
     let roundFini = fc >= actifs.length || G.reste <= 0;
     if (piege && roundFini && !piegeRecapsComplets(d, actifs)) roundFini = false;
     if (roundFini) G.minuteur = false;
+    if (G.fini && !G.agrandi && !spect) agrandirAdv();  // 9.3, téléphone : manche finie → les grilles des autres prennent la place
     for (const [pid, a] of Object.entries(adv)) {
       const pd = p[pid] || {}; const deco = !(p[pid] && (serverNow === 0 || (serverNow - (pd.last_seen || 0)) / 1000 <= 12));
       a.nm.textContent = capitaliser(pd.name || a.nm.textContent) + (pid === hid ? " ♛" : "");
@@ -2285,12 +2296,12 @@ async function partie() {
       else if (fs[pid]) { etat = trouve ? `Trouvé en ${lignes.length}` : "Pas trouvé"; if (trouve) coul = "var(--succes)"; }
       else etat = `Essai ${Math.min(lignes.length + 1, conf.essais || 6)}`;
       a.et.textContent = etat; a.et.style.color = coul;
-      const voir = RUSHS.includes(mode) ? advIdx < G.rush : (G.fini || mode === "COOP" || piege);  // Mot piégé : on voit les lettres de tout le monde
+      const voir = spect || (RUSHS.includes(mode) ? advIdx < G.rush : (G.fini || mode === "COOP" || piege));  // le spectateur voit tout  // Mot piégé : on voit les lettres de tout le monde
       const cible = a.g.cases.map(r => r.map(() => ["", ""]));
       for (const [i, v] of lignes) { if (i >= cible.length) continue; (v.c || []).forEach((c, j) => { if (j < cible[i].length) cible[i][j] = [voir ? ((v.l || [])[j] || "") : "", deCode(c)]; }); }
-      if (piege && !fs[pid] && typeof pd.frappe === "string") {  // frappe en direct : la ligne qu'il est en train de remplir
+      if ((piege || (voir && !RUSHS.includes(mode) && mode !== "COOP")) && !fs[pid] && typeof pd.frappe === "string") {  // frappe en direct : la ligne qu'il est en train de remplir
         const ligne = Math.max(-1, ...lignes.map(([i]) => i)) + 1;
-        if (ligne < cible.length) [...pd.frappe.slice(0, cible[ligne].length)].forEach((ch, j) => { cible[ligne][j] = [ch, j === 0 ? "bien" : ""]; });
+        if (ligne < cible.length) [...pd.frappe.slice(0, cible[ligne].length)].forEach((ch, j) => { cible[ligne][j] = [ch, j === 0 && mode !== "MYSTERE" ? "bien" : ""]; });
       }
       a.g.cases.forEach((r, i) => r.forEach((t, j) => t.maj(cible[i][j][0], cible[i][j][1])));
     }

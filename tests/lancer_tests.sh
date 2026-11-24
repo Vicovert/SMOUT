@@ -28,7 +28,7 @@ etape "Amis (PC)"; xpy "$ICI/test_amis_pc.py" "$DEPOT" 2>&1 | tee /tmp/t_amis_pc
 etape "Spectateurs et demandes pour regarder (PC)"; xpy "$ICI/test_spectateur_pc.py" "$DEPOT" 2>&1 | tee /tmp/t_spect_pc.txt | grep -E "ÉCHEC|conformes|Traceback"; verifier /tmp/t_spect_pc.txt
 fi
 if groupe base-web; then
-for t in solo_web solo72_web hors_ligne captures_multi clavier_tel jeu_tel spectateur_web amis_web retour_tel horloge_decalee; do etape "Web : $t"; (cd "$ICI/web" && timeout 400 node $t.js) 2>&1 | tee /tmp/t_$t.txt | grep -E "ÉCHEC|conformes|EXCEPTION"; verifier /tmp/t_$t.txt; done
+for t in solo_web solo72_web hors_ligne captures_multi clavier_tel jeu_tel spectateur_web amis_web frappe_web retour_tel horloge_decalee; do etape "Web : $t"; (cd "$ICI/web" && timeout 400 node $t.js) 2>&1 | tee /tmp/t_$t.txt | grep -E "ÉCHEC|conformes|EXCEPTION"; verifier /tmp/t_$t.txt; done
 fi
 S="$ICI/scenario.sh"
 if bloc croise-a; then
