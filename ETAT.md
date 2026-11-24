@@ -5,21 +5,22 @@ _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travai
 **Dernière mise à jour : 24/11/2026**
 
 ## En ligne
-- Version : **9.0** (release Windows seule `SMOUT.9.0.exe`, 24/11/2026 ; site https://vicovert.github.io/SMOUT/ à jour). Bouton « Lobby » de l'hôte, récapitulatif par manche pour tous les modes, « (hôte) » en fin de partie, pseudo en lettres/chiffres/espaces, moins de textes en double.
-- Protocole multi : `VERSION_JEU` 8.10, données sous `/v7`
+- Version : **9.1** (release Windows seule `SMOUT.9.1.exe`, 24/11/2026 ; site https://vicovert.github.io/SMOUT/ à jour). Fenêtres du jeu, spectateurs, demandes pour regarder une partie en cours (cloche de l'hôte), code du salon en partie.
+- Protocole multi : `VERSION_JEU` 9.1, données sous `/v7` (spectateurs, demandes)
 
 ## À faire par Victor
 - [x] E-mail/Mot de passe activé et règles Firebase republiées (fait par Victor le 24/11/2026).
 - [x] 8.19 testée par Victor (comptes, téléphone).
 - [x] Idées 9.1 à 9.3 décrites et décisions prises : voir `claude/passations/2026-11-24-plan-9.1-9.3.md`.
-- [ ] Ouvrir un nouveau fil pour la 9.1 (Opus, effort élevé) qui commence par lire cette note.
+- [ ] **Republier `database.rules.json`** (9.1 : spectateurs, demandes) : sans cela, spectateurs et demandes échouent en ligne.
+- [ ] Tester la 9.1 à plusieurs (salon plein → spectateur, demande pendant une partie, cloche de l'hôte).
 - [x] Branches inutiles supprimées (24/11/2026).
 
 ## En cours
 - Configuration de l'espace de travail : terminée (PR #1), Claude fusionne désormais lui-même les PR.
 
 ## Prochaines pistes (non commencées)
-- 9.1 : popups maison + spectateurs et demandes pour rejoindre ; 9.2 : amis (code ami) ; 9.3 : classements mot du jour et marathon + fiche joueur (ancienneté). Détails : `claude/passations/2026-11-24-plan-9.1-9.3.md`.
+- 9.2 : amis (code ami) et invitations ; 9.3 : classements mot du jour et marathon + fiche joueur (ancienneté). Détails : `claude/passations/2026-11-24-plan-9.1-9.3.md`.
 - Corriger `tests/README.md` (dit encore que les tests tournent sur `main`).
 - Test automatique d'équivalence PC ↔ web des constantes (`REGLES_MODES`, `RUSHS`, `COULEURS_MODES`).
 - Règles Firebase : empêcher l'hôte d'écrire n'importe quel score.
