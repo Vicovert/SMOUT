@@ -2,6 +2,14 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
+## 9.2
+- Liste d'amis (comptes e-mail seulement ; maquettes validées par Victor), PC et web : écran Amis (icône sur l'accueil et dans le Multijoueur, pastille = demandes reçues) avec mon code ami (6 caractères, « Donne-le pour ajouter des amis. »), ajout par code, demandes reçues (Accepter / Refuser), liste avec statut (En ligne, Dans un salon · code, Hors ligne · il y a…), Inviter / Rejoindre / Retirer.
+- Bandeau en haut de tous les écrans (pas en pleine partie) : « X t'invite dans son salon · Rejoindre / Ignorer » ou « X veut être ton ami · Voir / Ignorer ».
+- « Inviter des amis » dans le salon (bouton à côté du code) et en partie (icône) : panneau latéral sans voile, amis en ligne d'abord, « Invité ✓ ».
+- Rejoindre par invitation : sans taper le code ; le mot de passe du salon reste demandé ; partie en cours → spectateur directement (choix de Victor : toujours direct).
+- Règles Firebase (**à republier**) : `codes_amis`, `profils`, `amis`, `amis_demandes`, `invitations`, et entrée en spectateur pendant une partie pour un invité. Signe de vie du profil toutes les 30 s (comptes seulement ; aucune connexion ouverte sans compte).
+- Tests : règles 120/120, `tests/web/amis_web.js` (17), `tests/test_amis_pc.py` (15).
+
 ## 9.1
 - Fenêtres du jeu à la place des fenêtres natives (confirm/alert du navigateur, messagebox du PC) : confirmations et messages dans la DA (titre, texte, boutons Annuler / action), PC et web (`dialogue`, `confirmer`, `informer`).
 - Spectateurs (maquettes validées par Victor) : salon plein → on entre comme spectateur ; « x spectateurs » sous la liste des joueurs ; « Passer spectateur » sur sa propre ligne (pas pour l'hôte) ; « Prendre la place » sur une place libre. Le spectateur le reste pendant la partie : pas de grille ni de clavier, les grilles de tous les joueurs réparties sur toute la place, il voit tout (en Mot piégé aussi les mots à trouver), n'écrit rien dans la partie (bloqué dans le client et par les règles), peut quitter à tout moment.

@@ -11,7 +11,7 @@ def _appel_tk_sur(self, *args):
     return _appel_tk(self, *args)
 tk.CallWrapper.__call__ = _appel_tk_sur
 
-VERSION_APP = "9.1"
+VERSION_APP = "9.2"
 URL_WEB = "https://vicovert.github.io/SMOUT/"
 
 def mot_graine(liste_triee, graine, index=0):
@@ -421,6 +421,11 @@ class Icone(tk.Canvas):
             self.create_arc(m - 7*k, m - 9*k, m + 7*k, m + 5*k, start=0, extent=180, style="arc", outline=c, width=w)
             self.create_line(m - 7*k, m - 2*k, m - 7*k, m + 4*k, m - 10*k, m + 7*k, m + 10*k, m + 7*k, m + 7*k, m + 4*k, m + 7*k, m - 2*k, fill=c, width=w, joinstyle="round")
             self.create_arc(m - 3*k, m + 6*k, m + 3*k, m + 11*k, start=180, extent=180, style="arc", outline=c, width=w)
+        elif self.nom == "amis":  # 9.2 : deux silhouettes
+            self.create_oval(m - 9*k, m - 9*k, m - 2*k, m - 2*k, outline=c, width=w)
+            self.create_arc(m - 12*k, m + 1*k, m + 1*k, m + 14*k, start=0, extent=180, style="arc", outline=c, width=w)
+            self.create_oval(m + 3*k, m - 7*k, m + 8*k, m - 2*k, outline=c, width=w)
+            self.create_arc(m + 2*k, m + 1*k, m + 12*k, m + 11*k, start=0, extent=180, style="arc", outline=c, width=w)
         elif self.nom == "fermer":
             self.create_line(m - 7*k, m - 7*k, m + 7*k, m + 7*k, fill=c, width=w * 1.2, capstyle="round")
             self.create_line(m + 7*k, m - 7*k, m - 7*k, m + 7*k, fill=c, width=w * 1.2, capstyle="round")
@@ -772,6 +777,27 @@ def dialogue(parent, titre, texte, boutons, largeur=480):
     try: o.destroy()
     except tk.TclError: pass
     return valeurs.get(choix.get(), boutons[0][1])
+
+
+def demander_texte(parent, titre, texte, masque=True, oui="Rejoindre"):
+    """9.2 : petite fenêtre avec un champ (mot de passe d'un salon) ; renvoie le texte, ou None si annulé."""
+    racine = parent.winfo_toplevel()
+    o = Superposition(racine, largeur=440); i = o.interieur
+    etiquette(i, titre, "titre", 25).pack(anchor="w")
+    etiquette(i, texte, "texte", 14, P["texte2"], wraplength=370, justify="left").pack(anchor="w", pady=(4, 12))
+    ch = Champ(i, largeur=380, hauteur=48, taille=16, masque=masque); ch.pack(anchor="w")
+    choix = tk.StringVar(value="")
+    f = tk.Frame(i, bg=fond_parent(i)); f.pack(anchor="e", pady=(14, 0))
+    Bouton(f, "Annuler", lambda: choix.set("non"), largeur=130, hauteur=44, variante="discret", taille=14).pack(side="left")
+    Bouton(f, oui, lambda: choix.set("oui"), largeur=150, hauteur=44, taille=14).pack(side="left", padx=(10, 0))
+    ch.bind_entree(lambda: choix.set("oui"))
+    o.montrer(); ch.focus()
+    try: racine.wait_variable(choix)
+    except tk.TclError: return None
+    val = ch.get().strip()
+    try: o.destroy()
+    except tk.TclError: pass
+    return val if choix.get() == "oui" else None
 
 
 def confirmer(parent, titre, texte, oui="Confirmer", non="Annuler"):
