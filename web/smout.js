@@ -1434,6 +1434,7 @@ async function partie() {
   const motsRush = piege ? ["?".repeat(conf.max || 7)] : mode === "CHAINE" ? await motsChaine(fList, graine) : await Promise.all(Array.from({ length: 100 }, (_, i) => motGraine(fList, graine, i)));
   if (gen !== M.gen) return;
   const G = { mot: motsRush[0], rush: 0, ligne: 0, fini: false, statut: {}, round: Number(conf.round_num || 1), debut: conf.start_time || FB.maintenant(), reste: conf.timer || 180, minuteur: true, scoresBlast: M._scoresBlast || new Set() };
+  M.G = G;  // état de la partie en cours (lu par les tests, comme PageJeu côté PC)
   M.dernierMot = piege ? "" : G.mot;
   G.tape = mode === "MYSTERE" ? [] : [G.mot[0]];
   const reprise = M.reprise; M.reprise = false;
