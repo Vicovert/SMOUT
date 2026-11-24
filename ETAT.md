@@ -5,7 +5,7 @@ _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travai
 **Dernière mise à jour : 24/11/2026**
 
 ## En ligne
-- Version : **8.17** (release Windows seule `SMOUT.8.17.exe`, 24/11/2026 ; site https://vicovert.github.io/SMOUT/ à jour). Comptes e-mail synchronisés entre appareils, pause/reprise d'une partie multijoueur, « Donner l'hôte » et relais au premier arrivé.
+- Version : **8.18** (release Windows seule `SMOUT.8.18.exe`, 24/11/2026 ; site https://vicovert.github.io/SMOUT/ à jour). Téléphone : page de jeu multijoueur sur un écran (adversaires en haut), clavier du jeu seul, pas de zoom au double appui ; le réglage « taille » agrandit aussi le clavier (PC et web). 8.17 : comptes e-mail, pause/reprise, « Donner l'hôte ».
 - Protocole multi : `VERSION_JEU` 8.10, données sous `/v7`
 
 ## À faire par Victor
@@ -17,13 +17,15 @@ _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travai
 - Configuration de l'espace de travail : terminée (PR #1), Claude fusionne désormais lui-même les PR.
 
 ## Prochaines pistes (non commencées)
-- Supprimer les branches inutiles (dont `travail-8.14` à `travail-8.17`, `doc-etat-8.14` à `doc-etat-8.17`) : `travail-8.10`, `travail-8.11`, `travail-8.12`, `regles-etape3`, `v4.3`, `v5.0`, `v6.0`, `v7.0`.
+- Supprimer les branches inutiles (dont `travail-8.14` à `travail-8.18`, `doc-etat-8.14` à `doc-etat-8.18`) : `travail-8.10`, `travail-8.11`, `travail-8.12`, `regles-etape3`, `v4.3`, `v5.0`, `v6.0`, `v7.0`.
 - Corriger `tests/README.md` (dit encore que les tests tournent sur `main`).
 - Test automatique d'équivalence PC ↔ web des constantes (`REGLES_MODES`, `RUSHS`, `COULEURS_MODES`).
 - Règles Firebase : empêcher l'hôte d'écrire n'importe quel score.
 - README public (lien du site et des releases).
 
 ## Points ouverts
+- Zoom au double appui : bloqué et testé dans Chrome sans écran ; à confirmer sur un vrai iPhone et un vrai Android.
+- Téléphone très petit (360×640) à 8 joueurs : la page de jeu dépasse encore d'environ 60 px.
 - Les fils cloud poussent sur des branches `claude/...` alors que le CI ne teste que `travail-*` : à trancher.
 
 ## Notes techniques
