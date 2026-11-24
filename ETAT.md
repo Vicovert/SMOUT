@@ -5,7 +5,7 @@ _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travai
 **Dernière mise à jour : 24/11/2026**
 
 ## En ligne
-- Version : **9.2** (release Windows seule `SMOUT.9.2.exe`, 24/11/2026 ; site https://vicovert.github.io/SMOUT/ à jour). Amis (code ami, statut en ligne, invitations) ; 9.1 : fenêtres du jeu, spectateurs, demandes pour regarder.
+- Version : **9.3** (release Windows seule `SMOUT.9.3.exe`, 24/11/2026 ; site https://vicovert.github.io/SMOUT/ à jour). Frappe en direct visible une fois sa manche finie (tous les modes), téléphone : grilles des autres agrandies. 9.2 : amis ; 9.1 : spectateurs.
 - Protocole multi : `VERSION_JEU` 9.1, données sous `/v7` (spectateurs, demandes)
 
 ## À faire par Victor
@@ -20,7 +20,7 @@ _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travai
 - Configuration de l'espace de travail : terminée (PR #1), Claude fusionne désormais lui-même les PR.
 
 ## Prochaines pistes (non commencées)
-- 9.3 : classements mot du jour et marathon + fiche joueur (ancienneté). Détails : `claude/passations/2026-11-24-plan-9.1-9.3.md`.
+- 9.4 : classements mot du jour et marathon + fiche joueur (ancienneté). Détails : `claude/passations/2026-11-24-plan-9.1-9.3.md`.
 - Corriger `tests/README.md` (dit encore que les tests tournent sur `main`).
 - Test automatique d'équivalence PC ↔ web des constantes (`REGLES_MODES`, `RUSHS`, `COULEURS_MODES`).
 - Règles Firebase : empêcher l'hôte d'écrire n'importe quel score.
