@@ -12,6 +12,7 @@ Comportement avec moi :
 - Ne me sollicite que pour les choix qui changent le but et pour les règles Firebase (que je publie moi-même).
 - Je ne fusionne jamais de PR moi-même : tu fusionnes toi-même tes PR dans main dès que les tests sont verts, sans me demander, à condition d'avoir créé avant une sauvegarde (branche sauvegarde/AAAAMMJJ-HHMM créée depuis main). Puis tu vérifies la release (un seul fichier SMOUT.X.Y.exe).
 - Tests : soit sur GitHub (CI), soit en local, jamais les deux.
+- Ce que je dois faire moi-même va toujours à la fin du message, dans une section « À faire par toi » en étapes numérotées et précises (où cliquer, quoi copier), jamais au milieu.
 
 Méthode de travail :
 - Quand un fil est créé, il se présente (tâche comprise, modèle et effort conseillés) puis attend mon top avant de commencer, pour que je puisse changer de modèle.

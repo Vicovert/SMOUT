@@ -28,6 +28,7 @@ Toute règle ou logique de jeu modifiée côté PC doit l'être à l'identique c
 Pour chaque tâche, **indiquer le modèle et l'effort conseillés** (ex. « Sonnet, effort moyen ») et pourquoi, pour économiser le quota. **Quand Victor doit changer de modèle (ou d'effort) pour la suite, s'arrêter** : le dire clairement (modèle et effort à choisir) et attendre qu'il ait changé avant de continuer. Les sous-agents d'un modèle inférieur restent possibles s'ils sont rentables pour le quota.
 
 ## Méthode de travail (fils du projet)
+- **« À faire par Victor » toujours en fin de message** : ce que Victor doit faire lui-même (console Firebase, tests sur son téléphone, choix à valider…) va dans une section finale « À faire par toi », en **étapes numérotées et précises** (où cliquer, quoi copier), jamais au milieu du message (il ne voit pas tout). La répéter à la fin de chaque message tant que ce n'est pas fait.
 - **Honnêteté** : dire ce qui a été vérifié, ce qui ne l'a pas été, et ce qui a échoué. Poser autant de questions que nécessaire avant de coder quand la demande est ambiguë.
 - **Démarrage d'un fil : attendre le top de Victor.** Un nouveau fil se présente (tâche comprise, modèle et effort conseillés), puis **attend que Victor donne le top** avant de lire le code ou de travailler, pour qu'il puisse changer de modèle d'abord.
 - **Questions graphiques : avis et validation de Victor.** Pour tout choix visuel (couleurs, mise en page, polices, animations, icônes), proposer des options ou un aperçu et **attendre la validation de Victor** avant de coder.
