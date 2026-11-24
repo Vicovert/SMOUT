@@ -978,7 +978,8 @@ const Compte = {
     mail = (mail || "").trim().toLowerCase();
     try {
       const t = await FB.jeton(); if (!t) return PAS_DE_RESEAU;
-      const { ok, d } = await this.identite("update", { idToken: t, email: mail, password: mdp || "", returnSecureToken: true });
+      // signUp + idToken = rattachement (même identifiant) ; « update » est refusé quand la protection contre l'énumération des e-mails est active
+      const { ok, d } = await this.identite("signUp", { idToken: t, email: mail, password: mdp || "", returnSecureToken: true });
       if (!ok) return this.erreur(d);
       if (d.idToken) FB.appliquer(d.idToken, d.refreshToken, d.localId, d.expiresIn || 3600);
       majConfig({ compte_email: mail, compte_expire: null }); await this.pousser(); return null;

@@ -15,7 +15,7 @@ const db = async () => (await (await fetch(BASE + "/__admin.json")).json()) || {
     p.on("pageerror", e => err.push(nom + ": " + e.message)); p.on("dialog", d => d.accept());
     await p.setRequestInterception(true);
     p.on("request", async r => { const u = r.url(); let c = null;
-      if (u.includes("firebasedatabase.app")) c = BASE + "/" + u.split(".app/")[1]; else if (u.includes("securetoken")) c = BASE + "/token"; else if (u.includes("identitytoolkit")) c = BASE + "/signup";
+      if (u.includes("firebasedatabase.app")) c = BASE + "/" + u.split(".app/")[1]; else if (u.includes("securetoken")) c = BASE + "/token"; else if (u.includes("identitytoolkit")) c = BASE + "/signup?op=" + u.split("accounts:")[1].split("?")[0];
       if (!c) return r.continue();
       if (r.method() === "OPTIONS") return r.respond({ status: 204, headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "*", "Access-Control-Allow-Headers": "*" } });
       const x = await fetch(c, { method: r.method(), body: r.postData(), headers: { "Content-Type": r.headers()["content-type"] || "application/json" } });
