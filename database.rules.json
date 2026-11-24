@@ -159,7 +159,7 @@
           ".write": "auth != null && !newData.exists() && !root.child('v7/lobbies/' + $code).exists()",
           "$id": {
             "$cible": {
-              ".read": "auth != null && auth.uid !== $cible && root.child('v7/lobbies/' + $code + '/settings/piege_de/' + auth.uid).exists()",
+              ".read": "auth != null && ((auth.uid !== $cible && root.child('v7/lobbies/' + $code + '/settings/piege_de/' + auth.uid).exists()) || root.child('v7/lobbies/' + $code + '/spectateurs/' + auth.uid).exists())",
               ".write": "auth != null && !data.exists() && auth.uid !== $cible && $id === root.child('v7/lobbies/' + $code + '/settings/piege_id').val() && (auth.uid === root.child('v7/lobbies/' + $code + '/settings/piege_de/' + $cible).val() || (root.child('v7/lobbies/' + $code + '/settings/piege_de/' + auth.uid).exists() && now > root.child('v7/lobbies/' + $code + '/settings/piege_fin_choix').val()))",
               ".validate": "newData.hasChildren(['mot', 'de']) && newData.child('mot').val().length >= root.child('v7/lobbies/' + $code + '/settings/min').val() && newData.child('mot').val().length <= root.child('v7/lobbies/' + $code + '/settings/max').val()",
               "mot": {
@@ -180,7 +180,7 @@
       },
       "lobbies": {
         "$code": {
-          ".read": "auth != null && data.child('players/' + auth.uid).exists()",
+          ".read": "auth != null && (data.child('players/' + auth.uid).exists() || data.child('spectateurs/' + auth.uid).exists())",
           ".write": "auth != null && $code.matches(/^[0-9]{4}$/) && ((!data.exists() && newData.child('settings/host_id').val() === auth.uid && newData.child('players/' + auth.uid).exists()) || data.child('settings/host_id').val() === auth.uid || (!newData.exists() && (!data.child('players').exists() || data.child('maj').val() < now - 1800000)))",
           "maj": {
             ".write": "auth != null && data.parent().child('players/' + auth.uid).exists()",
@@ -271,6 +271,41 @@
           },
           "status": {
             ".validate": "newData.isString()"
+          },
+          "spectateurs": {
+            "$uid": {
+              ".read": "auth != null && auth.uid === $uid",
+              ".write": "auth != null && ((auth.uid === $uid && (data.exists() || !newData.exists() || (data.parent().parent().child('status').val() === 'waiting' && (!root.child('v7/secrets/' + $code).exists() || newData.child('preuve').val() === root.child('v7/secrets/' + $code).val())))) || (!newData.exists() && data.child('last_seen').val() < now - 25000))",
+              ".validate": "newData.hasChildren(['name'])",
+              "name": {
+                ".validate": "newData.isString() && newData.val().length <= 30"
+              },
+              "preuve": {
+                ".validate": "newData.isString() && newData.val().length <= 64"
+              }
+            }
+          }
+        }
+      },
+      "demandes": {
+        "$code": {
+          ".read": "auth != null && root.child('v7/lobbies/' + $code + '/settings/host_id').val() === auth.uid",
+          "$uid": {
+            ".read": "auth != null && auth.uid === $uid",
+            ".write": "auth != null && ((auth.uid === $uid && (!newData.exists() || (root.child('v7/lobbies/' + $code + '/settings').exists() && (data.exists() || (!root.child('v7/secrets/' + $code).exists() || newData.child('preuve').val() === root.child('v7/secrets/' + $code).val()))))) || (!newData.exists() && root.child('v7/lobbies/' + $code + '/settings/host_id').val() === auth.uid))",
+            ".validate": "newData.hasChildren(['name', 't'])",
+            "name": {
+              ".validate": "newData.isString() && newData.val().length <= 30"
+            },
+            "t": {
+              ".validate": "newData.isNumber() && newData.val() <= now + 5000"
+            },
+            "preuve": {
+              ".validate": "newData.isString() && newData.val().length <= 64"
+            },
+            "$autre": {
+              ".validate": false
+            }
           }
         }
       }

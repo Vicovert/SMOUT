@@ -11,7 +11,7 @@ def _appel_tk_sur(self, *args):
     return _appel_tk(self, *args)
 tk.CallWrapper.__call__ = _appel_tk_sur
 
-VERSION_APP = "9.0"
+VERSION_APP = "9.1"
 URL_WEB = "https://vicovert.github.io/SMOUT/"
 
 def mot_graine(liste_triee, graine, index=0):
@@ -417,6 +417,13 @@ class Icone(tk.Canvas):
             for i, hh in enumerate((7, 13, 10)):
                 x = m + (i - 1) * 7 * k
                 self.create_line(x, m + 9 * k, x, m + 9 * k - hh * 1.4 * k, fill=c, width=w * 1.6, capstyle="round")
+        elif self.nom == "cloche":  # 9.1 : demandes pour regarder la partie (hôte)
+            self.create_arc(m - 7*k, m - 9*k, m + 7*k, m + 5*k, start=0, extent=180, style="arc", outline=c, width=w)
+            self.create_line(m - 7*k, m - 2*k, m - 7*k, m + 4*k, m - 10*k, m + 7*k, m + 10*k, m + 7*k, m + 7*k, m + 4*k, m + 7*k, m - 2*k, fill=c, width=w, joinstyle="round")
+            self.create_arc(m - 3*k, m + 6*k, m + 3*k, m + 11*k, start=180, extent=180, style="arc", outline=c, width=w)
+        elif self.nom == "fermer":
+            self.create_line(m - 7*k, m - 7*k, m + 7*k, m + 7*k, fill=c, width=w * 1.2, capstyle="round")
+            self.create_line(m + 7*k, m - 7*k, m - 7*k, m + 7*k, fill=c, width=w * 1.2, capstyle="round")
         elif self.nom in ("plus", "moins"):
             self.create_line(m - 8*k, m, m + 8*k, m, fill=c, width=w * 1.2, capstyle="round")
             if self.nom == "plus": self.create_line(m, m - 8*k, m, m + 8*k, fill=c, width=w * 1.2, capstyle="round")
@@ -745,6 +752,34 @@ class Superposition(tk.Frame):
         self.interieur = self.panneau.interieur
     def montrer(self): self.place(relx=0, rely=0, relwidth=1, relheight=1); self.tkraise()
     def cacher(self): self.place_forget()
+
+
+def dialogue(parent, titre, texte, boutons, largeur=480):
+    """9.1 : fenêtre du jeu (plus de messagebox du système). boutons : [(texte, valeur, variante)] ; attend le choix et renvoie sa valeur
+    (comme confirmer/informer du site)."""
+    racine = parent.winfo_toplevel()
+    o = Superposition(racine, largeur=largeur); i = o.interieur
+    etiquette(i, titre, "titre", 25).pack(anchor="w")
+    if texte: etiquette(i, texte, "texte", 14, P["texte2"], wraplength=largeur - 70, justify="left").pack(anchor="w", pady=(6, 18))
+    choix = tk.StringVar(value=""); valeurs = {}
+    f = tk.Frame(i, bg=fond_parent(i)); f.pack(anchor="e")
+    for k, (t, v, variante) in enumerate(boutons):
+        valeurs[str(k)] = v
+        Bouton(f, t, lambda k=k: choix.set(str(k)), largeur=max(120, 18 + len(t) * 9), hauteur=44, variante=variante, taille=14).pack(side="left", padx=(0 if k == 0 else 10, 0))
+    o.montrer(); o.dialogue = True
+    try: racine.wait_variable(choix)
+    except tk.TclError: return boutons[0][1]
+    try: o.destroy()
+    except tk.TclError: pass
+    return valeurs.get(choix.get(), boutons[0][1])
+
+
+def confirmer(parent, titre, texte, oui="Confirmer", non="Annuler"):
+    return bool(dialogue(parent, titre, texte, [(non, False, "discret"), (oui, True, "principal")]))
+
+
+def informer(parent, texte, titre="SMOUT"):
+    dialogue(parent, titre, texte, [("OK", True, "principal")])
 
 
 def entete(parent, titre="", on_retour=None, droite=None):

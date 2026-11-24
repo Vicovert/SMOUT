@@ -106,4 +106,25 @@ t("compte : écriture par un autre joueur refusée", req("PUT", f"v7/comptes/{ua
 t("compte : données qui ne sont pas du texte refusées", req("PUT", f"v7/comptes/{ua}", A, {"maj": SV, "donnees": {"pseudo": "X"}}), 401)
 t("compte : données sans date refusées", req("PUT", f"v7/comptes/{ua}", A, {"donnees": "{}"}), 401)
 
+# ---- 9.1 : spectateurs et demandes pour regarder une partie en cours
+E, F = signup(), signup(); ue, uf = E[4:], F[4:]
+t("spectateur : piégé, un spectateur lit les mots (il voit tout)", (req("PUT", f"v7/lobbies/5678/spectateurs/{ue}", A, {"name": "E", "last_seen": SV}), req("GET", f"v7/pieges/5678/p42/{ub}", E))[1], 200)
+t("spectateur : lit tout le salon", req("GET", "v7/lobbies/5678", E), 200)
+t("spectateur : entrer seul pendant une partie refusé", req("PUT", f"v7/lobbies/5678/spectateurs/{uf}", F, {"name": "F", "last_seen": SV}), 401)
+t("demande : sans salon refusée", req("PUT", f"v7/demandes/9999/{uf}", F, {"name": "F", "t": SV}), 401)
+t("demande : pour regarder une partie en cours", req("PUT", f"v7/demandes/5678/{uf}", F, {"name": "F", "t": SV}), 200)
+t("demande : le demandeur relit la sienne", req("GET", f"v7/demandes/5678/{uf}", F), 200)
+t("demande : un autre joueur ne lit pas les demandes", req("GET", "v7/demandes/5678", Bt), 401)
+t("demande : l'hôte lit les demandes", req("GET", "v7/demandes/5678", A), 200)
+t("demande : écrire celle d'un autre refusé", req("PUT", f"v7/demandes/5678/{ue}", F, {"name": "X", "t": SV}), 401)
+t("demande : champ inconnu refusé", req("PATCH", f"v7/demandes/5678/{uf}", F, {"pirate": 1}), 401)
+t("demande : le demandeur ne lit pas encore le salon", req("GET", "v7/lobbies/5678", F), 401)
+t("demande : l'hôte accepte (spectateur) puis efface la demande", (req("PUT", f"v7/lobbies/5678/spectateurs/{uf}", A, {"name": "F", "last_seen": SV}), req("DELETE", f"v7/demandes/5678/{uf}", A))[1], 200)
+t("demande : accepté, il lit sa fiche de spectateur et le salon", (req("GET", f"v7/lobbies/5678/spectateurs/{uf}", F), req("GET", "v7/lobbies/5678", F)), (200, 200))
+t("spectateur : quitter (effacer sa fiche)", req("DELETE", f"v7/lobbies/5678/spectateurs/{uf}", F), 200)
+t("spectateur : effacer celle d'un autre (actif) refusé", req("DELETE", f"v7/lobbies/5678/spectateurs/{ue}", Bt), 401)
+t("demande : salon protégé, sans preuve refusée", req("PUT", f"v7/demandes/1234/{uf}", F, {"name": "F", "t": SV}), 401 if req("GET", "v7/lobbies/1234", A) == 200 else 401)
+t("spectateur : salon en attente, entrer avec la bonne preuve", (req("PUT", "v7/secrets/4321", A, "zz9"), req("PUT", "v7/lobbies/4321", A, {"status": "waiting", "maj": SV, "settings": reglages, "players": {ua: {"name": "A", "score": 0, "last_seen": SV}}}),
+   req("PUT", f"v7/lobbies/4321/spectateurs/{uf}", F, {"name": "F", "last_seen": SV}), req("PUT", f"v7/lobbies/4321/spectateurs/{uf}", F, {"name": "F", "last_seen": SV, "preuve": "zz9"}))[2:], (401, 200))
+
 print(f"{sum(ok)}/{len(ok)} conformes")

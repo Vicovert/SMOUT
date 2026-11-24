@@ -5,7 +5,7 @@ const VERSION_APP = D.version;
 const FIREBASE_URL = "https://smout-multi-default-rtdb.europe-west1.firebasedatabase.app/";
 const FIREBASE_API_KEY = "AIzaSyCUliQiMhKmHZzxrMK6k35Gt0z7zBfZP3g";
 const RACINE = "v7";
-const VERSION_JEU = "8.10";
+const VERSION_JEU = "9.1";  // 9.1 : spectateurs et demandes pour regarder une partie en cours (les clients plus anciens entraient en joueur)
 const DELAI_ABANDON_MS = 1800000;  // salon sans signe de vie depuis 30 min : supprimable par n'importe qui (pas de déconnexion pour simple inactivité)
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const THEMES = Object.assign({}, D.themes);
@@ -178,9 +178,9 @@ function successeur(joueurs, exclu = null, actifs = null) {
 }
 /* adversaires (mini-grilles) : [colonnes, taille de case, dense] qui remplissent au mieux la zone larg x haut (px) ; même calcul que disposition_adv de page_multi.py
    (dense : nom et score au-dessus de la grille, à partir de 3 adversaires si cela permet des cases plus grandes) */
-function dispositionAdv(nb, essais, longueur, larg, haut) {
+function dispositionAdv(nb, essais, longueur, larg, haut, plafondMax = 0) {  // plafondMax : cases plus grandes permises (vue spectateur, 9.1)
   if (nb <= 0) return [1, 14, false];
-  const plafond = { 1: 30, 2: 24 }[nb] || 20; let meilleur = null;
+  const plafond = plafondMax || { 1: 30, 2: 24 }[nb] || 20; let meilleur = null;
   for (const dense of nb >= 3 ? [false, true] : [false]) for (let cols = 1; cols <= Math.min(nb, 4); cols++) {
     const rangs = Math.ceil(nb / cols);
     for (let t = plafond; t > 5; t--) {
@@ -340,6 +340,7 @@ const SVG = {
   engrenage: '<circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>', jouer: '<path d="M8 5l11 7-11 7z"/>', infini: '<path d="M5 12c0-2.5 1.8-4 3.8-4 3.5 0 3.5 8 7.2 8 2 0 3-1.7 3-4s-1-4-3-4c-3.7 0-3.7 8-7.2 8-2 0-3.8-1.5-3.8-4z"/>',
   chevron: '<path d="M9 6l6 6-6 6"/>', check: '<path d="M5 12l5 5 9-10"/>',
   couronne: '<path d="M3 18h18l-2-10-5 5-2-7-2 7-5-5z"/>',
+  cloche: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>', fermer: '<path d="M6 6l12 12M18 6L6 18"/>',
   salon: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',  // flèche de retour (bouton « Lobby »)
   stats: '<path d="M6 20v-7M12 20V6M18 20v-10"/>',
   crayon: '<path d="M4 20h4L19 9l-4-4L4 16z M14 6l4 4"/>',
@@ -490,6 +491,20 @@ function superposition(contenu, largeur = 520) {
   v.montrer = () => v.classList.remove("cache"); v.cacher = () => v.classList.add("cache");
   document.body.append(v); nettoyageEcran.push(() => v.remove()); return v;
 }
+// 9.1 : fenêtres maison (plus de confirm / alert du navigateur). boutons : [[texte, valeur, variante]] ; renvoie la valeur du bouton choisi.
+function dialogue(titre, texte, boutons, largeur = 480) {
+  return new Promise(fin => {
+    let fait = false; const choisir = v => { if (fait) return; fait = true; o.remove(); fin(v); };
+    const o = superposition(h("div.col.dialogue", {}, h("div.titre", { style: { fontSize: "25px" } }, titre),
+      texte ? h("div.t2", { style: { margin: "6px 0 18px", whiteSpace: "pre-line" } }, texte) : h("div", { style: { height: "14px" } }),
+      h("div.ligne", { style: { gap: "10px", justifyContent: "flex-end", flexWrap: "wrap" } },
+        boutons.map(([t, v, variante], i) => { const b = bouton(t, () => choisir(v), { variante, largeur: Math.max(120, 14 + t.length * 9) }); b.classList.add(i === boutons.length - 1 ? "dlg-oui" : "dlg-non"); return b; }))), largeur);
+    nettoyageEcran.push(() => choisir(boutons[0][1]));  // écran changé : comme « Annuler »
+    o.montrer();
+  });
+}
+const confirmer = (titre, texte, oui = "Confirmer", non = "Annuler") => dialogue(titre, texte, [[non, false, "discret"], [oui, true]]);
+const informer = (texte, titre = "SMOUT") => dialogue(titre, texte, [["OK", true]]);
 function entete(titre, onRetour, droite) {
   return h("div.entete", {}, onRetour ? icone("retour", onRetour, false, "Retour") : h("div", { style: { width: "40px" } }), h("div.milieu", {}, titre), droite || h("div", { style: { width: "40px" } }));
 }
@@ -566,7 +581,7 @@ function changerPseudo(apres) {
   const zoneCompte = em
     ? h("div.col", {}, h("div", { style: { marginTop: "4px" } }, `Connecté : ${em}`),
         h("div.t2", { style: { fontSize: "13px", margin: "2px 0 12px" } }, "Ton avancement est enregistré sur ce compte et suit sur tous tes appareils."),
-        bouton("Se déconnecter", () => { if (confirm("Se déconnecter du compte sur cet appareil ?\nTon avancement reste enregistré sur le compte.")) { Compte.deconnecter(); o.cacher(); apres(); } }, { variante: "discret", largeur: 200, hauteur: 42 }))
+        bouton("Se déconnecter", async () => { if (await confirmer("Se déconnecter ?", "Tu quittes le compte sur cet appareil. Ton avancement reste enregistré sur le compte.", "Se déconnecter")) { Compte.deconnecter(); o.cacher(); apres(); } }, { variante: "discret", largeur: 200, hauteur: 42 }))
     : h("div.col", {}, cfg.compte_expire ? h("div.gras", { style: { color: "var(--danger)", marginTop: "4px" } }, "Ta session a expiré : reconnecte-toi.") : null,
         h("div.t2", { style: { fontSize: "13px", margin: "4px 0 12px" } }, "Crée un compte pour retrouver ton avancement (statistiques, série, thèmes, partie en cours) sur tous tes appareils."),
         bouton("Se connecter ou créer un compte", () => { o.cacher(); ouvrirCompte(apres); }, { variante: "secondaire", largeur: 300, hauteur: 44 }));
@@ -935,7 +950,7 @@ function createurTheme() {
       h("div.panneau", {}, picker, h("div.t2", { style: { margin: "14px 0 4px", fontSize: "13px" } }, "Code hexadécimal"), hex, h("div.t2", { style: { margin: "14px 0 4px", fontSize: "13px" } }, "Nom du thème"), nom)),
     h("div.ligne", { style: { gap: "12px", marginTop: "24px" } },
       bouton("Enregistrer", () => { const n = nom.value.trim().toUpperCase(); if (!n) return;
-        if (THEMES[n] && THEMES[n].type !== "PERSO") return alert("Ce nom est déjà celui d'un thème intégré. Choisis-en un autre."); THEMES[n] = Object.assign({}, cur);
+        if (THEMES[n] && THEMES[n].type !== "PERSO") return informer("Ce nom est déjà celui d'un thème intégré. Choisis-en un autre.", "Nom déjà pris"); THEMES[n] = Object.assign({}, cur);
         majConfig({ custom_themes: Object.fromEntries(Object.entries(THEMES).filter(([, t]) => t.type === "PERSO")) }); changerTheme(n); themes(n); }, { largeur: 200, hauteur: 50 }),
       bouton("Annuler", () => themes(), { largeur: 160, hauteur: 50, variante: "discret" }))));
   hex.value = cur[sel]; picker.set(cur[sel]); rafraichir();
@@ -988,6 +1003,8 @@ const FB = {
     if (!path || path.endsWith("/") || path.includes("//")) return { ok: false };  // salon déjà quitté : rien à lire
     try {
       const t = await this.jeton(); if (!t) return { ok: false };
+      // 9.1 : un spectateur n'écrit rien dans la partie (seulement sa fiche de spectateur, ses demandes, son horloge, son compte)
+      if (method !== "GET" && typeof M !== "undefined" && M.spectateur && !/^(horloge|comptes|demandes)\/|\/spectateurs\//.test(path)) return { ok: false };
       const avant = Date.now();
       const r = await fetch(`${FIREBASE_URL}${RACINE}/${path}.json?auth=${t}`, { method, keepalive, headers: { "Content-Type": "application/json" }, body: data === undefined ? undefined : JSON.stringify(data) });
       let j = null; try { j = await r.json(); } catch (e) {}
@@ -1084,6 +1101,7 @@ APRES_MAJ_CONFIG.push(cles => Compte.apresMaj(cles));
 const M = {
   lobby: "", estHote: false, score: 0, reglages: { essais: 8, min: 6, max: 7, rounds: 3, round_num: 1, timer: 180, password: "", visible: true, game_mode: "CLASSIQUE" },
   nbJoueurs: 1, statut: "waiting", dernierMot: "", gen: 0, battement: null,
+  spectateur: false,  // 9.1 : on regarde (fiche dans spectateurs/<uid>), on ne joue pas
   pseudo() { return pseudo(); },
   vuOk: 0,
   // Lecture du salon. Si on n'y figure plus (exclu après une mise en veille, salon fermé) pendant 10 s, retour au menu multijoueur.
@@ -1092,6 +1110,11 @@ const M = {
     const lobby = this.lobby, d = await FB.get(`lobbies/${lobby}`);
     if (lobby !== this.lobby) return null;
     if (d && d.players && d.players[FB.uid]) { this.vuOk = Date.now(); return d; }
+    if (this.spectateur) {  // spectateur : jamais de réinscription comme joueur
+      if (d && d.spectateurs && d.spectateurs[FB.uid]) { this.vuOk = Date.now(); return d; }
+      if (this.vuOk && Date.now() - this.vuOk > 10000) { this.lobby = ""; this.gen++; this.spectateur = false; this.vuOk = 0; ecran(); setTimeout(() => { multiAccueil(); informer("Ce salon n'existe plus.", "Salon fermé"); }, 0); return null; }
+      return d;
+    }
     // retiré du salon (ancien client, longue mise en veille) : on s'y réinscrit tout seul, sans déconnexion
     if (Date.now() - (this.dernierRetour || 0) > 3000) {
       this.dernierRetour = Date.now();
@@ -1104,7 +1127,7 @@ const M = {
     }
     if (this.vuOk && Date.now() - this.vuOk > 10000) {
       this.lobby = ""; this.gen++; this.estHote = false; this.vuOk = 0;
-      ecran(); setTimeout(() => { alert("Ce salon n'existe plus."); multiAccueil(); }, 0);
+      ecran(); setTimeout(() => { multiAccueil(); informer("Ce salon n'existe plus.", "Salon fermé"); }, 0);
       return null;
     }
     return d;
@@ -1112,6 +1135,7 @@ const M = {
   async demarrerBattement() {
     if (this.battement) return;
     const tic = async () => {
+      if (this.lobby && this.spectateur) { FB.req("PATCH", `lobbies/${this.lobby}/spectateurs/${FB.uid}`, { last_seen: SV, name: this.pseudo() }); return; }
       if (this.lobby) {
         const uid = FB.uid; this.memoriser();
         const r = await FB.req("PATCH", `lobbies/${this.lobby}`, { maj: SV, [`players/${uid}/last_seen`]: SV, [`players/${uid}/name`]: this.pseudo(), [`players/${uid}/score`]: this.score });
@@ -1130,7 +1154,7 @@ const M = {
     return false;
   },
   // garde le salon en mémoire : si la page se ferme ou plante, « Reprendre » permet d'y revenir
-  memoriser() { if (this.lobby) majConfig({ partie_en_cours: { code: this.lobby, mdp: this.reglages.password || "", t: Date.now() / 1000, score: this.score } }); },
+  memoriser() { if (this.lobby && !this.spectateur) majConfig({ partie_en_cours: { code: this.lobby, mdp: this.reglages.password || "", t: Date.now() / 1000, score: this.score } }); },
   oublier() { majConfig({ partie_en_cours: null }); },
   // hôte : tout le monde retourne au salon (partie annulée, scores remis à zéro) ; les clients le voient au prochain rafraîchissement
   async ramenerAuSalon() {
@@ -1144,6 +1168,7 @@ const M = {
   pause() { if (!this.lobby) return; this.memoriser(); this.lobby = ""; this.gen++; },
   async quitter(keepalive = false) {
     if (!this.lobby) return; const code = this.lobby; this.lobby = ""; this.gen++; if (!keepalive) this.oublier();  // départ volontaire
+    if (this.spectateur) { this.spectateur = false; await FB.req("DELETE", `lobbies/${code}/spectateurs/${FB.uid}`, undefined, keepalive); return; }
     const d = await FB.get(`lobbies/${code}`);
     if (!d) return;
     const joueurs = d.players || {};
@@ -1155,13 +1180,13 @@ const M = {
     if (!Object.keys(joueurs).length) await this.supprimerSalon(code);
   },
 };
-window.addEventListener("pagehide", () => { if (M.lobby && FB.jetonId) fetch(`${FIREBASE_URL}${RACINE}/lobbies/${M.lobby}/players/${FB.uid}.json?auth=${FB.jetonId}`, { method: "DELETE", keepalive: true }); });
+window.addEventListener("pagehide", () => { if (M.lobby && FB.jetonId) fetch(`${FIREBASE_URL}${RACINE}/lobbies/${M.lobby}/${M.spectateur ? "spectateurs" : "players"}/${FB.uid}.json?auth=${FB.jetonId}`, { method: "DELETE", keepalive: true }); });
 const preuveSalon = async (code, mdp) => mdp ? (await sha256hex(`${code}:${mdp}`)).slice(0, 32) : null;
 const enCodes = res => res.map(e => e === "bien" ? "B" : e === "mal" ? "M" : "A");
 const deCode = c => c === "B" ? "bien" : c === "M" ? "mal" : "absent";
 // 9.0 : bouton de l'hôte « Retour au salon » (en haut à gauche, à côté de la flèche) : ramène tous les joueurs au salon, après confirmation
 function boutonSalon(question) {
-  return h("button.btn-salon.cache", { type: "button", title: "Ramener tous les joueurs au salon", onclick: () => { if (M.estHote && confirm(question)) M.ramenerAuSalon(); } },
+  return h("button.btn-salon.cache", { type: "button", title: "Ramener tous les joueurs au salon", onclick: async () => { if (M.estHote && await confirmer("Retour au salon ?", question, "Ramener tout le monde")) M.ramenerAuSalon(); } },
     h("span.ico", { html: svg("salon", 18) }), "Lobby");
 }
 function barreHaut(onRetour, droite = "") {
@@ -1175,10 +1200,15 @@ const pseudoOk = retour => { if (pseudoDefini()) return true; changerPseudo(reto
 async function rejoindre(c, motDePasse, silencieux = false, score = null) {
   const joueur = { name: pseudo(), score: score || 0, last_seen: SV, arrivee: SV }; const preuve = await preuveSalon(c, motDePasse);
   if (preuve) joueur.preuve = preuve;
-  if (!(await FB.ok("PUT", `lobbies/${c}/players/${FB.uid}`, joueur))) { if (!silencieux) alert("Salon introuvable"); return false; }
+  if (score === null) {  // 9.1 (pas pour « Reprendre » : on y a gardé sa place) : partie en cours → demande à l'hôte ; salon plein → spectateur
+    const idx = await FB.get(`index/${c}`) || {};
+    if (idx.status === "playing") return demanderARegarder(c, motDePasse, preuve);
+    if ((idx.nb || 0) >= MAX_JOUEURS) return entrerSpectateur(c, motDePasse, preuve, silencieux);
+  }
+  if (!(await FB.ok("PUT", `lobbies/${c}/players/${FB.uid}`, joueur))) { if (!silencieux) informer("Ce salon est introuvable.", "Salon introuvable"); return false; }
   const d = await FB.get(`lobbies/${c}`) || {};
-  if (Object.keys(d.players || {}).length > MAX_JOUEURS) { await FB.ok("DELETE", `lobbies/${c}/players/${FB.uid}`); alert(`Ce salon est déjà complet (maximum ${MAX_JOUEURS} joueurs).`); return true; }
-  M.estHote = false; M.lobby = c; M.score = score || 0; M.reprise = score !== null; M.vuOk = Date.now();
+  if (Object.keys(d.players || {}).length > MAX_JOUEURS) { await FB.ok("DELETE", `lobbies/${c}/players/${FB.uid}`); return entrerSpectateur(c, motDePasse, preuve, silencieux); }  // complet entre-temps
+  M.spectateur = false; M.estHote = false; M.lobby = c; M.score = score || 0; M.reprise = score !== null; M.vuOk = Date.now();
   Object.assign(M.reglages, { password: motDePasse, visible: (d.settings || {}).visible !== false });
   M.demarrerBattement(); salon();
   return true;
@@ -1196,8 +1226,8 @@ async function multiAccueil() {
       bouton("Reprendre", () => reprendre(pe), { largeur: 150, hauteur: 44 }), bouton("Ignorer", () => { M.oublier(); afficherReprise(); }, { variante: "discret", largeur: 110, hauteur: 44 })));
   }
   async function reprendre(pe) {
-    if (!(await FB.jeton())) return alert("Connexion au serveur impossible.");
-    if (!(await rejoindre(pe.code, pe.mdp || "", true, Number(pe.score) || 0))) { M.oublier(); afficherReprise(); alert("Cette partie est terminée ou le salon n'existe plus."); }
+    if (!(await FB.jeton())) return informer("Connexion au serveur impossible.", "Pas de connexion");
+    if (!(await rejoindre(pe.code, pe.mdp || "", true, Number(pe.score) || 0))) { M.oublier(); afficherReprise(); informer("Cette partie est terminée ou le salon n'existe plus.", "Partie terminée"); }
   }
   const tuileAction = (cls, t, st, f) => h("button.action." + cls, { onclick: f }, h("div.t", {}, t), h("div.s", {}, st));
   ecran(h("div.entete", {}, icone("retour", accueil, false, "Retour"), h("div.milieu", { style: { color: "var(--texte)", fontWeight: 600, fontSize: "18px" } }, "Multijoueur"), puce),
@@ -1207,6 +1237,48 @@ async function multiAccueil() {
         tuileAction("a-creer", "Créer un salon", "Choisis le mode et invite tes amis", () => pseudoOk(multiAccueil) && creerSalon()),
         tuileAction("a-rejoindre", "Rejoindre un salon", "Avec un code ou depuis la liste", () => pseudoOk(multiAccueil) && rejoindreSalon())))));
   afficherReprise();
+}
+
+// 9.1 : salon plein (avant la partie) → on entre comme spectateur ; « Prendre la place » dès qu'une place se libère
+async function entrerSpectateur(c, motDePasse, preuve, silencieux = false) {
+  const fiche = { name: pseudo(), last_seen: SV, arrivee: SV }; if (preuve) fiche.preuve = preuve;
+  if (!(await FB.ok("PUT", `lobbies/${c}/spectateurs/${FB.uid}`, fiche))) { if (!silencieux) informer("Impossible d'entrer dans ce salon.", "Salon introuvable"); return false; }
+  M.spectateur = true; M.estHote = false; M.lobby = c; M.score = 0; M.reprise = false; M.vuOk = Date.now();
+  Object.assign(M.reglages, { password: motDePasse });
+  M.demarrerBattement(); salon();
+  return true;
+}
+// 9.1 : partie en cours → demande à l'hôte de la regarder ; fenêtre d'attente jusqu'à sa réponse
+async function demanderARegarder(c, motDePasse, preuve) {
+  const chemin = `demandes/${c}/${FB.uid}`, dem = { name: pseudo(), t: SV }; if (preuve) dem.preuve = preuve;
+  if (!(await FB.ok("PUT", chemin, dem))) return false;  // mauvais mot de passe ou salon disparu
+  const idx = await FB.get(`index/${c}`) || {};
+  let fini = false, annule = false;
+  const quitter = bouton("Quitter", async () => {
+    if (!(await confirmer("Annuler la demande ?", "L'hôte ne verra plus ta demande.", "Annuler la demande", "Attendre"))) return;
+    annule = true; fini = true; o.remove(); FB.ok("DELETE", chemin);
+  }, { variante: "discret", largeur: 200 });
+  quitter.classList.add("quitter-attente");
+  const o = superposition(h("div.attente", {}, h("div.rond"), h("div.titre", { style: { fontSize: "24px" } }, "En attente de l'hôte"),
+    h("div.t2", {}, `${capitaliser(idx.hote || "L'hôte")} doit accepter ta demande. Tu regarderas la partie en spectateur, puis tu pourras prendre une place au retour au salon.`), quitter), 440);
+  document.querySelectorAll(".voile:not(.cache)").forEach(v => v !== o && v.classList.add("cache"));  // ferme la fenêtre du mot de passe
+  o.classList.add("attente-hote"); o.montrer();
+  const gen = M.gen; let n = 0;
+  while (!fini) {
+    await new Promise(r => setTimeout(r, 1500)); if (fini) break;
+    if (gen !== M.gen) { fini = true; FB.ok("DELETE", chemin); break; }  // on a quitté l'écran
+    if (await FB.get(`lobbies/${c}/spectateurs/${FB.uid}`)) {  // accepté
+      fini = true; o.remove(); M.spectateur = true; M.estHote = false; M.lobby = c; M.score = 0; M.reprise = false; M.vuOk = Date.now();
+      Object.assign(M.reglages, { password: motDePasse }); M.demarrerBattement(); salon(); return true;
+    }
+    const encore = await FB.get(chemin);
+    if (fini) break;
+    if (!encore) { fini = true; o.remove(); informer("L'hôte a refusé ta demande, ou la partie est terminée.", "Demande refusée"); return true; }
+    const ix = await FB.get(`index/${c}`) || {};
+    if (ix.status === "waiting") { fini = true; o.remove(); await FB.ok("DELETE", chemin); return rejoindre(c, motDePasse); }  // partie finie : on entre dans le salon
+    if (++n % 3 === 0) FB.patch(chemin, { t: SV });  // la demande reste « active » pour l'hôte
+  }
+  return true;
 }
 
 /* ---------- rejoindre un salon : code ou liste des salons publics */
@@ -1254,12 +1326,11 @@ async function rejoindreSalon() {
     if (autres) liste.append(h("div.t2", { style: { padding: "6px 0", fontSize: "14px", color: "var(--danger)" } }, `${autres} salon${autres > 1 ? "s" : ""} d'une autre version du jeu (la tienne : ${VERSION_JEU}). Recharge la page (Ctrl+F5) ou mets SMOUT à jour.`));
   }
   async function tenterRejoindre(c) {
-    if (!(await FB.jeton())) return alert("Connexion au serveur impossible.");
+    if (!(await FB.jeton())) return informer("Connexion au serveur impossible.", "Pas de connexion");
     await FB.synchro();
     const idx = await FB.get(`index/${c}`);
-    if (!idx || FB.maintenant() * 1000 - (idx.maj || 0) > 30000) return alert("Salon introuvable");
-    if (idx.version !== VERSION_JEU) return alert(`Ce salon utilise une autre version du jeu (${idx.version || "?"}). Mets SMOUT à jour.`);
-    if ((idx.nb || 0) >= MAX_JOUEURS) return alert(`Ce salon est déjà complet (maximum ${MAX_JOUEURS} joueurs).`);
+    if (!idx || FB.maintenant() * 1000 - (idx.maj || 0) > 30000) return informer("Aucun salon actif avec ce code.", "Salon introuvable");
+    if (idx.version !== VERSION_JEU) return informer(`Ce salon utilise une autre version du jeu (${idx.version || "?"}). Mets SMOUT à jour.`, "Autre version");
     codeCible = c;
     if (idx.prive) { mdp.value = ""; erreurMdp.textContent = ""; vueMdp.montrer(); mdp.focus(); } else rejoindre(c, "");
   }
@@ -1281,7 +1352,7 @@ function creerSalon() {
   setVis(true);
   async function valider() {
     Object.assign(M.reglages, { password: caseMdp.valeur ? champ.value.trim() : "", visible: pub, game_mode: "CLASSIQUE", rounds: 3, essais: 8, min: 6, max: 7, timer: 180 });
-    if (!(await FB.jeton())) return alert("Connexion au serveur impossible.");
+    if (!(await FB.jeton())) return informer("Connexion au serveur impossible.", "Pas de connexion");
     const sc = M.reglages, uid = FB.uid;
     for (let i = 0; i < 10; i++) {
       const code = String(1000 + Math.floor(Math.random() * 9000));
@@ -1295,7 +1366,7 @@ function creerSalon() {
         M.lobby = code; M.estHote = true; M.score = 0; M.vuOk = Date.now(); M.nbJoueurs = 1; M.statut = "waiting"; M.majIndex(); M.demarrerBattement(); salon(); return;
       }
     }
-    alert("Impossible de créer le salon. Vérifie ta connexion internet.");
+    informer("Impossible de créer le salon. Vérifie ta connexion internet.", "Pas de connexion");
   }
 }
 
@@ -1308,6 +1379,7 @@ function salon() {
   const boite = h("div.code-boite", {}, h("div", {}, lblCode, h("div.chiffres", { style: { fontSize: "40px", color: "var(--mal)" } }, M.lobby)),
     icone("copier", () => { navigator.clipboard?.writeText(M.lobby); lblCode.textContent = "Code copié ✓"; setTimeout(() => lblCode.textContent = "Code du salon", 1500); }, true, "Copier le code"));
   const slots = Array.from({ length: MAX_JOUEURS }, () => h("div.joueur"));
+  const nbSpect = h("div.nb-spect.t2.cache");  // 9.1 : « 👁 x spectateurs » (non listés)
   const cartes = {};
   const gm = h("div.grille-modes", {}, MODES.map(([m, n, d]) => { const c = cartes[m] = choix(n, d, () => setMode(m)); c.classList.add("mode"); c.style.setProperty("--mc", COULEURS_MODES[m]); return c; }));
   // bandeau du mode choisi par l'hôte (vu par les autres joueurs)
@@ -1328,7 +1400,7 @@ function salon() {
   ecran(barre, h("div", { style: { padding: "18px 4vw 30px" } },
     h("div.ligne.salon-tete", {}, h("div", { style: { minWidth: "0" } }, titre, statut), h("div", { style: { marginLeft: "auto" } }, boite)),
     h("div.ligne", { style: { marginTop: "20px", gap: "20px", alignItems: "flex-start", flexWrap: "wrap" } },
-      h("div.panneau.salon-joueurs", { style: { width: "320px", maxWidth: "100%" } }, h("div.gras", { style: { fontSize: "18px", marginBottom: "4px" } }, "Joueurs"), slots),
+      h("div.panneau.salon-joueurs", { style: { width: "320px", maxWidth: "100%" } }, h("div.gras", { style: { fontSize: "18px", marginBottom: "4px" } }, "Joueurs"), slots, nbSpect),
       panneauPartie)));
   majModes();
   function majModes() {
@@ -1357,16 +1429,19 @@ function salon() {
     sTemps.set(t); cRounds.set(r); majModes(); sync();
   }
   [cLettres, cRounds, sEssais, sTemps].forEach(w => { const s0 = w.set; w.set = (...a) => { s0(...a); majModes(); }; });  // le bandeau suit les réglages
-  function dessinerJoueur(slot, i, nom, hote, deco, moi, donner) {  // donner : « Donner l'hôte » (affiché pour l'hôte sur la ligne des autres joueurs)
+  // action (9.1) : [texte, fonction] → « Passer spectateur » sur sa propre ligne, « Prendre la place » sur une place libre (spectateur)
+  function dessinerJoueur(slot, i, nom, hote, deco, moi, donner, action) {  // donner : « Donner l'hôte » (affiché pour l'hôte sur la ligne des autres joueurs)
     slot.className = "joueur" + (nom ? " plein" : ""); slot.innerHTML = ""; slot.style.setProperty("--jc", COULEURS_AVATAR[i % 6]);
-    if (!nom) { slot.append(h("div.avatar", { style: { width: "36px", height: "36px", background: "var(--vide)" } }), h("span.n", { style: { color: "var(--texte-absent)" } }, "Place libre")); return; }
+    const lienAction = action ? h("button.lien.action-place", { style: { color: "var(--mal)", fontWeight: 600, fontSize: "14px", marginLeft: "auto" }, onclick: action[1] }, action[0]) : null;
+    if (!nom) { slot.append(h("div.avatar", { style: { width: "36px", height: "36px", background: "var(--vide)" } }), h("span.n", { style: { color: "var(--texte-absent)" } }, "Place libre"), lienAction || ""); return; }
+    if (lienAction && !hote && !donner && !deco) { slot.append(avatar(nom, 36, i), h("span.n", {}, capitaliser(nom) + (moi ? " (vous)" : "")), lienAction); return; }
     slot.append(...[avatar(nom, 36, i), h("span.n", {}, capitaliser(nom) + (moi ? " (vous)" : "")),
       donner ? h("button.lien.r.donner-hote", { style: { color: "var(--mal)", fontWeight: 600, fontSize: "14px" }, onclick: donner }, "Donner l'hôte") :
       deco ? h("span.r", { style: { color: "var(--danger)", fontWeight: 400 } }, "Déconnecté") : hote ? h("span.r.ligne", { style: { color: "var(--mal)", gap: "6px" }, html: `<svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linejoin:round">${SVG.couronne}</svg>Hôte` }) : null].filter(Boolean));
   }
   // l'hôte passe son rôle à un autre joueur du salon (après confirmation)
   async function donnerHote(pid, nom) {
-    if (!M.estHote || !confirm(`Donner le rôle d'hôte à ${capitaliser(nom)} ?\nC'est lui qui choisira le mode et lancera la partie.`)) return;
+    if (!M.estHote || !(await confirmer("Donner l'hôte ?", `${capitaliser(nom)} devient l'hôte : c'est lui qui choisira le mode et lancera la partie.`, "Donner l'hôte"))) return;
     if (await FB.ok("PATCH", `lobbies/${M.lobby}/settings`, { host_id: pid })) { M.estHote = false; FB.patch(`index/${M.lobby}`, { owner: pid }); }
   }
   async function boucle() {
@@ -1384,25 +1459,45 @@ function salon() {
         M.estHote = s.host_id === FB.uid; M.nbJoueurs = Object.keys(p).length; M.statut = d.status || "waiting";
         const hn = (p[hid] || {}).name;
         titre.textContent = hn ? `Salon de ${capitaliser(hn)}` : "Salon";
-        barre.droite.textContent = M.estHote ? "Vous êtes l'hôte" : "L'hôte règle la partie";
+        barre.droite.textContent = M.spectateur ? "Tu es spectateur" : M.estHote ? "Vous êtes l'hôte" : "L'hôte règle la partie";
         if (!M.estHote) {  // l'hôte garde ses propres réglages (la base peut avoir un temps de retard)
           modeActif = s.game_mode || "CLASSIQUE"; M.reglages.game_mode = modeActif;
           cRounds.set(s.rounds ?? 3); sEssais.set(s.essais ?? 8); cLettres.set(s.min ?? 6, s.max ?? 7); sTemps.set(s.timer ?? 180); cCache.valeur = !!s.piege_cache; cCache.classList.toggle("on", cCache.valeur);
         }
         majModes();
         if (d.status === "playing") { Object.assign(M.reglages, s); M.reglages.round_num = s.current_round || 1; partie(); return; }
-        const pids = Object.keys(p);
+        const pids = Object.keys(p), n = pids.length;
+        const sp = Object.entries(d.spectateurs || {}).filter(([, v]) => !serverNow || serverNow - ((v || {}).last_seen || 0) <= 25000).length;
+        nbSpect.textContent = `👁  ${sp} spectateur${sp > 1 ? "s" : ""}`; nbSpect.classList.toggle("cache", !sp);
+        let libreVu = false;
         slots.forEach((sl, i) => { const pid = pids[i]; if (pid) dessinerJoueur(sl, i, p[pid].name, pid === hid, serverNow > 0 && (serverNow - (p[pid].last_seen || 0)) / 1000 > 12, pid === FB.uid,
-          M.estHote && pid !== FB.uid && pid !== hid ? () => donnerHote(pid, p[pid].name) : null); else dessinerJoueur(sl, i); });
-        const n = pids.length;
+          M.estHote && pid !== FB.uid && pid !== hid ? () => donnerHote(pid, p[pid].name) : null, pid === FB.uid && !M.estHote ? ["Passer spectateur", passerSpectateur] : null);
+          else { dessinerJoueur(sl, i, null, false, false, false, null, M.spectateur && !libreVu ? ["Prendre la place", prendrePlace] : null); libreVu = true; } });
         statut.textContent = `En attente des joueurs · ${n} sur ${MAX_JOUEURS}` + (M.reglages.visible ? "" : "  ·  salon privé");
         [cRounds, sEssais, cLettres, sTemps].forEach(w => w.activer(M.estHote)); Object.values(cartes).forEach(c => c.disabled = !M.estHote);
         zoneHote.classList.toggle("cache", !M.estHote); noteInvite.classList.toggle("cache", M.estHote); bandeau.classList.toggle("cache", M.estHote);
         if (M.estHote) { lancer.className = n < 2 ? "btn grand discret" : "btn grand lancer"; lancer.disabled = n < 2; majModes(); }
-        else { lancer.className = "btn grand discret"; lancer.textContent = "En attente du lancement par l'hôte…"; lancer.disabled = true; }
+        else { lancer.className = "btn grand discret"; lancer.textContent = M.spectateur ? "Tu regarderas la partie en spectateur" : "En attente du lancement par l'hôte…"; lancer.disabled = true; }
       }
       await new Promise(r => setTimeout(r, 800));
     }
+  }
+  // 9.1 : un joueur (pas l'hôte) laisse sa place et regarde ; un spectateur prend une place libre
+  async function passerSpectateur() {
+    if (M.estHote || M.spectateur) return;
+    const preuve = await preuveSalon(M.lobby, M.reglages.password || ""), fiche = { name: pseudo(), last_seen: SV, arrivee: SV }; if (preuve) fiche.preuve = preuve;
+    if (!(await FB.ok("PUT", `lobbies/${M.lobby}/spectateurs/${FB.uid}`, fiche))) return informer("Impossible de passer spectateur pour le moment.", "Spectateur");
+    M.dernierRetour = Date.now();  // pas de réinscription automatique comme joueur pendant le changement
+    await FB.ok("DELETE", `lobbies/${M.lobby}/players/${FB.uid}`); M.spectateur = true; M.oublier();
+  }
+  async function prendrePlace() {
+    if (!M.spectateur) return;
+    const d = await FB.get(`lobbies/${M.lobby}`) || {};
+    if (d.status !== "waiting" || Object.keys(d.players || {}).length >= MAX_JOUEURS) return informer("Plus de place libre pour le moment.", "Salon complet");
+    const preuve = await preuveSalon(M.lobby, M.reglages.password || ""), j = { name: pseudo(), score: 0, last_seen: SV, arrivee: SV }; if (preuve) j.preuve = preuve;
+    M.spectateur = false;
+    if (!(await FB.ok("PUT", `lobbies/${M.lobby}/players/${FB.uid}`, j))) { M.spectateur = true; return informer("Impossible de prendre la place.", "Salon"); }
+    await FB.ok("DELETE", `lobbies/${M.lobby}/spectateurs/${FB.uid}`); M.score = 0;
   }
   async function lancerPartie() {
     const v = valeurs(), sc = M.reglages;
@@ -1452,10 +1547,12 @@ async function partie() {
     G.phase = G.piegeCible && FB.uid in G.piegeDe ? "choix" : "spectateur"; G.etatPiege = null;
   }
 
-  const kh = hauteurFenetre() >= 760 ? 50 : 40, large = window.innerWidth > 900;
+  const spect = M.spectateur;  // 9.1 : on regarde la partie (pas de grille à soi ni de clavier ; les grilles de tous les joueurs occupent la place)
+  const kh = hauteurFenetre() >= 760 ? 50 : 40, large = window.innerWidth > 900 || spect;
   let hautTel = null;  // téléphone : hauteur laissée à ma grille par les adversaires (en haut) et le clavier (en bas), mesurée par ajusterTel
   const tailleMoi = () => Math.floor(Math.max(large ? 24 : 18, Math.min(70, Math.min(58, (hautTel === null ? hauteurFenetre() - 250 - 3 * (kh + 8) : hautTel) / (conf.essais || 6) - (large ? 8 : 5), (large ? (Math.min(window.innerWidth - 330, 640) - 30) / Math.max(G.mot.length, 5) - 8 : (Math.min(window.innerWidth, 640) - 24) / Math.max(G.mot.length, 5) - 5)) * (lireConfig().user_zoom || 1))));
   const info = h("div.milieu"), sM = stat("Manche", "1"), sT = stat("Temps", "00:00"), sS = stat("Score", nombre(M.score), "var(--mal)");
+  const sCode = stat("Salon", M.lobby, "var(--texte2)");  // 9.1 : le code, pour le donner à quelqu'un qui veut regarder
   sM.set(String(G.round), null, ` / ${conf.rounds || 1}`);
   const zoneMoi = h("div", { style: { marginTop: "16px" } }); let gMoi = grille(conf.essais || 6, G.mot.length, tailleMoi()); zoneMoi.append(gMoi);
   const msg = h("div.msg", { style: { margin: "10px 0 6px", fontSize: "15px" } });
@@ -1464,10 +1561,11 @@ async function partie() {
   const kb = clavier(ajouter, effacer, valider, kh);
   // l'hôte peut ramener tout le monde au salon en cours de partie (avec confirmation)
   const btnSalon = boutonSalon("Ramener tous les joueurs au salon ?\nLa partie en cours sera annulée.");
-  const advZone = h("div" + (large ? "" : ".adv-tel"), { style: large ? { display: "grid", gap: "14px 18px", padding: "20px 40px 0 10px", alignContent: "start" } : {} });
+  const advZone = h("div" + (large ? "" : ".adv-tel"), { style: large ? { display: "grid", gap: "14px 18px", padding: spect ? "14px 12px 0" : "20px 40px 0 10px", alignContent: "start", justifyContent: spect ? "center" : null } : {} });
   const adv = {};
   const opp = Object.entries((dm || {}).players || {}).filter(([pid]) => pid !== FB.uid);
-  const [colsAdv, tAdv, denseAdv] = large ? dispositionAdv(opp.length, conf.essais || 6, Math.max(G.mot.length, conf.max || 7), Math.max(300, window.innerWidth - 640), hauteurFenetre() - 140)  // adaptée au nombre de joueurs
+  const [colsAdv, tAdv, denseAdv] = spect ? dispositionAdv(opp.length, conf.essais || 6, Math.max(G.mot.length, conf.max || 7), Math.min(window.innerWidth - 32, 1500), hauteurFenetre() - 200, 44)
+    : large ? dispositionAdv(opp.length, conf.essais || 6, Math.max(G.mot.length, conf.max || 7), Math.max(300, window.innerWidth - 640), hauteurFenetre() - 140)  // adaptée au nombre de joueurs
     : dispositionAdvTel(opp.length, conf.essais || 6, Math.max(G.mot.length, conf.max || 7), Math.min(window.innerWidth, 640) - 24, hauteurFenetre() * (opp.length > 4 ? 0.25 : 0.2) * (hauteurFenetre() < 700 ? 0.8 : 1));
   if (large) { advZone.style.gridTemplateColumns = `repeat(${colsAdv}, auto)`; advZone.style.rowGap = opp.length > 2 ? "14px" : "26px"; }
   else advZone.style.gridTemplateColumns = `repeat(${colsAdv}, minmax(0, 1fr))`;
@@ -1515,12 +1613,20 @@ async function partie() {
   }
   const zm = h("span.t2", { style: { fontSize: "13px", minWidth: "44px", textAlign: "center" } }, `${Math.round((lireConfig().user_zoom || 1) * 100)} %`);
   const zoom = d => { const z = Math.round(Math.max(0.6, Math.min(1.6, (lireConfig().user_zoom || 1) + d)) * 100) / 100; majConfig({ user_zoom: z }); zm.textContent = `${Math.round(z * 100)} %`; gMoi.cases.flat().forEach(t => t.taille(tailleMoi())); G.casesChoix?.forEach?.(t => t.taille(tailleMoi())); kb.zoom(z); };
-  ecran(h("div.entete", {}, h("div.ligne.gauche", {}, (e => { e.dataset.dialogue = "1"; return e; })(icone("retour", quitterJeu, false, "Quitter")), btnSalon), info, h("div.ligne", {}, icone("moins", () => zoom(-0.1), false, "Réduire"), zm, icone("plus", () => zoom(0.1), false, "Agrandir"))),
+  // 9.1 : cloche de l'hôte (demandes pour regarder la partie) et panneau latéral, sans voile : le jeu reste utilisable
+  const badge = h("span.badge.cache"), cloche = h("button.icone.cloche.cache", { type: "button", title: "Demandes pour regarder la partie", "aria-label": "Demandes", html: svg("cloche", 22), onclick: () => tiroir.classList.toggle("cache") });
+  cloche.append(badge);
+  const listeDem = h("div.liste-dem"), titreDem = h("span", {}, "Demandes");
+  const tiroir = h("div.tiroir.cache", {}, h("div.tete-tiroir", {}, titreDem, icone("fermer", () => tiroir.classList.add("cache"), false, "Fermer")), listeDem,
+    h("div.t2", { style: { fontSize: "12px", marginTop: "auto" } }, "Le jeu continue : tu peux jouer pendant que ce panneau est ouvert."));
+  const barreDroite = spect ? h("div", { style: { width: "40px" } }) : h("div.ligne", {}, icone("moins", () => zoom(-0.1), false, "Réduire"), zm, icone("plus", () => zoom(0.1), false, "Agrandir"), cloche);
+  ecran(h("div.entete", {}, h("div.ligne.gauche", {}, (e => { e.dataset.dialogue = "1"; return e; })(icone("retour", quitterJeu, false, "Quitter")), btnSalon), info, barreDroite),
+    spect ? h("div.centre.vue-spect", {}, h("div.stats", { style: { marginTop: "4px", gap: "min(68px, 7.5vw)" } }, sM, sT, sCode), h("div.bandeau-spect", {}, "👁  Spectateur · tu regardes la partie"), advZone) :
     large ? h("div.ligne", { style: { alignItems: "flex-start", flexWrap: "wrap", justifyContent: "center" } },
-      h("div.centre", { style: { flex: 1, minWidth: "320px" } }, h("div.stats", { style: { marginTop: "4px", gap: "min(68px, 7.5vw)" } }, sM, sT, sS), zoneMoi, h("div.ligne", { style: { gap: "8px", margin: "8px 0 4px" } }, msg, lienDef), suivant, h("div", { style: { margin: "4px 0 16px" } }, kb)),
+      h("div.centre", { style: { flex: 1, minWidth: "320px" } }, h("div.stats", { style: { marginTop: "4px", gap: "min(68px, 7.5vw)" } }, sM, sT, sS, sCode), zoneMoi, h("div.ligne", { style: { gap: "8px", margin: "8px 0 4px" } }, msg, lienDef), suivant, h("div", { style: { margin: "4px 0 16px" } }, kb)),
       advZone)
     // téléphone (8.18) : tout sur un écran, sans défiler : adversaires en haut, ma grille au milieu, clavier en bas
-    : h("div.centre.jeu-tel", {}, h("div.stats", { style: { gap: "min(68px, 7.5vw)" } }, sM, sT, sS), advZone, zoneMoi, h("div.ligne", { style: { gap: "8px", margin: "4px 0 2px" } }, msg, lienDef), suivant, h("div.bas-tel", {}, kb)));
+    : h("div.centre.jeu-tel", {}, h("div.stats", { style: { gap: "min(68px, 7.5vw)" } }, sM, sT, sS, sCode), advZone, zoneMoi, h("div.ligne", { style: { gap: "8px", margin: "4px 0 2px" } }, msg, lienDef), suivant, h("div.bas-tel", {}, kb)));
   if (!large) zoneMoi.style.marginTop = "6px";
   // téléphone : ma grille prend la hauteur qui reste entre les adversaires et le clavier
   function ajusterTel() {
@@ -1532,16 +1638,37 @@ async function partie() {
   }
   ajusterTel();
   if (!large && window.ResizeObserver) { const ro = new ResizeObserver(() => requestAnimationFrame(ajusterTel)); ro.observe(zoneMoi.parentNode); nettoyageEcran.push(() => ro.disconnect()); }  // textes qui apparaissent, mot piégé…
+  document.body.append(tiroir); nettoyageEcran.push(() => tiroir.remove());
+  async function majDemandes() {
+    if (gen !== M.gen) return;
+    cloche.classList.toggle("cache", !M.estHote); if (!M.estHote) { tiroir.classList.add("cache"); return; }
+    const dd = await FB.get(`demandes/${M.lobby}`) || {}; if (gen !== M.gen) return;
+    const now = FB.maintenant() * 1000, act = Object.entries(dd).filter(([, v]) => v && typeof v === "object" && now - (v.t || 0) < 30000);
+    badge.textContent = String(act.length); badge.classList.toggle("cache", !act.length); cloche.classList.toggle("active", act.length > 0);
+    titreDem.textContent = act.length ? `Demandes (${act.length})` : "Demandes";
+    const sig = act.map(([u]) => u).join(); if (listeDem.dataset.sig === sig) return; listeDem.dataset.sig = sig;
+    listeDem.replaceChildren(...(act.length ? act.map(([u, v], i) => h("div.demande", { "data-uid": u },
+      h("div.ligne", { style: { gap: "10px" } }, avatar(v.name || "?", 32, i + 3), h("div", {}, h("div.gras", {}, capitaliser(v.name || "?")), h("div.t2", { style: { fontSize: "13px" } }, "veut regarder la partie"))),
+      h("div.btns", {}, (b => { b.classList.add("dem-oui"); return b; })(bouton("Accepter", () => repondre(u, v, true), {})), (b => { b.classList.add("dem-non"); return b; })(bouton("Refuser", () => repondre(u, v, false), { variante: "discret" })))))
+      : [h("div.t2", { style: { fontSize: "14px" } }, "Aucune demande pour le moment.")]));
+  }
+  async function repondre(u, v, oui) {
+    if (oui) await FB.ok("PUT", `lobbies/${M.lobby}/spectateurs/${u}`, { name: String(v.name || "?").slice(0, 30), last_seen: SV, arrivee: SV });  // accepté : spectateur
+    await FB.ok("DELETE", `demandes/${M.lobby}/${u}`); listeDem.dataset.sig = ""; majDemandes();
+  }
+  const tDem = setInterval(majDemandes, 2000); nettoyageEcran.push(() => clearInterval(tDem)); majDemandes();
+  if (spect) sS.classList.add("cache");
   enJeu = true;
   info.textContent = "";  // 9.0 : plus de « mode · n lettres » (doublon avec le salon et la grille)
   document.onkeydown = e => {
-    if (G.fini || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (spect || G.fini || e.ctrlKey || e.metaKey || e.altKey) return;  // le spectateur ne joue pas
     const c = e.key.length === 1 ? e.key.toUpperCase() : "";
     if (c && ALPHABET.includes(c)) ajouter(c); else if (e.key === "Backspace") effacer(); else if (e.key === "Enter") valider(); else return;
     e.preventDefault();
   };
   // retour pendant la partie : mettre en pause (on garde sa place et on revient par « Reprendre ») ou quitter définitivement
   function quitterJeu() {
+    if (spect) { confirmer("Quitter ?", "Tu ne regardes plus la partie.", "Quitter").then(ok => { if (ok) { enJeu = false; M.quitter(); multiAccueil(); } }); return; }
     const o = superposition(h("div.col", {}, h("div.titre", { style: { fontSize: "26px" } }, "Quitter la partie ?"),
       h("div.t2", { style: { margin: "6px 0 18px" } }, "En pause, tu gardes ta place dans le salon : « Reprendre » (accueil du multijoueur) te ramène dans la partie, aussi depuis un autre appareil connecté à ton compte."),
       h("div.ligne", { style: { justifyContent: "flex-end", gap: "8px", flexWrap: "wrap" } },
@@ -2111,10 +2238,11 @@ async function resultats() {
     const ouvert = [...document.querySelectorAll(".voile:not(.cache)")].pop();
     if (enAccueil && !ouvert) { history.back(); return; }  // sur l'accueil : le retour quitte vraiment la page
     armer();
-    if (ouvert) { ouvert.classList.add("cache"); return; }  // une fenêtre ouverte : on la ferme d'abord
+    if (ouvert) { const d = ouvert.querySelector(".dlg-non") || ouvert.querySelector(".dlg-oui"); if (d) d.click(); else ouvert.classList.add("cache"); return; }  // une fenêtre ouverte : on la ferme d'abord
     const b = document.querySelector('button.icone[aria-label="Retour"], button.icone[aria-label="Quitter"]');
-    if (enJeu && !(b && b.dataset.dialogue) && !confirm("Quitter la partie en cours ?")) return;  // multijoueur : la fenêtre « Quitter la partie ? » s'en charge
-    if (b) b.click(); else accueil();
+    const suite = () => { if (b) b.click(); else accueil(); };
+    if (enJeu && !(b && b.dataset.dialogue)) { confirmer("Quitter la partie ?", "La partie en cours sera perdue.", "Quitter").then(ok => ok && suite()); return; }  // multijoueur : la fenêtre « Quitter la partie ? » s'en charge
+    suite();
   });
 }
 

@@ -90,7 +90,7 @@ def jeu_piege(manche):
     elif choix == "rien": log(f"manche {manche} : ne choisit rien (mot au hasard à la fin du décompte)")
     if S.get("forcer_apres") is not None and A.is_host:  # l'hôte force le démarrage (mot au hasard pour ceux qui n'ont pas choisi)
         pump(S["forcer_apres"]); log("démarrage forcé par l'hôte (clic sur le bouton)")
-        pm.tkm.askyesno = lambda *a, **k: True  # confirmation acceptée
+        pm.confirmer = lambda *a, **k: True  # confirmation acceptée (fenêtre du jeu, 9.1)
         bs = [w for w in J.moi_side.winfo_children() if isinstance(w, design.Bouton) and w.texte == "Forcer le démarrage"]
         if J.piege_fin_connue(): log("la devinette a déjà commencé (tous les mots utiles choisis) : rien à forcer")
         elif not bs or not bs[0].winfo_ismapped(): log("ÉCHEC pas de bouton « Forcer le démarrage » pour l'hôte"); fin(False)
@@ -153,7 +153,7 @@ try:
             refus = not pa.rejoindre(code, S["mdp_faux"], silencieux=True)
             log("mauvais mot de passe refusé" if refus else "BUG: mauvais mot de passe accepté"); R["mdp_faux_refuse"] = refus
             if not refus: fin(False)
-        pm.tkm.showwarning = lambda t, m, *a, **k: log("alerte:", m)
+        pm.informer = lambda w, m, *a, **k: log("alerte:", m)  # fenêtre du jeu (9.1)
         if S.get("via_ui"):
             pa.tenter_join(code); pump(1)
             if not A.lobby_code: log("ÉCHEC rejoindre"); fin(S.get("attendu_refus", False))
@@ -186,7 +186,7 @@ try:
             pump(1.2); R["mots"].append(J.mot); log(f"partie {partie} manche {manche} mot {J.mot}")
             if manche == 1: capture("jeu")
             if S.get("retour_salon_hote"):  # hôte : ramène tout le monde au salon en cours de partie
-                pump(3); tkm_ok = pm.tkm; pm.tkm.askyesno = lambda *a, **k: True; J.retour_salon_hote()
+                pump(3); pm.confirmer = lambda *a, **k: True; J.retour_salon_hote()
                 if not attendre(lambda: lob.active_sync, 60): log("ÉCHEC pas de retour au salon"); fin(False)
                 log("retour au salon (demandé par l'hôte)"); R["retour_salon"] = True; pump(2); fin(True)
             if S.get("attend_retour_salon"):  # l'hôte ramène tout le monde au salon en cours de partie

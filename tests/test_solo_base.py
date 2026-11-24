@@ -46,6 +46,7 @@ print("Thème perso créé et appliqué :", app.current_theme_name == "MON TEST"
 print("Sauvegardé dans la config :", "MON TEST" in D.lire_config().get("custom_themes", {}))
 # thème perso portant le nom d'un thème intégré (bug 7.0)
 import tkinter.messagebox as mb; avert = []; mb.showwarning = lambda *a, **k: avert.append(a)
+D.informer = lambda w, m, *a, **k: avert.append(m); D.confirmer = lambda *a, **k: True  # 9.1 : fenêtres du jeu (sinon elles attendent un clic)
 
 # diagnostic CI : quand un rappel Tkinter échoue, on affiche la fonction, les arguments et le widget (la trace seule n'indique pas qui l'a appelé)
 import tkinter as _tkdiag

@@ -422,8 +422,7 @@ class PageCustomTheme(tk.Frame):
     def save(self):
         name = self.nom_champ.get().strip().upper()
         if name in THEMES and THEMES[name].get("type") != "PERSO":
-            from tkinter import messagebox
-            messagebox.showwarning("SMOUT", "Ce nom est déjà celui d'un thème intégré. Choisis-en un autre."); return
+            design.informer(self, "Ce nom est déjà celui d'un thème intégré. Choisis-en un autre.", "Nom déjà pris"); return
         if name:
             THEMES[name] = dict(self.current_custom)
             self.controller.save_custom_themes_to_config()
@@ -543,8 +542,7 @@ class MenuPrincipal(tk.Tk):
             etiquette(i, f"Connecté : {em}", "texte", 15).pack(anchor="w", pady=(4, 0))
             etiquette(i, "Ton avancement est enregistré sur ce compte et suit sur tous tes appareils.", "texte", 13, P["texte2"], wraplength=400, justify="left").pack(anchor="w", pady=(2, 12))
             def sortir():
-                from tkinter import messagebox
-                if messagebox.askyesno("SMOUT", "Se déconnecter du compte sur cet appareil ?\nTon avancement reste enregistré sur le compte."):
+                if design.confirmer(self, "Se déconnecter ?", "Tu quittes le compte sur cet appareil. Ton avancement reste enregistré sur le compte.", "Se déconnecter"):
                     compte.deconnecter(); o.cacher(); self.creer_menu_accueil()
             Bouton(i, "Se déconnecter", sortir, largeur=200, hauteur=42, variante="discret").pack(anchor="w")
         else:

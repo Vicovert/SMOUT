@@ -18,9 +18,12 @@ const res = []; const ok = (n, c, i = "") => { res.push(!!c); console.log((c ? "
   ok("retour téléphone : du menu Solo à l'accueil (page toujours là)", p.url().startsWith(URL) && (await texte()).includes("Trouvez le mot caché"), p.url());
   await p.tap(".carte-menu.solo"); await sleep(500); await p.evaluate(() => solo("libre")); await sleep(1800);
   ok("partie solo lancée", await p.evaluate(() => !!document.querySelector(".clavier")));
-  reponse = false; await retour();
+  // 9.1 : la confirmation est une fenêtre du jeu (plus de confirm du navigateur)
+  await retour(); await sleep(300);
+  confirme = await p.evaluate(() => document.querySelector(".voile:not(.cache) .dialogue .titre")?.textContent || null);
+  await p.evaluate(() => document.querySelector(".voile:not(.cache) .dlg-non")?.click()); await sleep(300);
   ok("retour en partie : demande confirmation, annulée = on reste en jeu", confirme && confirme.includes("Quitter") && await p.evaluate(() => !!document.querySelector(".clavier")), String(confirme));
-  reponse = true; await retour();
+  await retour(); await sleep(300); await p.evaluate(() => document.querySelector(".voile:not(.cache) .dlg-oui")?.click()); await sleep(600);
   ok("retour en partie, confirmé : retour au menu Solo (écran précédent)", (await texte()).includes("Partie normale"));
   await retour();
   ok("retour depuis le menu Solo : à l'accueil", (await texte()).includes("Trouvez le mot caché"));

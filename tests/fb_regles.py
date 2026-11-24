@@ -49,11 +49,15 @@ def peut_lire(uid, p):
     if not uid: return False
     if p[:1] != ["v7"]: return False
     if p == ["v7", "index"] or (len(p) >= 3 and p[1] == "index"): return True
-    if len(p) >= 3 and p[1] == "lobbies":
-        return existe(lire(DATA, ["v7", "lobbies", p[2], "players", uid]))
+    if len(p) >= 3 and p[1] == "lobbies":  # joueurs et spectateurs (9.1) ; un spectateur peut toujours lire sa propre fiche
+        if len(p) >= 5 and p[3] == "spectateurs" and p[4] == uid: return True
+        return existe(lire(DATA, ["v7", "lobbies", p[2], "players", uid])) or existe(lire(DATA, ["v7", "lobbies", p[2], "spectateurs", uid]))
+    if len(p) >= 3 and p[1] == "demandes":  # demandes pour regarder une partie en cours : l'hôte les lit toutes, chacun la sienne
+        if len(p) >= 4 and p[3] == uid: return True
+        return lire(DATA, ["v7", "lobbies", p[2], "settings", "host_id"]) == uid
     if len(p) >= 3 and p[1] == "comptes": return p[2] == uid  # compte : lisible par son seul propriétaire
     if len(p) >= 5 and p[1] == "pieges":  # mot piégé : lisible par les participants de la manche, sauf par celui qui doit le deviner
-        return uid != p[4] and participant(DATA, p[2], uid)
+        return (uid != p[4] and participant(DATA, p[2], uid)) or existe(lire(DATA, ["v7", "lobbies", p[2], "spectateurs", uid]))  # les spectateurs voient tout
     return False
 
 def participant(D, code, uid):
@@ -76,6 +80,14 @@ def regle_ecriture(uid, niveau, D, N):
         if not re.fullmatch(r"[0-9]{4}", code): return False
         lob = lire(D, ["v7", "lobbies", code])
         return not existe(lob) or (lire(lob, ["settings", "host_id"]) == uid)
+    if len(niveau) == 4 and niveau[1] == "demandes":  # 9.1 : demande pour regarder une partie en cours
+        code, pid = niveau[2], niveau[3]; d, n = lire(D, niveau), lire(N, niveau)
+        if uid == pid:
+            if not existe(n): return True
+            if not existe(lire(D, ["v7", "lobbies", code, "settings"])): return False
+            sec = lire(D, ["v7", "secrets", code])
+            return existe(d) or sec is None or (n or {}).get("preuve") == sec
+        return not existe(n) and lire(D, ["v7", "lobbies", code, "settings", "host_id"]) == uid
     if len(niveau) == 3 and niveau[1] == "pieges":  # nettoyage des mots d'un salon disparu
         return not existe(lire(N, niveau)) and not existe(lire(D, ["v7", "lobbies", niveau[2]]))
     if len(niveau) == 5 and niveau[1] == "pieges":
@@ -108,6 +120,14 @@ def regle_ecriture(uid, niveau, D, N):
                 sec = lire(D, ["v7", "secrets", code])
                 return sec is None or (n or {}).get("preuve") == sec
             return not existe(n) and existe(d) and (d.get("last_seen") or 0) < maintenant() - 25000
+        if len(sous) == 2 and sous[0] == "spectateurs":  # 9.1 : spectateurs (entrée libre seulement dans le salon, avant la partie)
+            pid = sous[1]; d, n = lire(d_lob, ["spectateurs", pid]), lire(n_lob, ["spectateurs", pid])
+            if uid == pid:
+                if existe(d) or not existe(n): return True
+                if d_lob.get("status") != "waiting": return False
+                sec = lire(D, ["v7", "secrets", code])
+                return sec is None or (n or {}).get("preuve") == sec
+            return not existe(n) and existe(d) and (d.get("last_seen") or 0) < maintenant() - 25000
         if len(sous) == 2 and sous[0] in ("match_data", "fini_states"): return uid == sous[1]
         if len(sous) == 3 and sous[0] == "round_wins": return uid == sous[2]
         if len(sous) == 2 and sous[0] == "piege_pret": return uid != sous[1] and participant(D, code, uid)
@@ -134,6 +154,8 @@ def valider(N, cible):
                 if not isinstance(p, dict) or "name" not in p or "score" not in p: return False
                 if "frappe" in p and not (isinstance(p["frappe"], str) and len(p["frappe"]) <= 12): return False  # frappe en direct (Mot piégé)
                 if "theme" in p and not (isinstance(p["theme"], dict) and all(isinstance(c, str) and len(c) <= 9 for c in p["theme"].values())): return False  # couleurs du thème du joueur
+            for pid, sp in (lob.get("spectateurs") or {}).items():
+                if not isinstance(sp, dict) or not isinstance(sp.get("name"), str) or len(sp["name"]) > 30: return False
             for t, c in ((s or {}).get("piege_de") or {}).items():
                 if not isinstance(c, str) or c == t: return False
             sous = cible[3:]
@@ -142,6 +164,11 @@ def valider(N, cible):
             if sous[:1] == ["piege_essais"] and len(sous) == 3 and v is not None and not (isinstance(v, str) and re.fullmatch(r"[A-Z]+", v)): return False
             if sous[:1] == ["piege_verdicts"] and len(sous) == 3 and v is not None and not (isinstance(v, str) and re.fullmatch(r"[BMA]+", v)): return False
             if sous[:1] == ["piege_recap"] and len(sous) >= 3 and existe(lire(lob, sous[:3])) and not all(k in lire(lob, sous[:3]) for k in ("de", "mot")): return False
+    if len(cible) >= 4 and cible[1] == "demandes":
+        n = lire(N, cible[:4])
+        if existe(n):
+            if not isinstance(n, dict) or set(n) - {"name", "t", "preuve"} or not isinstance(n.get("name"), str) or len(n["name"]) > 30: return False
+            if not isinstance(n.get("t"), (int, float)) or n["t"] > maintenant() + 5000: return False
     if len(cible) >= 3 and cible[1] == "comptes":
         n = lire(N, cible[:3])
         if existe(n) and not (isinstance(n, dict) and "maj" in n and isinstance(n.get("donnees"), str)): return False

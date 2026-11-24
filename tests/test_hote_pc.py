@@ -21,7 +21,7 @@ def req(m, chemin, uid, corps=None):
     return urllib.request.urlopen(r).read()
 def db(): return json.loads(urllib.request.urlopen(B + "/__admin.json").read() or b"null") or {}
 def inscrire(): return json.loads(urllib.request.urlopen(urllib.request.Request(B + "/signup", method="POST", data=b"{}")).read())["localId"]
-pm.tkm.askyesno = lambda *a, **k: True
+pm.confirmer = lambda *a, **k: True
 
 # successeur : le premier arrivé, pas le plus petit identifiant
 ok("successeur : premier arrivé", pm.successeur({"u1": {"arrivee": 30}, "u2": {"arrivee": 10}, "u3": {"arrivee": 20}}, exclu="u2") == "u3")

@@ -43,6 +43,7 @@ const db = async () => (await (await fetch(BASE + "/__admin.json")).json()) || {
 
   // A donne l'hôte à B
   await ev(A, () => { const l = [...document.querySelectorAll(".joueur")].find(x => x.textContent.includes("Bob")); l.querySelector("button.donner-hote").click(); });
+  await sleep(300); ok("9.1 : « Donner l'hôte » demande confirmation dans une fenêtre du jeu", await ev(A, () => { const b = document.querySelector(".voile:not(.cache) .dlg-oui"); if (b) b.click(); return !!b; }));
   ok("« Donner l'hôte » : B devient l'hôte", await attendre(B, () => M.estHote && document.body.innerText.includes("Vous êtes l'hôte")) && (await salon()).settings.host_id === uB);
   ok("l'ancien hôte n'a plus la main", await attendre(A, () => !M.estHote && document.body.innerText.includes("L'hôte règle la partie")));
 
