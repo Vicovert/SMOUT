@@ -488,7 +488,7 @@ class MenuPrincipal(tk.Tk):
         if hasattr(self, 'container'): self.container.configure(bg=P["fond"])
         if save: design.maj_config(theme=theme_name)
 
-    def pseudo(self): return design.lire_config().get("pseudo", "") or "ANONYME"
+    def pseudo(self): return design.nettoyer_pseudo(design.lire_config().get("pseudo", "")).strip() or "ANONYME"
 
     # --- écrans ---
     def vider(self):
@@ -523,13 +523,13 @@ class MenuPrincipal(tk.Tk):
         etiquette(i, "Ton pseudo", "titre", 28).pack(anchor="w")
         etiquette(i, "Il s'affiche pour les autres joueurs en multijoueur.", "texte", 15, P["texte2"]).pack(anchor="w", pady=(4, 16))
         ch = Champ(i, largeur=400, hauteur=52, mono=True, taille=19); ch.pack(anchor="w")
-        ch.set(design.lire_config().get("pseudo", ""))
+        ch.set(design.nettoyer_pseudo(design.lire_config().get("pseudo", "")))
         def filtrer(*a):
-            v = "".join(c for c in ch.get().upper() if c.isalnum())[:15]
+            v = design.nettoyer_pseudo(ch.get())
             if v != ch.get(): ch.set(v)
         ch.var.trace_add("write", filtrer)
         def ok():
-            if ch.get(): design.maj_config(pseudo=ch.get()); self.creer_menu_accueil()
+            if ch.get().strip(): design.maj_config(pseudo=ch.get().strip()); self.creer_menu_accueil()
             else: o.cacher()
         ch.bind_entree(ok)
         bf = tk.Frame(i, bg=i["bg"]); bf.pack(anchor="e", pady=(20, 0))

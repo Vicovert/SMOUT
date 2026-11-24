@@ -57,6 +57,26 @@ REGLES_MODES = {
 SOMBRE = "#14182A"  # texte sur les couleurs de mode
 
 
+def recap_manche_calc(d, mode, mot):
+    """9.0 : récapitulatif d'une manche (modes hors Rush/Chaîne/Mot piégé), écrit par l'hôte quand il passe à la suite :
+    {mot, res: {uid: essais du premier essai gagnant, 0 = pas trouvé}} (identique à recapMancheCalc de smout.js)."""
+    md, res = d.get("match_data") or {}, {}
+    for pid in (d.get("players") or {}):
+        rows = md.get(pid) or {}
+        if isinstance(rows, list): rows = {str(i): v for i, v in enumerate(rows) if v is not None}
+        cles = sorted(int(k) for k in rows if str(k).lstrip("-").isdigit())
+        def gagnant(n):  # Mystère : la case 0 (lettre cachée) ne compte pas
+            c = list(((rows.get(str(n)) or rows.get(n) or {}).get("c")) or [])[1 if mode == "MYSTERE" else 0:]
+            return len(c) > 0 and all(x == "B" for x in c)
+        k = next((n for n in cles if gagnant(n)), None)
+        res[pid] = 0 if k is None else k + 1
+    return {"mot": str(mot or ""), "res": res}
+
+
+def trier_manches(o):
+    return sorted((k for k in (o or {}) if len(k) > 1 and k[0] == "r" and k[1:].isdigit()), key=lambda k: int(k[1:]))
+
+
 def calcul_elimination(d, manche):
     """Élimination : (éliminés de cette manche, joueurs encore en lice après la manche). Même calcul chez tous les joueurs.
     Qui n'a pas trouvé est éliminé ; si tout le monde a trouvé, le plus lent est éliminé ; si personne n'a trouvé, personne."""
@@ -379,7 +399,7 @@ class PageMulti(tk.Frame):
         s = d.get("settings", {})
         s["rush_seed"] = random.randint(1000, 999999)
         self.statut_salon = "waiting"
-        self.fb_put(f"lobbies/{self.lobby_code}", {"status": "waiting", "maj": {".sv": "timestamp"}, "players": p, "settings": s, "match_data": None, "fini_states": None, "round_wins": None, "rush_recap": None,
+        self.fb_put(f"lobbies/{self.lobby_code}", {"status": "waiting", "maj": {".sv": "timestamp"}, "players": p, "settings": s, "match_data": None, "fini_states": None, "round_wins": None, "rush_recap": None, "recap_manches": None,
                                                     "piege_pret": None, "piege_essais": None, "piege_verdicts": None, "piege_recap": None})
 
     def supprimer_salon(self, code):
@@ -392,11 +412,11 @@ class PageMulti(tk.Frame):
         return False
 
     def charger_pseudo_local(self):
-        return design.lire_config().get("pseudo", "") or "ANONYME"
+        return design.nettoyer_pseudo(design.lire_config().get("pseudo", "")).strip() or "ANONYME"
 
     def sauver_pseudo_local(self, p):
         if not p: return
-        self.pseudo = p.upper()
+        self.pseudo = design.nettoyer_pseudo(p).strip() or self.pseudo
         design.maj_config(pseudo=self.pseudo)
 
     def charger_mots(self):
@@ -474,7 +494,7 @@ class PageAccueil(tk.Frame):
         TuileAction(actions, "Rejoindre un salon", "Avec un code ou depuis la liste", self.rejoindre_page, P["bien"], P["sur_bien"], largeur=390, hauteur=170).pack(side="left")
 
     def format_p(self, *args):
-        v = "".join([c.upper() for c in self.sv_pseudo.get() if c.isalnum()])[:15]
+        v = design.nettoyer_pseudo(self.sv_pseudo.get())
         if self.sv_pseudo.get() != v: self.sv_pseudo.set(v)
         self.controller.sauver_pseudo_local(v)
 
@@ -953,7 +973,7 @@ class PageLobby(tk.Frame):
             new_settings.update(piege_reglages(ordre, joueurs, 1, rush_seed, new_settings["start_time"]))
         self.controller.settings_config.update(new_settings)
         self.controller.statut_salon = "playing"; self.controller.maj_index()
-        self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", {"status": "playing", "settings": new_settings, "match_data": None, "fini_states": None, "round_wins": None, "rush_recap": None,
+        self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}", {"status": "playing", "settings": new_settings, "match_data": None, "fini_states": None, "round_wins": None, "rush_recap": None, "recap_manches": None,
                                                                            "piege_pret": None, "piege_essais": None, "piege_verdicts": None, "piege_recap": None})
 
 
@@ -1907,6 +1927,8 @@ class PageJeu(tk.Frame):
             round_words = self.rush_words[:max_idx + 1]
             self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/rush_recap", {f"r{self.round_actuel}": round_words})
         fin = {"status": "finished"}
+        if mode not in RUSHS and mode != "PIEGE":  # 9.0 : récapitulatif de la manche
+            fin[f"recap_manches/r{self.round_actuel}"] = recap_manche_calc(d, mode, self.mot)
         if mode == "ELIMINATION":
             elim, vivants = calcul_elimination(d, int(s["current_round"]))
             s["elimines"] = list(s.get("elimines") or []) + elim
@@ -1928,6 +1950,7 @@ class PageJeu(tk.Frame):
                 "start_time": time.time() + self.controller.server_time_offset
             })
             maj = {"settings": s, "status": "playing", "match_data": None, "fini_states": None}
+            if f"recap_manches/r{self.round_actuel}" in fin: maj[f"recap_manches/r{self.round_actuel}"] = fin[f"recap_manches/r{self.round_actuel}"]
             if mode == "PIEGE":
                 s.update(piege_reglages(s.get("piege_ordre") or [], actifs, s["current_round"], s["rush_seed"], s["start_time"], s.get("piege_de")))
                 maj.update({"piege_pret": None, "piege_essais": None, "piege_verdicts": None})
@@ -2045,39 +2068,66 @@ class PageScoreFinal(tk.Frame):
         return lignes
 
     def maj_rush_recap(self, d):
-        lignes = self.recap_rush(d)
-        self.lbl_rush_recap.config(text="\n".join(lignes))
-        if lignes and hasattr(self, "zone_recap") and self.zone_recap.winfo_exists():
-            for w in self.zone_recap.winfo_children(): w.destroy()
-            if d.get("settings", {}).get("game_mode") == "PIEGE": self.recap_piege_bloc(d); return
-            etiquette(self.zone_recap, "\n".join(lignes), "texte", 14, P["texte2"], justify="center", wraplength=900).pack()
+        """9.0 : récapitulatif de fin de partie, un bandeau par manche, pour tous les modes (comme recapBloc du site)."""
+        sig = json.dumps([d.get("piege_recap"), d.get("rush_recap"), d.get("recap_manches"), sorted(d.get("players") or {})], sort_keys=True, default=str)
+        if sig == getattr(self, "_recap_sig", None) or not hasattr(self, "zone_recap") or not self.zone_recap.winfo_exists(): return
+        self._recap_sig = sig
+        self.lbl_rush_recap.config(text="\n".join(self.recap_rush(d)))
+        for w in self.zone_recap.winfo_children(): w.destroy()
+        s, noms = d.get("settings", {}), {pid: v.get("name", "?") for pid, v in (d.get("players") or {}).items()}
+        mode = s.get("game_mode", "CLASSIQUE")
+        manches = []  # [(titre, mot du bandeau ou None, mot trouvé ?, lignes [(gauche, mot, trouvé, droite, couleur, petit)])]
+        if mode == "PIEGE":
+            rec = d.get("piege_recap") or {}
+            for k in trier_manches(rec):
+                l = [(f"{e['de']}  →  {e['pour']}", "" if e.get("annulee") else e["mot"], bool(e.get("essais")),
+                      "annulée" if e.get("annulee") else (f"trouvé en {e['essais']}" if e["essais"] else "pas trouvé"), P["bien"] if e.get("essais") else P["texte2"],
+                      "au hasard" if e.get("auto") else "") for e in piege_recap_entrees(rec[k], None, noms)]
+                if l: manches.append((f"Manche {k[1:]}", None, False, l))
+        elif mode in RUSHS:
+            rc = d.get("rush_recap") or {}
+            ent = [(f"r{i}", w) for i, w in enumerate(rc)] if isinstance(rc, list) else [(k, rc[k]) for k in trier_manches(rc)]
+            for k, w in ent:
+                if isinstance(w, list) and w: manches.append((f"Manche {k[1:]}", None, False, [("", m, True, "", None, "") for m in w]))
+        else:
+            rm = d.get("recap_manches") or {}
+            for k in trier_manches(rm):
+                r = rm[k] or {}; res = r.get("res") or {}
+                ordre = sorted(res, key=lambda u: (res[u] or 99, noms.get(u, "")))
+                manches.append((f"Manche {k[1:]}", r.get("mot") or "", any(v for v in res.values()),
+                                [(noms.get(u, "?").capitalize(), None, False, f"trouvé en {res[u]}" if res[u] else "pas trouvé", P["bien"] if res[u] else P["texte2"], "") for u in ordre]))
+        if not manches: return
+        pan = Panneau(self.zone_recap, padding=14, rayon=16, largeur=736, contour=P["bordure"]); pan.pack(pady=(0, 6))
+        zone = Defilant(pan.interieur, largeur=700, hauteur=320); zone.pack()
+        g = zone.interieur
+        def cases(parent, mot, trouve, t=22):
+            f = tk.Frame(parent, bg=parent["bg"])
+            neutre = P["panneau"] if parent["bg"] == P["tuile"] else P["tuile"]  # pas trouvé : cases neutres, visibles aussi sur le bandeau
+            for ch in mot:
+                x = Tuile(f, t, mini=True); x.config(text=ch, bg=P["bien"] if trouve else neutre); x.pack(side="left", padx=1)
+            return f
+        for i, (titre, mot, trouve, lignes) in enumerate(manches):
+            ban = tk.Frame(g, bg=P["tuile"]); ban.pack(fill="x", pady=(12 if i else 0, 6))  # bandeau par manche (option D validée par Victor)
+            etiquette(ban, espacer(titre), "texte", 12, P["texte"], True).pack(side="left", padx=10, pady=6)
+            if mot: cases(ban, mot, trouve, 20).pack(side="right", padx=10, pady=4)
+            corps = tk.Frame(g, bg=P["panneau"]); corps.pack(fill="x", padx=10)
+            if mode in RUSHS:
+                fl = tk.Frame(corps, bg=P["panneau"]); fl.pack(anchor="w")
+                for j, (_, m, *_r) in enumerate(lignes): cases(fl, m, True, 20).grid(row=j // 4, column=j % 4, sticky="w", padx=(0, 14), pady=3)
+                continue
+            for j, (gauche, m, tr, droite, coul, petit) in enumerate(lignes):
+                etiquette(corps, gauche, "texte", 15, P["texte"], True).grid(row=j, column=0, sticky="w", padx=(0, 22), pady=3)
+                col = 1
+                if m is not None: cases(corps, m, tr).grid(row=j, column=1, sticky="w", padx=(0, 22)); col = 2
+                rf = tk.Frame(corps, bg=P["panneau"]); rf.grid(row=j, column=col, sticky="w")
+                etiquette(rf, droite, "texte", 15, coul, True).pack(side="left")
+                if petit: etiquette(rf, petit, "texte", 11, P["texte2"]).pack(side="left", padx=(8, 0))
+        g.update_idletasks()
+        zone.canvas.configure(height=min(320, g.winfo_reqheight()))  # défile seulement si la liste est longue
 
-    def recap_piege_bloc(self, d):
-        """9.0 : récapitulatif du Mot piégé, manche par manche : « Alice → Bob », le mot en cases, le résultat (comme piegeRecapBloc du site)."""
-        rec = d.get("piege_recap") or {}
-        noms = {pid: v.get("name", "?") for pid, v in (d.get("players") or {}).items()}
-        pan = Panneau(self.zone_recap, padding=16, rayon=16, largeur=736, contour=P["bordure"]); pan.pack(pady=(0, 6))
-        g = tk.Frame(pan.interieur, bg=P["panneau"]); g.pack()
-        r = 0
-        for k in sorted(rec, key=lambda k: int(k[1:]) if k[1:].isdigit() else 0):
-            entrees = piege_recap_entrees(rec[k], None, noms)
-            if not entrees: continue
-            etiquette(g, espacer(f"Manche {k[1:]}"), "texte", 12, P["texte2"], True).grid(row=r, column=0, columnspan=3, sticky="w", pady=(8 if r else 0, 2)); r += 1
-            for e in entrees:
-                etiquette(g, f"{e['de']}  →  {e['pour']}", "texte", 15, P["texte"], True).grid(row=r, column=0, sticky="w", padx=(0, 22), pady=3)
-                mf = tk.Frame(g, bg=P["panneau"]); mf.grid(row=r, column=1, sticky="w", padx=(0, 22))
-                for ch in ("" if e.get("annulee") else e["mot"]):
-                    t = Tuile(mf, 22, mini=True); t.config(text=ch, bg=P["bien"] if e.get("essais") else P["tuile"]); t.pack(side="left", padx=1)
-                res = "annulée" if e.get("annulee") else (f"trouvé en {e['essais']}" if e["essais"] else "pas trouvé")
-                rf = tk.Frame(g, bg=P["panneau"]); rf.grid(row=r, column=2, sticky="w")
-                etiquette(rf, res, "texte", 15, P["bien"] if e.get("essais") else P["texte2"], True).pack(side="left")
-                if e.get("auto"): etiquette(rf, "au hasard", "texte", 11, P["texte2"]).pack(side="left", padx=(8, 0))
-                r += 1
-
-    def couronne(self, cv, x, y, pid, hote):
-        """Symbole de l'hôte (couronne, comme dans le salon) à côté d'un nom ; mis à jour si l'hôte change."""
-        it = cv.create_line(x, y + 5, x, y - 4, x + 4, y, x + 7, y - 6, x + 10, y, x + 14, y - 4, x + 14, y + 5, x, y + 5,
-                            fill=P["mal"], width=1.6, joinstyle="round", state="normal" if pid == hote else "hidden")
+    def couronne(self, cv, x, y, pid, hote, taille=14):
+        """« (hôte) » à côté du nom de l'hôte (en gris : la couronne est réservée au gagnant) ; mis à jour si l'hôte change."""
+        it = cv.create_text(x, y, text="(hôte)", anchor="w", fill=P["texte2"], font=police("texte", taille, True), state="normal" if pid == hote else "hidden")
         self.couronnes.append((cv, it, pid))
 
     def maj_couronnes(self, hote):
@@ -2128,7 +2178,10 @@ class PageScoreFinal(tk.Frame):
                 x, y = 95, H - hb - 50
                 cv.create_line(x - 13, y + 7, x - 13, y - 6, x - 6, y + 1, x, y - 9, x + 6, y + 1, x + 13, y - 6, x + 13, y + 7, x - 13, y + 7, fill=P["mal"], width=2.2, joinstyle="round")
             tn = cv.create_text(95, H - hb - 18, text=v["name"].capitalize(), fill=P["texte"], font=police("texte", 17, True))
-            bb = cv.bbox(tn); self.couronne(cv, bb[2] + 6, H - hb - 18, pid, hid)
+            if pid == hid:  # nom + « (hôte) » centrés ensemble
+                bb = cv.bbox(tn); w = cv.bbox(cv.create_text(0, -100, text="(hôte)", font=police("texte", 14, True)))
+                dx = (w[2] - w[0] + 6) / 2; cv.move(tn, -dx, 0); bb = cv.bbox(tn)
+                self.couronne(cv, bb[2] + 6, H - hb - 18, pid, hid)
             fill = P["mal"] if premier else P["tuile"]; fg = P["sur_mal"] if premier else P["texte"]
             arrondi(cv, 2, H - hb, 188, H + 16, 16, fill=fill, outline="")
             cv.create_text(95, H - hb + hb * 0.38, text=str(rang_de[pid] + 1), fill=fg, font=police("chiffres", 40))
@@ -2144,7 +2197,7 @@ class PageScoreFinal(tk.Frame):
             c1 = P["texte2"] if entete else P["texte"]
             cv.create_text(28, y, text=vals[0], anchor="w", fill=c1, font=f)
             tn = cv.create_text(90, y, text=vals[1], anchor="w", fill=c1, font=f)
-            if pid: self.couronne(cv, cv.bbox(tn)[2] + 8, y, pid, hid)
+            if pid: self.couronne(cv, cv.bbox(tn)[2] + 8, y, pid, hid, 15)
             cv.create_text(692, y, text=vals[2], anchor="e", fill=P["texte2"] if entete else P["mal"], font=f)
             if not entete: tk.Frame(ti, bg=P["bordure"], height=1).pack(fill="x")
         ligne(["#", espacer("Joueur"), espacer("Points")], entete=True)
@@ -2152,7 +2205,7 @@ class PageScoreFinal(tk.Frame):
         for pid, v in classement:
             moi = pid == self.controller.player_id
             ligne([str(rang_de[pid] + 1), v["name"].capitalize() + (" (vous)" if moi else ""), nombre(v.get("score", 0))], surligne=moi, pid=pid)
-        self.zone_recap = tk.Frame(c, bg=P["fond"]); self.zone_recap.pack()
+        self.zone_recap = tk.Frame(c, bg=P["fond"]); self.zone_recap.pack(); self._recap_sig = None
         self.maj_rush_recap(d)
         bf = tk.Frame(c, bg=P["fond"]); bf.pack(pady=(10, 0))
         self.btn_lobby = Bouton(bf, "Rejouer dans ce salon", self.retour_lobby_host, largeur=280, hauteur=56, taille=17)
@@ -2173,8 +2226,7 @@ class PageScoreFinal(tk.Frame):
         else:
             if d and d.get("settings", {}).get("host_id"):  # l'hôte a pu changer
                 self.controller.is_host = d["settings"]["host_id"] == self.controller.player_id; self.maj_lobby_haut(); self.maj_couronnes(d["settings"]["host_id"])
-            if d and self.lbl_rush_recap.cget("text") != "\n".join(self.recap_rush(d)):
-                self.maj_rush_recap(d)
+            if d: self.maj_rush_recap(d)  # ne reconstruit que si le récapitulatif a changé
             if d and d.get("settings", {}).get("game_mode") == "PIEGE":  # dernier mot révélé après la fin : score à jour
                 total = piege_points(d.get("piege_recap"), self.controller.player_id, int(d["settings"].get("essais", 8)))
                 if total != self.controller.current_score:

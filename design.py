@@ -574,6 +574,15 @@ class Curseur(tk.Canvas):
         self.create_text(self.l - 4, y, text=txt, anchor="e", fill=P["texte"] if self.actif else P["texte2"], font=police("chiffres", 15, True))
 
 
+def nettoyer_pseudo(p):
+    """9.0 : pseudo en lettres (accents compris), chiffres et espaces uniquement, en majuscules, 15 caractères au plus (comme nettoyerPseudo du site)."""
+    import unicodedata
+    p = unicodedata.normalize("NFC", str(p or "").upper())
+    p = "".join(c for c in p if c.isalpha() or c in "0123456789 ")
+    while "  " in p: p = p.replace("  ", " ")
+    return p.lstrip()[:15]  # espaces simples, jamais au début (celui de la fin est retiré à l'enregistrement)
+
+
 class BoutonLobby(Bouton):
     """9.0 : bouton de l'hôte « Lobby » (flèche de retour + texte, contour jaune), en haut à gauche de la partie et de la fin de partie.
     Même rendu que .btn-salon du site."""

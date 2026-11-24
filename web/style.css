@@ -363,13 +363,17 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 @media (max-width: 600px) { .btn-salon { height: 32px; padding: 0 10px 0 8px; font-size: 13px; } .barre-haut .droite { font-size: 13px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; } .barre-haut { gap: 10px; } }
 
 /* 9.0 : symbole de l'hôte sur l'écran de fin, récapitulatif du Mot piégé */
-.ico-hote { display: inline-flex; vertical-align: -2px; margin-left: 6px; color: var(--mal); }
-.ico-hote svg { stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linejoin: round; }
+.ico-hote { margin-left: 6px; color: var(--texte2); font-weight: 600; font-size: .85em; }
 .tableau .r .nom { display: inline-flex; align-items: center; }
-.recap-piege { display: grid; grid-template-columns: max-content max-content max-content; gap: 10px 22px; align-items: center; justify-content: center; width: min(736px, 94vw); padding: 14px 20px 16px; border: 1px solid var(--bordure); border-radius: 16px; background: var(--panneau); text-align: left; white-space: normal; color: var(--texte); font-size: 15px; }
+.recap-piege { max-height: 340px; overflow-y: auto; overscroll-behavior: contain; display: grid; grid-template-columns: max-content max-content max-content; gap: 10px 22px; align-items: center; justify-content: center; width: min(736px, 94vw); padding: 14px 20px 16px; border: 1px solid var(--bordure); border-radius: 16px; background: var(--panneau); text-align: left; white-space: normal; color: var(--texte); font-size: 15px; }
 .recap-piege .paire { display: contents; }
-.recap-piege .manche { grid-column: 1 / -1; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--texte2); margin-top: 6px; }
-.recap-piege .manche:first-child { margin-top: 0; }
+.recap-piege .manche { grid-column: 1 / -1; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; background: var(--tuile); color: var(--texte); border-radius: 8px; padding: 6px 10px; margin-top: 12px; }
+.recap-piege .manche:first-child { margin-top: 0; }  /* bandeau par manche (option D validée par Victor) */
+.recap-piege .manche .tuile:not(.bien) { background: var(--panneau); }
+.recap-piege .manche.avec-mot { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.recap-piege.recap-joueurs { grid-template-columns: max-content max-content; column-gap: 40px; }
+.recap-piege.recap-mots { grid-template-columns: 1fr; }
+.recap-piege .mots { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px 14px; }
 .recap-piege .qui { display: flex; gap: 6px; font-weight: 600; white-space: nowrap; }
 .recap-piege .qui .fl { color: var(--texte2); }
 .recap-piege .mot { display: flex; gap: 3px; }
@@ -380,6 +384,8 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 @media (max-width: 560px) {
   .recap-piege { grid-template-columns: 1fr auto; grid-auto-flow: row dense; gap: 4px 10px; padding: 12px 14px; font-size: 14px; }
   .recap-piege .qui { grid-column: 1; margin-top: 6px; } .recap-piege .res { grid-column: 2; margin-top: 6px; justify-content: flex-end; }
-  .recap-piege .mot { grid-column: 1 / -1; }
+  .recap-piege .mot { grid-column: 1 / -1; } .recap-piege .manche .mot { grid-column: auto; }
+  .recap-piege.recap-joueurs { grid-template-columns: 1fr auto; } .recap-piege.recap-joueurs .qui, .recap-piege.recap-joueurs .res { margin-top: 2px; }
   .recap-piege .res .auto { display: none; }
 }
+
