@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import messagebox as tkm
-import json, random, os, sys, time, requests, threading, webbrowser, queue, traceback, hashlib
+import json, random, os, sys, time, requests, threading, webbrowser, queue, traceback, hashlib, re
 import design
 import tkinter.font as tkfont
 
@@ -8,7 +8,7 @@ import tkinter.font as tkfont
 FIREBASE_URL = "https://smout-multi-default-rtdb.europe-west1.firebasedatabase.app/"
 FIREBASE_API_KEY = "AIzaSyCUliQiMhKmHZzxrMK6k35Gt0z7zBfZP3g"  # clé web publique (normal qu'elle soit dans le client)
 RACINE = "v7"            # données du protocole 7 (PC et web) ; /v5 reste pour les 5.x/6.x
-VERSION_JEU = "8.10"     # version du protocole multi : 8.10 = plus d'exclusion des joueurs inactifs ; seuls les joueurs 8.10+ jouent ensemble (PC et navigateur)
+VERSION_JEU = "9.1"      # version du protocole multi : 9.1 = spectateurs et demandes pour regarder une partie en cours (les clients plus anciens entraient en joueur)
 DELAI_ABANDON_MS = 1800000  # un salon dont plus personne ne donne signe de vie depuis 30 min peut être supprimé par n'importe qui (pas de déconnexion pour simple inactivité)
 
 def preuve_salon(code, mot_de_passe):
@@ -23,7 +23,7 @@ from compte import AuthFirebase  # connexion Firebase partagée avec le compte (
 
 # ===================================================================== thème
 import design
-from design import (Curseur, P, police, etiquette, espacer, Tuile, Bouton, BoutonLobby, Panneau, Icone, Avatar, Clavier, Stat, Chips, CarteChoix,
+from design import (Curseur, P, police, etiquette, espacer, Tuile, Bouton, BoutonLobby, confirmer, informer, Panneau, Icone, Avatar, Clavier, Stat, Chips, CarteChoix,
                     Champ, TuileAction, Interrupteur, Superposition, Stepper, TuileReglage, CarteSalon, Defilant, arrondi, melanger, fenetre_aide)
 
 BG = ACCENT1 = ACCENT2 = MUTED = KEY_BG = TXT1 = None
@@ -113,12 +113,12 @@ def successeur(joueurs, exclu=None, actifs=None):
     return min(c, key=lambda pid: ((joueurs.get(pid) or {}).get("arrivee") or 9e15, pid))
 
 
-def disposition_adv(nb, essais, longueur, larg, haut):
+def disposition_adv(nb, essais, longueur, larg, haut, plafond_max=0):  # plafond_max : cases plus grandes permises (vue spectateur, 9.1)
     """Adversaires (mini-grilles) : (colonnes, taille de case, dense) qui remplissent au mieux la zone larg x haut (px).
     Même calcul sur PC et sur le web : 1 à 3 adversaires = nom et score à droite de la grille ; à partir de 3, le nom et le
     score passent au-dessus de la grille (« dense ») si cela permet des cases plus grandes, avec plusieurs colonnes."""
     if nb <= 0: return 1, 14, False
-    plafond = {1: 30, 2: 24}.get(nb, 20)
+    plafond = plafond_max or {1: 30, 2: 24}.get(nb, 20)
     meilleur = None
     for dense in ((False, True) if nb >= 3 else (False,)):
         for cols in range(1, min(nb, 4) + 1):
@@ -254,6 +254,7 @@ class PageMulti(tk.Frame):
         threading.Thread(target=self.assurer_connexion, daemon=True).start()
         self.pseudo = self.charger_pseudo_local()
         self.lobby_code, self.is_host, self.current_score = "", False, 0
+        self.spectateur = False  # 9.1 : on regarde (fiche dans spectateurs/<uid>), on ne joue pas
         self.server_time_offset = 0 # Pour ajuster l'horloge
         self.settings_config = {"essais": 8, "min": 6, "max": 7, "round_num": 1, "timer": 180, "password": "", "visible": True, "game_mode": "CLASSIQUE"}
         self.charger_mots()
@@ -281,6 +282,10 @@ class PageMulti(tk.Frame):
         d = self.fb_get(f"lobbies/{code}")
         if code != self.lobby_code: return None
         if d and self.player_id in (d.get("players") or {}): self.vu_ok = time.time(); return d
+        if self.spectateur:  # spectateur : jamais de réinscription comme joueur
+            if d and self.player_id in (d.get("spectateurs") or {}): self.vu_ok = time.time(); return d
+            if time.time() - self.vu_ok > 10: self.salon_perdu = True
+            return d
         # retiré du salon (ancien client, longue mise en veille) : on s'y réinscrit tout seul, sans déconnexion
         if time.time() - getattr(self, "dernier_retour", 0) > 3:
             self.dernier_retour = time.time()
@@ -299,10 +304,10 @@ class PageMulti(tk.Frame):
 
     def pomper_reponses(self):
         if self.salon_perdu:
-            self.salon_perdu, self.vu_ok, self.is_host = False, 0, False
+            self.salon_perdu, self.vu_ok, self.is_host, self.spectateur = False, 0, False, False
             self.lobby_code, self.code_affiche = "", ""
             self.show_frame("PageAccueil")
-            tkm.showwarning("SMOUT", "Ce salon n'existe plus.")
+            self.after(10, lambda: informer(self, "Ce salon n'existe plus.", "Salon fermé"))
         try:
             while True:
                 callback, data = self.reponses_reseau.get_nowait()
@@ -320,7 +325,7 @@ class PageMulti(tk.Frame):
 
     def memoriser_partie(self):
         """Garde le salon en mémoire : si le jeu se ferme ou plante, « Reprendre la partie » permet d'y revenir."""
-        if self.lobby_code:
+        if self.lobby_code and not self.spectateur:
             design.maj_config(partie_en_cours={"code": self.lobby_code, "mdp": self.settings_config.get("password", ""), "t": time.time(), "score": self.current_score})
 
     def oublier_partie(self): design.maj_config(partie_en_cours=None)
@@ -333,8 +338,10 @@ class PageMulti(tk.Frame):
         self.lobby_code, self.code_affiche, self.vu_ok = "", "", 0
 
     def start_heartbeat(self):
-        if self.heartbeat_active and self.lobby_code: self.memoriser_partie()
-        if self.heartbeat_active and self.lobby_code:
+        if self.heartbeat_active and self.lobby_code and self.spectateur:  # spectateur : seulement sa fiche
+            self.fb_patch(f"lobbies/{self.lobby_code}/spectateurs/{self.player_id}", {"last_seen": {".sv": "timestamp"}, "name": self.pseudo})
+        elif self.heartbeat_active and self.lobby_code: self.memoriser_partie()
+        if self.heartbeat_active and self.lobby_code and not self.spectateur:
             # signe de vie du joueur ET du salon (un salon sans signe de vie depuis 2 min est supprimable)
             uid = self.player_id
             self.fb_patch(f"lobbies/{self.lobby_code}", {"maj": {".sv": "timestamp"}, f"players/{uid}/last_seen": {".sv": "timestamp"},
@@ -358,6 +365,11 @@ class PageMulti(tk.Frame):
         code_to_clean, self.lobby_code = self.lobby_code, ""
         self.vu_ok = 0; self.oublier_partie()  # départ volontaire
         code_index, self.code_affiche = self.code_affiche, ""
+        if self.spectateur:  # spectateur : on efface seulement sa fiche
+            self.spectateur = False
+            t = threading.Thread(target=lambda: self._requete("delete", f"lobbies/{code_to_clean}/spectateurs/{self.player_id}")); t.start()
+            if exit_mode: t.join(1.0)
+            return
         def do_clean():
             try:
                 data = self._requete("get", f"lobbies/{code_to_clean}")
@@ -380,6 +392,7 @@ class PageMulti(tk.Frame):
     def fb_ok(self, method, path, data=None, timeout=3):
         """Écriture/suppression synchrone : True si la base l'a acceptée."""
         if not path or path.endswith("/") or "//" in path: return False
+        if method != "get" and self.spectateur and not re.search(r"^(horloge|comptes|demandes)/|/spectateurs/", path): return False  # 9.1 : un spectateur n'écrit rien dans la partie
         try:
             jeton = self.auth.jeton()
             if not jeton: return False
@@ -443,6 +456,7 @@ class PageMulti(tk.Frame):
     def _requete(self, method, path, data=None, timeout=2):
         """Requête REST authentifiée sous /v7. Renvoie le JSON en cas de succès, sinon None."""
         if not path or path.endswith("/") or "//" in path: return None  # salon déjà quitté : rien à lire
+        if method != "get" and self.spectateur and not re.search(r"^(horloge|comptes|demandes)/|/spectateurs/", path): return None  # 9.1 : un spectateur n'écrit rien dans la partie
         try:
             jeton = self.auth.jeton()
             if not jeton: return None
@@ -500,7 +514,7 @@ class PageAccueil(tk.Frame):
 
     def connecte(self):
         if self.controller.player_id or self.controller.assurer_connexion(): return True
-        tkm.showwarning("SMOUT", "Connexion au serveur impossible. Vérifie ta connexion internet."); return False
+        informer(self, "Connexion au serveur impossible. Vérifie ta connexion internet.", "Pas de connexion"); return False
 
     def pseudo_ok(self):
         if self.sv_pseudo.get().strip(): return True
@@ -526,7 +540,7 @@ class PageAccueil(tk.Frame):
         if not self.connecte(): return
         if not self.controller.frames["PageRejoindre"].rejoindre(pe["code"], pe.get("mdp", ""), silencieux=True, score=int(pe.get("score", 0) or 0)):
             self.controller.oublier_partie(); self.afficher_reprise()
-            tkm.showwarning("SMOUT", "Cette partie est terminée ou le salon n'existe plus.")
+            informer(self, "Cette partie est terminée ou le salon n'existe plus.", "Partie terminée")
 
 
 class PageRejoindre(tk.Frame):
@@ -601,14 +615,12 @@ class PageRejoindre(tk.Frame):
     def tenter_join(self, code):
         if not self.pseudo_ok(): return
         if not self.controller.player_id and not self.controller.assurer_connexion():
-            tkm.showwarning("SMOUT", "Connexion au serveur impossible."); return
+            informer(self, "Connexion au serveur impossible.", "Pas de connexion"); return
         idx = self.controller.fb_get(f"index/{code}")
         if not idx or self.maintenant_ms() - (idx.get("maj") or 0) > 30000:
-            tkm.showwarning("SMOUT", "Salon introuvable"); return
+            informer(self, "Aucun salon actif avec ce code.", "Salon introuvable"); return
         if idx.get("version") != VERSION_JEU:
-            tkm.showwarning("SMOUT", f"Ce salon utilise une autre version du jeu ({idx.get('version', '?')}). Mets SMOUT à jour."); return
-        if idx.get("nb", 0) >= MAX_JOUEURS:
-            tkm.showwarning("SMOUT", f"Ce salon est déjà complet (maximum {MAX_JOUEURS} joueurs)."); return
+            informer(self, f"Ce salon utilise une autre version du jeu ({idx.get('version', '?')}). Mets SMOUT à jour.", "Autre version"); return
         self.t_c = code
         if idx.get("prive"):
             self.champ_pw.set(""); self.lbl_pw.config(text=""); self.pass_view.montrer(); self.champ_pw.focus()
@@ -628,19 +640,74 @@ class PageRejoindre(tk.Frame):
         joueur = {"name": self.controller.pseudo, "score": score or 0, "last_seen": {".sv": "timestamp"}, "arrivee": {".sv": "timestamp"}}
         preuve = preuve_salon(code, mdp)
         if preuve: joueur["preuve"] = preuve
+        if score is None:  # 9.1 (pas pour « Reprendre » : on y a gardé sa place) : partie en cours → demande à l'hôte ; salon plein → spectateur
+            idx = self.controller.fb_get(f"index/{code}") or {}
+            if idx.get("status") == "playing": return self.demander_a_regarder(code, mdp, preuve)
+            if (idx.get("nb") or 0) >= MAX_JOUEURS: return self.entrer_spectateur(code, mdp, preuve, silencieux)
         # la base n'accepte l'inscription qu'avec la bonne preuve de mot de passe
         if not self.controller.fb_ok("put", f"lobbies/{code}/players/{uid}", joueur):
-            if not silencieux: tkm.showwarning("SMOUT", "Salon introuvable")
+            if not silencieux: informer(self, "Ce salon est introuvable.", "Salon introuvable")
             return False
         d = self.controller.fb_get(f"lobbies/{code}") or {}
         self.pass_view.cacher(); self.controller.is_host = False
-        if len(d.get("players", {})) > MAX_JOUEURS:
+        if len(d.get("players", {})) > MAX_JOUEURS:  # complet entre-temps : spectateur
             self.controller.fb_ok("delete", f"lobbies/{code}/players/{uid}")
-            tkm.showwarning("SMOUT", f"Ce salon est déjà complet (maximum {MAX_JOUEURS} joueurs)."); return True
+            return self.entrer_spectateur(code, mdp, preuve, silencieux)
+        self.controller.spectateur = False
         self.controller.lobby_code, self.controller.code_affiche, self.controller.current_score = code, code, score or 0
         self.controller.reprise = score is not None  # garde ses points en revenant dans une partie en cours
         self.controller.settings_config.update({"password": mdp, "visible": d.get("settings", {}).get("visible", True)})
         self.controller.show_frame("PageLobby")
+        return True
+
+
+    # 9.1 : salon plein (avant la partie) → spectateur ; « Prendre la place » dès qu'une place se libère
+    def entrer_spectateur(self, code, mdp, preuve, silencieux=False):
+        fiche = {"name": self.controller.pseudo, "last_seen": {".sv": "timestamp"}, "arrivee": {".sv": "timestamp"}}
+        if preuve: fiche["preuve"] = preuve
+        if not self.controller.fb_ok("put", f"lobbies/{code}/spectateurs/{self.controller.player_id}", fiche):
+            if not silencieux: informer(self, "Impossible d'entrer dans ce salon.", "Salon introuvable")
+            return False
+        self.entrer_comme_spectateur(code, mdp)
+        return True
+
+    def entrer_comme_spectateur(self, code, mdp):
+        c = self.controller
+        self.pass_view.cacher(); c.is_host = False; c.spectateur = True
+        c.lobby_code, c.code_affiche, c.current_score, c.reprise = code, code, 0, False
+        c.settings_config.update({"password": mdp}); c.vu_ok = time.time()
+        c.show_frame("PageLobby")
+
+    # 9.1 : partie en cours → demande à l'hôte de la regarder ; fenêtre d'attente jusqu'à sa réponse
+    def demander_a_regarder(self, code, mdp, preuve):
+        c, uid = self.controller, self.controller.player_id
+        chemin = f"demandes/{code}/{uid}"
+        dem = {"name": c.pseudo, "t": {".sv": "timestamp"}}
+        if preuve: dem["preuve"] = preuve
+        if not c.fb_ok("put", chemin, dem): return False  # mauvais mot de passe ou salon disparu
+        self.pass_view.cacher()
+        hote = ((c.fb_get(f"index/{code}") or {}).get("hote") or "L'hôte").capitalize()
+        o = Superposition(self.winfo_toplevel(), largeur=440); i = o.interieur; self.fen_attente = o; etat = {"fini": False, "n": 0}
+        etiquette(i, "En attente de l'hôte", "titre", 24).pack()
+        etiquette(i, f"{hote} doit accepter ta demande. Tu regarderas la partie en spectateur, puis tu pourras prendre une place au retour au salon.",
+                  "texte", 14, P["texte2"], wraplength=370, justify="center").pack(pady=(8, 16))
+        def quitter():
+            if not confirmer(self, "Annuler la demande ?", "L'hôte ne verra plus ta demande.", "Annuler la demande", "Attendre"): return
+            etat["fini"] = True; o.destroy(); threading.Thread(target=lambda: c.fb_ok("delete", chemin), daemon=True).start()
+        self.btn_quitter_attente = Bouton(i, "Quitter", quitter, largeur=200, hauteur=44, variante="discret"); self.btn_quitter_attente.pack()
+        o.montrer()
+        def tic():
+            if etat["fini"]: return
+            if c.fb_get(f"lobbies/{code}/spectateurs/{uid}"):  # accepté
+                etat["fini"] = True; o.destroy(); self.entrer_comme_spectateur(code, mdp); return
+            if not c.fb_get(chemin):
+                etat["fini"] = True; o.destroy(); informer(self, "L'hôte a refusé ta demande, ou la partie est terminée.", "Demande refusée"); return
+            if (c.fb_get(f"index/{code}") or {}).get("status") == "waiting":  # partie finie : on entre dans le salon
+                etat["fini"] = True; o.destroy(); c.fb_ok("delete", chemin); self.rejoindre(code, mdp); return
+            etat["n"] += 1
+            if etat["n"] % 3 == 0: c.fb_patch(chemin, {"t": {".sv": "timestamp"}})  # la demande reste « active » pour l'hôte
+            self.after(1500, tic)
+        self.after(1500, tic)
         return True
 
 
@@ -706,6 +773,7 @@ class PageLobby(tk.Frame):
         for i in range(MAX_JOUEURS):
             c = tk.Canvas(pj.interieur, width=292, height=48, bg=P["panneau"], highlightthickness=0); c.pack(pady=2)
             self.player_slots.append(c)
+        self.lbl_spect = etiquette(pj.interieur, "", "texte", 14, P["texte2"]); self.lbl_spect.pack(anchor="w", pady=(6, 0))  # 9.1 : « x spectateurs »
         ps = Panneau(cols, padding=24); ps.pack(side="left", anchor="n", padx=(22, 0), fill="x", expand=True)
         i = ps.interieur; self.panneau_partie = i
         # --- hôte : choix du mode (cartes nom + description), règle du mode choisi
@@ -838,7 +906,7 @@ class PageLobby(tk.Frame):
                         "players": {uid: hote}}):
                     break
             else:
-                tkm.showwarning("SMOUT", "Impossible de créer le salon. Vérifie ta connexion internet.")
+                informer(self, "Impossible de créer le salon. Vérifie ta connexion internet.", "Pas de connexion")
                 self.active_sync = False; self.controller.show_frame("PageAccueil"); return
             ctl.code_affiche, ctl.lobby_code = code, code
             ctl.nb_joueurs, ctl.statut_salon = 1, "waiting"
@@ -852,12 +920,18 @@ class PageLobby(tk.Frame):
         if not self.active_sync or gen != self.lobby_gen: return
         self.controller.lire_salon_async(lambda d: self.traiter_lobby(d, gen))
 
-    def dessiner_joueur(self, c, index, nom=None, hote=False, deco=False, moi=False, donner=None):
-        """donner : fonction appelée par « Donner l'hôte » (affiché pour l'hôte sur la ligne des autres joueurs)."""
+    def dessiner_joueur(self, c, index, nom=None, hote=False, deco=False, moi=False, donner=None, action=None):
+        """donner : fonction appelée par « Donner l'hôte » (affiché pour l'hôte sur la ligne des autres joueurs).
+        action (9.1) : (texte, fonction) → « Passer spectateur » sur sa propre ligne, « Prendre la place » sur une place libre (spectateur)."""
         c.delete("all"); w, h = 292, 48
+        def lien(texte, f):
+            c.create_text(w - 12, h / 2, text=texte, anchor="e", fill=P["mal"], font=police("texte", 13, True), tags="action")
+            c.tag_bind("action", "<ButtonRelease-1>", lambda e=None: f())
+            c.tag_bind("action", "<Enter>", lambda e=None: c.config(cursor="hand2")); c.tag_bind("action", "<Leave>", lambda e=None: c.config(cursor=""))
         if nom is None:
             c.create_oval(12, 6, 42, 42, fill=P["vide"], outline="")
             c.create_text(56, h / 2, text="Place libre", anchor="w", fill=P["texte_absent"], font=police("texte", 16, True))
+            if action: lien(*action)
             return
         coul = Avatar.COULEURS[index % len(Avatar.COULEURS)]
         arrondi(c, 0, 0, w, h, 12, fill=melanger(P["tuile"], coul, 0.16), outline="")
@@ -865,11 +939,12 @@ class PageLobby(tk.Frame):
         c.create_oval(12, 6, 42, 42, fill=coul, outline="")
         c.create_text(27, 24, text=nom[:1].upper(), fill="#16130a", font=police("texte", 15, True))
         aff = nom.capitalize() + (" (vous)" if moi else "")
-        c.create_text(56, h / 2, text=aff, anchor="w", fill=P["texte"], font=police("texte", 16, True), width=110 if donner else 160)
+        c.create_text(56, h / 2, text=aff, anchor="w", fill=P["texte"], font=police("texte", 16, True), width=110 if (donner or action) else 160)
         if donner:  # l'hôte peut passer la main à ce joueur
             c.create_text(w - 12, h / 2, text="Donner l'hôte", anchor="e", fill=P["mal"], font=police("texte", 13, True), tags="donner")
             c.tag_bind("donner", "<ButtonRelease-1>", lambda e=None: donner())
             c.tag_bind("donner", "<Enter>", lambda e=None: c.config(cursor="hand2")); c.tag_bind("donner", "<Leave>", lambda e=None: c.config(cursor=""))
+        if action and not donner and not hote: lien(*action); return
         if deco and not donner: c.create_text(w - 14, h / 2, text="Déconnecté", anchor="e", fill=P["danger"], font=police("texte", 14))
         elif hote:
             c.create_text(w - 14, h / 2, text="Hôte", anchor="e", fill=P["mal"], font=police("texte", 15, True))
@@ -879,7 +954,7 @@ class PageLobby(tk.Frame):
     def donner_hote(self, pid, nom):
         """L'hôte passe son rôle à un autre joueur du salon (après confirmation)."""
         if not self.controller.is_host: return
-        if not tkm.askyesno("SMOUT", f"Donner le rôle d'hôte à {nom.capitalize()} ?\nC'est lui qui choisira le mode et lancera la partie."): return
+        if not confirmer(self, "Donner l'hôte ?", f"{nom.capitalize()} devient l'hôte : c'est lui qui choisira le mode et lancera la partie.", "Donner l'hôte"): return
         ctl = self.controller
         if ctl.fb_ok("patch", f"lobbies/{ctl.lobby_code}/settings", {"host_id": pid}):
             ctl.is_host = False; ctl.fb_patch(f"index/{ctl.code_affiche}", {"owner": pid})
@@ -901,7 +976,7 @@ class PageLobby(tk.Frame):
             self.controller.nb_joueurs, self.controller.statut_salon = len(p), d.get("status", "waiting")
             hote_nom = p.get(hid, {}).get("name", "")
             self.lbl_titre.config(text=f"Salon de {hote_nom.capitalize()}" if hote_nom else "Salon")
-            self.lbl_role.config(text="Vous êtes l'hôte" if self.controller.is_host else "L'hôte règle la partie")
+            self.lbl_role.config(text="Tu es spectateur" if self.controller.spectateur else "Vous êtes l'hôte" if self.controller.is_host else "L'hôte règle la partie")
 
             mode = s.get("game_mode", "CLASSIQUE")
             if not self.controller.is_host:  # l'hôte garde ses propres réglages (la base peut avoir un temps de retard)
@@ -920,14 +995,19 @@ class PageLobby(tk.Frame):
                 self.controller.show_frame("PageJeu"); return
 
             pids = list(p.keys())
+            sp = sum(1 for v in (d.get("spectateurs") or {}).values() if not server_now or server_now - (v or {}).get("last_seen", 0) <= 25000)
+            self.lbl_spect.config(text=f"👁  {sp} spectateur{'s' if sp > 1 else ''}" if sp else "")
+            libre_vu = False
             for i, slot in enumerate(self.player_slots):
                 if i < len(pids):
                     pid = pids[i]
                     deco = server_now > 0 and (server_now - p[pid].get("last_seen", 0)) / 1000 > 12
                     moi = pid == self.controller.player_id
                     donner = (lambda pid=pid, n=p[pid]["name"]: self.donner_hote(pid, n)) if (self.controller.is_host and not moi and pid != hid) else None
-                    self.dessiner_joueur(slot, i, p[pid]["name"], pid == hid, deco, moi, donner)
-                else: self.dessiner_joueur(slot, i)
+                    action = ("Passer spectateur", self.passer_spectateur) if (moi and not self.controller.is_host) else None
+                    self.dessiner_joueur(slot, i, p[pid]["name"], pid == hid, deco, moi, donner, action)
+                else:
+                    self.dessiner_joueur(slot, i, action=("Prendre la place", self.prendre_place) if (self.controller.spectateur and not libre_vu) else None); libre_vu = True
             n = len(p)
             self.lbl_status.config(text=f"En attente des joueurs · {n} sur {MAX_JOUEURS}" + ("  ·  salon privé" if not self.controller.settings_config.get("visible", True) else ""))
             hote = self.controller.is_host
@@ -944,10 +1024,36 @@ class PageLobby(tk.Frame):
                 self.btn_lancer.set_variante("principal" if n > 1 else "tuile"); self._sig_bandeau = None; self._maj_bandeau()
                 self.btn_lancer.activer(n > 1)
             else:
-                self.btn_lancer.set_variante("discret"); self.btn_lancer.set_text("En attente du lancement par l'hôte…"); self.btn_lancer.activer(False)
+                self.btn_lancer.set_variante("discret"); self.btn_lancer.set_text("Tu regarderas la partie en spectateur" if self.controller.spectateur else "En attente du lancement par l'hôte…"); self.btn_lancer.activer(False)
         self.after(800, lambda: self.ecouter_lobby(gen))
 
     def quitter(self): self.active_sync = False; self.controller.quitter_lobby_logic(); self.controller.show_frame("PageAccueil")
+
+    # 9.1 : un joueur (pas l'hôte) laisse sa place et regarde ; un spectateur prend une place libre (comme passerSpectateur / prendrePlace du site)
+    def passer_spectateur(self):
+        c = self.controller
+        if c.is_host or c.spectateur: return
+        fiche = {"name": c.pseudo, "last_seen": {".sv": "timestamp"}, "arrivee": {".sv": "timestamp"}}
+        preuve = preuve_salon(c.lobby_code, c.settings_config.get("password", ""))
+        if preuve: fiche["preuve"] = preuve
+        if not c.fb_ok("put", f"lobbies/{c.lobby_code}/spectateurs/{c.player_id}", fiche):
+            informer(self, "Impossible de passer spectateur pour le moment.", "Spectateur"); return
+        c.dernier_retour = time.time()  # pas de réinscription automatique comme joueur pendant le changement
+        c.fb_ok("delete", f"lobbies/{c.lobby_code}/players/{c.player_id}"); c.spectateur = True; c.oublier_partie()
+
+    def prendre_place(self):
+        c = self.controller
+        if not c.spectateur: return
+        d = c.fb_get(f"lobbies/{c.lobby_code}") or {}
+        if d.get("status") != "waiting" or len(d.get("players") or {}) >= MAX_JOUEURS:
+            informer(self, "Plus de place libre pour le moment.", "Salon complet"); return
+        j = {"name": c.pseudo, "score": 0, "last_seen": {".sv": "timestamp"}, "arrivee": {".sv": "timestamp"}}
+        preuve = preuve_salon(c.lobby_code, c.settings_config.get("password", ""))
+        if preuve: j["preuve"] = preuve
+        c.spectateur = False
+        if not c.fb_ok("put", f"lobbies/{c.lobby_code}/players/{c.player_id}", j):
+            c.spectateur = True; informer(self, "Impossible de prendre la place.", "Salon"); return
+        c.fb_ok("delete", f"lobbies/{c.lobby_code}/spectateurs/{c.player_id}"); c.current_score = 0
 
     def lancer(self):
         v = self.valeurs()
@@ -1035,6 +1141,17 @@ class PageJeu(tk.Frame):
         Icone(zf, "moins", lambda: self.adjust_zoom(-0.1), 32).pack(side="left")
         self.lbl_zoom = etiquette(zf, f"{int(self.user_zoom * 100)} %", "texte", 13, P["texte2"]); self.lbl_zoom.pack(side="left", padx=4)
         Icone(zf, "plus", lambda: self.adjust_zoom(0.1), 32).pack(side="left")
+        # 9.1 : cloche de l'hôte (demandes pour regarder la partie) avec pastille, et panneau latéral sans voile
+        self.zone_cloche = tk.Frame(zf, bg=P["fond"]); self.zone_cloche.pack(side="left", padx=(8, 0))
+        self.cloche = Icone(self.zone_cloche, "cloche", self.basculer_tiroir, 36)
+        self.badge = tk.Label(self.zone_cloche, text="", bg=P["danger"], fg="#ffffff", font=police("texte", 10, True), padx=4)
+        self.cloche_visible = False; self.demandes_act = []
+        self.tiroir = tk.Frame(self, bg=P["panneau"], highlightthickness=1, highlightbackground=P["bordure"]); self.tiroir_ouvert = False
+        tt = tk.Frame(self.tiroir, bg=P["panneau"]); tt.pack(fill="x", padx=16, pady=(16, 8))
+        self.lbl_tiroir = etiquette(tt, "Demandes", "texte", 17, P["texte"], True); self.lbl_tiroir.pack(side="left")
+        Icone(tt, "fermer", self.basculer_tiroir, 32).pack(side="right")
+        self.liste_dem = tk.Frame(self.tiroir, bg=P["panneau"]); self.liste_dem.pack(fill="x", padx=16)
+        etiquette(self.tiroir, "Le jeu continue : tu peux jouer pendant que ce panneau est ouvert.", "texte", 11, P["texte2"], wraplength=290, justify="left").pack(side="bottom", anchor="w", padx=16, pady=14)
         self.lbl_info = etiquette(h, "", "texte", 16, P["texte2"]); self.lbl_info.pack(side="top", pady=8)
         # Corps : colonne de jeu + adversaires
         corps = tk.Frame(self, bg=P["fond"]); corps.pack(fill="both", expand=True)
@@ -1045,6 +1162,8 @@ class PageJeu(tk.Frame):
         self.s_manche = Stat(stats, "Manche", "1"); self.s_manche.pack(side="left", padx=34)
         self.s_temps = Stat(stats, "Temps", "00:00"); self.s_temps.pack(side="left", padx=34)
         self.s_score = Stat(stats, "Score", "0", P["mal"]); self.s_score.pack(side="left", padx=34)
+        self.s_code = Stat(stats, "Salon", "", P["texte2"]); self.s_code.pack(side="left", padx=34)  # 9.1 : le code, pour le donner à quelqu'un qui veut regarder
+        self.lbl_spect = etiquette(self.colonne, "👁  Spectateur · tu regardes la partie", "texte", 14, P["texte"], True)  # 9.1
         self.lbl_timer = self.s_temps.lbl
         self.moi_side = tk.Frame(self.colonne, bg=P["fond"]); self.moi_side.pack(pady=(16, 0))
         self.msg_c = tk.Frame(self.colonne, bg=P["fond"]); self.msg_c.pack(pady=(10, 6))
@@ -1081,11 +1200,61 @@ class PageJeu(tk.Frame):
 
     def retour_salon_hote(self):
         if not self.controller.is_host: return
-        if not tkm.askyesno("Retour au salon", "Ramener tous les joueurs au salon ?\nLa partie en cours sera annulée."): return
+        if not confirmer(self, "Retour au salon ?", "Tous les joueurs reviennent au salon. La partie en cours sera annulée.", "Ramener tout le monde"): return
         self.controller.ramener_au_salon()
+
+    # --- 9.1 : demandes pour regarder la partie (hôte) ---
+    def basculer_tiroir(self):
+        self.tiroir_ouvert = not self.tiroir_ouvert
+        if self.tiroir_ouvert: self.tiroir.place(relx=1, rely=0, anchor="ne", relheight=1, width=340); self.tiroir.lift()
+        else: self.tiroir.place_forget()
+
+    def maj_demandes(self, gen):
+        if not self.boucle_valide(gen): return
+        c = self.controller
+        if c.is_host != self.cloche_visible:
+            self.cloche_visible = c.is_host
+            if c.is_host: self.cloche.pack(side="left")
+            else: self.cloche.pack_forget(); self.badge.place_forget(); self.tiroir_ouvert = True; self.basculer_tiroir()
+        if c.is_host: c.fb_get_async(f"demandes/{c.lobby_code}", lambda d: self.afficher_demandes(d or {}, gen))
+        self.after(2000, lambda: self.maj_demandes(gen))
+
+    def afficher_demandes(self, dd, gen):
+        if not self.boucle_valide(gen) or not self.controller.is_host: return
+        now = (time.time() + self.controller.server_time_offset) * 1000
+        act = [(u, v) for u, v in dd.items() if isinstance(v, dict) and now - (v.get("t") or 0) < 30000]
+        n = len(act)
+        if n: self.badge.config(text=str(n)); self.badge.place(in_=self.cloche, relx=1.0, rely=0.0, anchor="ne")
+        else: self.badge.place_forget()
+        self.lbl_tiroir.config(text=f"Demandes ({n})" if n else "Demandes")
+        sig = ",".join(u for u, _ in act)
+        if sig == getattr(self, "_sig_dem", None): return
+        self._sig_dem = sig; self.demandes_act = act
+        for w in self.liste_dem.winfo_children(): w.destroy()
+        if not act: etiquette(self.liste_dem, "Aucune demande pour le moment.", "texte", 13, P["texte2"]).pack(anchor="w"); return
+        for i, (u, v) in enumerate(act):
+            p = Panneau(self.liste_dem, padding=12, rayon=12, couleur=P["tuile"], largeur=300); p.pack(pady=(0, 8), anchor="w")
+            l = tk.Frame(p.interieur, bg=P["tuile"]); l.pack(anchor="w")
+            Avatar(l, v.get("name", "?"), 32, index=i + 3).pack(side="left")
+            t = tk.Frame(l, bg=P["tuile"]); t.pack(side="left", padx=10)
+            etiquette(t, str(v.get("name", "?")).capitalize(), "texte", 14, P["texte"], True).pack(anchor="w")
+            etiquette(t, "veut regarder la partie", "texte", 12, P["texte2"]).pack(anchor="w")
+            b = tk.Frame(p.interieur, bg=P["tuile"]); b.pack(anchor="w", pady=(10, 0))
+            Bouton(b, "Accepter", lambda u=u, v=v: self.repondre(u, v, True), largeur=130, hauteur=38, taille=13).pack(side="left")
+            Bouton(b, "Refuser", lambda u=u, v=v: self.repondre(u, v, False), largeur=130, hauteur=38, variante="discret", taille=13).pack(side="left", padx=(8, 0))
+
+    def repondre(self, u, v, oui):
+        c = self.controller
+        if oui:  # accepté : spectateur
+            c.fb_ok("put", f"lobbies/{c.lobby_code}/spectateurs/{u}", {"name": str(v.get("name", "?"))[:30], "last_seen": {".sv": "timestamp"}, "arrivee": {".sv": "timestamp"}})
+        c.fb_ok("delete", f"demandes/{c.lobby_code}/{u}"); self._sig_dem = None
+        c.fb_get_async(f"demandes/{c.lobby_code}", lambda d: self.afficher_demandes(d or {}, self.sync_gen))
 
     def quitter_jeu(self):
         """Retour pendant la partie : mettre en pause (on garde sa place et on revient par « Reprendre ») ou quitter définitivement."""
+        if self.controller.spectateur:  # 9.1 : le spectateur quitte simplement
+            if confirmer(self, "Quitter ?", "Tu ne regardes plus la partie.", "Quitter"): self.quitter_definitif()
+            return
         if getattr(self, "fen_quitter", None) is not None and self.fen_quitter.winfo_exists() and self.fen_quitter.winfo_ismapped(): return
         o = Superposition(self, largeur=500); i = o.interieur; self.fen_quitter = o
         etiquette(i, "Quitter la partie ?", "titre", 26).pack(anchor="w")
@@ -1154,6 +1323,17 @@ class PageJeu(tk.Frame):
         self.s_manche.set(str(self.round_actuel), suffixe=f" / {conf.get('rounds', 1)}")
         self.s_score.set(nombre(self.controller.current_score))
 
+        spect = self.controller.spectateur  # 9.1 : on regarde (pas de grille à soi ni de clavier ; les grilles de tous les joueurs occupent la place)
+        self.s_code.set(self.controller.code_affiche or self.controller.lobby_code)
+        self.s_score.pack_forget(); self.s_code.pack_forget(); self.lbl_spect.pack_forget(); self.moi_side.pack_forget(); self.msg_c.pack_forget(); self.zone_clavier.pack_forget()
+        if not spect: self.s_score.pack(side="left", padx=34)
+        self.s_code.pack(side="left", padx=34)
+        if spect:
+            self.lbl_spect.pack(pady=(8, 0))
+            self.adv_container.grid_configure(row=1, column=0, columnspan=2, sticky="n", padx=20, pady=(14, 0))
+        else:
+            self.moi_side.pack(pady=(16, 0)); self.msg_c.pack(pady=(10, 6)); self.zone_clavier.pack(pady=(4, 16))
+            self.adv_container.grid_configure(row=0, column=1, columnspan=1, sticky="ne", padx=(10, 40), pady=(20, 0))
         self.labels_moi = self.creer_grille(self.moi_side, "", True)
         try: hf = self.winfo_toplevel().winfo_height()
         except Exception: hf = 860
@@ -1177,6 +1357,8 @@ class PageJeu(tk.Frame):
         self.active_sync, self.timer_actif = True, True; self.update_timer(gen)
         threading.Thread(target=self.bg_sync, args=(gen,), daemon=True).start(); self.ui_loop(gen)
         self.winfo_toplevel().bind("<Key>", self.clavier_physique); self.maj_affichage()
+        if spect: self.fini_local = True; self.winfo_toplevel().unbind("<Key>")  # le spectateur ne joue pas
+        self.maj_demandes(gen)
         if self.elimine:  # spectateur jusqu'à la fin de la partie
             self.fini_local = True; self.winfo_toplevel().unbind("<Key>")
             for case in self.labels_moi[0]: case.set_curseur(False)
@@ -2011,6 +2193,7 @@ class PageJeu(tk.Frame):
         if win_h <= 200: win_h = 860
         if win_w <= 200: win_w = 1200
         longueur = max(len(getattr(self, "mot", "") or "x" * 7), int(conf.get("max", 7) or 7))
+        if self.controller.spectateur: return disposition_adv(nb, conf.get("essais", 6), longueur, win_w - 80, win_h - 230, 44)  # vue spectateur : toute la place
         return disposition_adv(nb, conf.get("essais", 6), longueur, max(300, win_w - 640), win_h - 140)
 
     def actualiser_tailles_grilles(self):
@@ -2236,7 +2419,7 @@ class PageScoreFinal(tk.Frame):
 
     def retour_lobby_host(self): self.controller.ramener_au_salon()
     def retour_lobby_confirme(self):
-        if self.controller.is_host and tkm.askyesno("Lobby", "Ramener tous les joueurs au salon ?"): self.controller.ramener_au_salon()
+        if self.controller.is_host and confirmer(self, "Retour au salon ?", "Ramener tous les joueurs au salon ?", "Ramener tout le monde"): self.controller.ramener_au_salon()
     def maj_lobby_haut(self):
         v = bool(self.controller.is_host)
         if v == self.lobby_haut_visible: return

@@ -2,6 +2,14 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
+## 9.1
+- Fenêtres du jeu à la place des fenêtres natives (confirm/alert du navigateur, messagebox du PC) : confirmations et messages dans la DA (titre, texte, boutons Annuler / action), PC et web (`dialogue`, `confirmer`, `informer`).
+- Spectateurs (maquettes validées par Victor) : salon plein → on entre comme spectateur ; « x spectateurs » sous la liste des joueurs ; « Passer spectateur » sur sa propre ligne (pas pour l'hôte) ; « Prendre la place » sur une place libre. Le spectateur le reste pendant la partie : pas de grille ni de clavier, les grilles de tous les joueurs réparties sur toute la place, il voit tout (en Mot piégé aussi les mots à trouver), n'écrit rien dans la partie (bloqué dans le client et par les règles), peut quitter à tout moment.
+- Rejoindre une partie EN COURS : demande à l'hôte (fenêtre « En attente de l'hôte », « Quitter » avec confirmation retire la demande). L'hôte a une cloche en haut à droite (pastille = nombre de demandes actives) qui ouvre un panneau latéral sans voile (le jeu reste utilisable) : Accepter (→ spectateur jusqu'au retour au salon) ou Refuser (le demandeur est prévenu). Partie terminée pendant l'attente : on entre directement dans le salon.
+- Code du salon affiché pour tous en partie, dans la ligne Manche / Temps / Score.
+- Règles Firebase (**à republier**) : `lobbies/<code>/spectateurs/<uid>` (lecture du salon par les spectateurs, entrée libre seulement avant la partie, avec la preuve du mot de passe), `demandes/<code>/<uid>` (écrite par le demandeur, lue et effacée par l'hôte), mots du Mot piégé lisibles par les spectateurs. `VERSION_JEU` 9.1 (un client plus ancien entrait en joueur dans une partie en cours).
+- Tests : règles 100/100, `tests/web/spectateur_web.js` (17), `tests/test_spectateur_pc.py` (19), robots et tests adaptés aux fenêtres du jeu.
+
 ## 9.0
 - Hôte : bouton « Lobby » (flèche de retour + « Lobby », contour jaune) en haut à gauche, à côté de la flèche, en pleine partie (aussi pendant le choix du Mot piégé) et sur l'écran de fin de partie, PC et web, téléphone compris. Il ramène tous les joueurs au salon après confirmation (« Ramener tous les joueurs au salon ? »). Remplace le petit lien « Retour au salon » de droite. Design validé par Victor.
 - Moins de petits textes qui font doublon (PC et web) : plus de « mode · n lettres » ni de « Mot piégé · choisis le mot de … » en haut du jeu (il reste « Mot n° … » en Rush et « Mot choisi par … » pendant la devinette du Mot piégé), plus de ligne d'explication sous « Choisis le mot que … devra deviner », plus de « n sur m mots choisis », plus de « Salon de … · mode · Partie terminée » sur l'écran de fin.
