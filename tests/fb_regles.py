@@ -6,6 +6,7 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
 DATA, LOCK, UIDS = {}, threading.Lock(), itertools.count(1)
+COMPTES = {}  # comptes e-mail / mot de passe : e-mail -> [mot de passe, uid] (comme Firebase Authentication)
 EMIS = set()  # jetons de rafraîchissement émis par CE serveur (comme Firebase : un jeton inconnu est refusé)
 JOURNAL = open("/tmp/fb_refus.log", "a")
 import os
@@ -50,6 +51,7 @@ def peut_lire(uid, p):
     if p == ["v7", "index"] or (len(p) >= 3 and p[1] == "index"): return True
     if len(p) >= 3 and p[1] == "lobbies":
         return existe(lire(DATA, ["v7", "lobbies", p[2], "players", uid]))
+    if len(p) >= 3 and p[1] == "comptes": return p[2] == uid  # compte : lisible par son seul propriétaire
     if len(p) >= 5 and p[1] == "pieges":  # mot piégé : lisible par les participants de la manche, sauf par celui qui doit le deviner
         return uid != p[4] and participant(DATA, p[2], uid)
     return False
@@ -60,6 +62,7 @@ def participant(D, code, uid):
 def regle_ecriture(uid, niveau, D, N):
     """niveau = chemin d'une règle .write ; D = données actuelles, N = nouvelles données (racine complète)."""
     if not uid or niveau[:1] != ["v7"]: return False
+    if len(niveau) == 3 and niveau[1] == "comptes": return niveau[2] == uid  # compte : modifiable par son seul propriétaire
     if len(niveau) == 3 and niveau[1] == "index":
         d = lire(D, niveau)
         code = niveau[2]
@@ -139,6 +142,9 @@ def valider(N, cible):
             if sous[:1] == ["piege_essais"] and len(sous) == 3 and v is not None and not (isinstance(v, str) and re.fullmatch(r"[A-Z]+", v)): return False
             if sous[:1] == ["piege_verdicts"] and len(sous) == 3 and v is not None and not (isinstance(v, str) and re.fullmatch(r"[BMA]+", v)): return False
             if sous[:1] == ["piege_recap"] and len(sous) >= 3 and existe(lire(lob, sous[:3])) and not all(k in lire(lob, sous[:3]) for k in ("de", "mot")): return False
+    if len(cible) >= 3 and cible[1] == "comptes":
+        n = lire(N, cible[:3])
+        if existe(n) and not (isinstance(n, dict) and "maj" in n and isinstance(n.get("donnees"), str)): return False
     if len(cible) >= 5 and cible[1] == "pieges":
         n = lire(N, cible[:5])
         if existe(n):
@@ -205,8 +211,27 @@ class H(BaseHTTPRequestHandler):
             ancien = (parse_qs(b).get("refresh_token") or [""])[0]
             if ancien in EMIS: uid = ancien[2:]; return self.rep(200, {"id_token": "tok-" + uid, "refresh_token": ancien, "user_id": uid, "expires_in": "3600"})
             return self.rep(400, {"error": "INVALID_REFRESH_TOKEN"})
+        try: corps = json.loads(b or "{}")
+        except ValueError: corps = {}
+        err = lambda m: self.rep(400, {"error": {"code": 400, "message": m}})
+        jeton = lambda uid, **x: self.rep(200, dict({"idToken": "tok-" + uid, "refreshToken": "r-" + uid, "localId": uid, "expiresIn": "3600"}, **x))
+        email = str(corps.get("email") or "").strip().lower()
+        if corps.get("requestType") == "PASSWORD_RESET":  # mot de passe oublié (Firebase répond 200 même si l'adresse est inconnue)
+            return self.rep(200, {"email": email}) if "@" in email else err("INVALID_EMAIL")
+        if corps.get("idToken") and "password" in corps:  # création du compte = rattachement du joueur anonyme (même uid)
+            uid = str(corps["idToken"])[4:]
+            if "@" not in email or "." not in email.split("@")[-1]: return err("INVALID_EMAIL")
+            if len(str(corps["password"])) < 6: return err("WEAK_PASSWORD : Password should be at least 6 characters")
+            if email in COMPTES and COMPTES[email][1] != uid: return err("EMAIL_EXISTS")
+            COMPTES[email] = [str(corps["password"]), uid]; EMIS.add("r-" + uid)
+            return jeton(uid, email=email)
+        if "password" in corps:  # connexion à un compte existant
+            c = COMPTES.get(email)
+            if "@" not in email: return err("INVALID_EMAIL")
+            if not c or c[0] != str(corps["password"]): return err("INVALID_LOGIN_CREDENTIALS")
+            EMIS.add("r-" + c[1]); return jeton(c[1], email=email, registered=True)
         uid = f"uid{next(UIDS):03d}"; EMIS.add("r-" + uid)
-        self.rep(200, {"idToken": "tok-" + uid, "refreshToken": "r-" + uid, "localId": uid, "expiresIn": "3600"})
+        jeton(uid)
     def do_GET(self):
         p, uid = self.chemin()
         if p[:1] == ["__admin"] or (not p and not uid):

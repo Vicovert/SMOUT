@@ -11,7 +11,7 @@ def _appel_tk_sur(self, *args):
     return _appel_tk(self, *args)
 tk.CallWrapper.__call__ = _appel_tk_sur
 
-VERSION_APP = "8.16"
+VERSION_APP = "8.17"
 URL_WEB = "https://vicovert.github.io/SMOUT/"
 
 def mot_graine(liste_triee, graine, index=0):
@@ -753,11 +753,18 @@ def lire_config():
         with open(os.path.join(dossier_config(), "config.json"), "r") as f: return json.load(f)
     except Exception: return {}
 
+APRES_MAJ_CONFIG = []  # fonctions appelées avec les clés modifiées (compte.py : envoi de l'avancement au compte)
+_VERROU_CONFIG = __import__("threading").RLock()
+
 def maj_config(**valeurs):
-    cfg = lire_config(); cfg.update(valeurs)
-    try:
-        with open(os.path.join(dossier_config(), "config.json"), "w") as f: json.dump(cfg, f)
-    except Exception: pass
+    with _VERROU_CONFIG:  # la synchronisation du compte écrit aussi depuis un fil d'arrière-plan
+        cfg = lire_config(); cfg.update(valeurs)
+        try:
+            with open(os.path.join(dossier_config(), "config.json"), "w") as f: json.dump(cfg, f)
+        except Exception: pass
+    for f in APRES_MAJ_CONFIG:
+        try: f(list(valeurs))
+        except Exception: pass
     return cfg
 
 def serie_mot_du_jour():

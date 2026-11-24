@@ -1,6 +1,6 @@
 import tkinter as tk
-import os, sys, json, colorsys
-import design
+import os, sys, json, colorsys, threading
+import design, compte
 from design import P, police, etiquette, Bouton, Panneau, Icone, Avatar, Logo, CarteMenu, Defilant, Champ, Superposition, arrondi, calculer_palette, melanger, contraste
 design.charger_polices()  # avant la création de la fenêtre
 from page_solo import PageSolo, PageMenuSolo, PageParametres, PageStats, apply_theme_solo
@@ -448,7 +448,23 @@ class MenuPrincipal(tk.Tk):
             try: self.iconbitmap(icon_path)
             except Exception: pass
         self.container = tk.Frame(self, bg=P["fond"]); self.container.pack(fill="both", expand=True)
+        self.page_courante = None
         self.creer_menu_accueil()
+        self.after(300, self.synchro_compte)
+
+    # --- compte (même avancement sur tous les appareils) ---
+    def synchro_compte(self):
+        """Au démarrage : relit l'avancement du compte (en arrière-plan) ; s'il est plus récent, il remplace celui de cet appareil."""
+        if not compte.email(): return
+        def fil():
+            if compte.tirer(): self.after(0, self.apres_synchro)
+        threading.Thread(target=fil, daemon=True).start()
+
+    def apres_synchro(self):
+        """Nouvelles données du compte : thèmes, thème choisi et accueil mis à jour."""
+        self.charger_themes_personnalises()
+        self.apply_theme(self.charger_parametre_theme(), save=False)
+        if self.page_courante == "accueil": self.creer_menu_accueil()
 
     # --- configuration ---
     def charger_themes_personnalises(self):
@@ -476,12 +492,13 @@ class MenuPrincipal(tk.Tk):
 
     # --- écrans ---
     def vider(self):
+        self.page_courante = None
         for widget in self.container.winfo_children(): widget.destroy()
         self.unbind("<Key>")
 
     def creer_menu_accueil(self):
         self.protocol("WM_DELETE_WINDOW", self.quitter_jeu)
-        self.vider(); self.container.configure(bg=P["fond"])
+        self.vider(); self.container.configure(bg=P["fond"]); self.page_courante = "accueil"
         page = tk.Frame(self.container, bg=P["fond"]); page.pack(fill="both", expand=True)
         haut = tk.Frame(page, bg=P["fond"]); haut.pack(fill="x", padx=28, pady=(22, 0))
         self.avatar = Avatar(haut, self.pseudo(), 46, self.changer_pseudo); self.avatar.pack(side="right", padx=(10, 0))
@@ -518,7 +535,53 @@ class MenuPrincipal(tk.Tk):
         bf = tk.Frame(i, bg=i["bg"]); bf.pack(anchor="e", pady=(20, 0))
         Bouton(bf, "Annuler", o.cacher, largeur=130, variante="discret").pack(side="left", padx=10)
         Bouton(bf, "Enregistrer", ok, largeur=160).pack(side="left")
+        # compte : retrouver son avancement sur tous ses appareils
+        tk.Frame(i, bg=P["bordure"], height=1, width=400).pack(anchor="w", pady=(22, 14))
+        cfg = design.lire_config(); em = cfg.get("compte_email")
+        etiquette(i, "Compte", "texte", 17, gras=True).pack(anchor="w")
+        if em:
+            etiquette(i, f"Connecté : {em}", "texte", 15).pack(anchor="w", pady=(4, 0))
+            etiquette(i, "Ton avancement est enregistré sur ce compte et suit sur tous tes appareils.", "texte", 13, P["texte2"], wraplength=400, justify="left").pack(anchor="w", pady=(2, 12))
+            def sortir():
+                from tkinter import messagebox
+                if messagebox.askyesno("SMOUT", "Se déconnecter du compte sur cet appareil ?\nTon avancement reste enregistré sur le compte."):
+                    compte.deconnecter(); o.cacher(); self.creer_menu_accueil()
+            Bouton(i, "Se déconnecter", sortir, largeur=200, hauteur=42, variante="discret").pack(anchor="w")
+        else:
+            if cfg.get("compte_expire"):
+                etiquette(i, "Ta session a expiré : reconnecte-toi.", "texte", 14, P["danger"], True).pack(anchor="w", pady=(4, 0))
+            etiquette(i, "Crée un compte pour retrouver ton avancement (statistiques, série, thèmes, partie en cours) sur tous tes appareils.", "texte", 13, P["texte2"], wraplength=400, justify="left").pack(anchor="w", pady=(4, 12))
+            Bouton(i, "Se connecter ou créer un compte", lambda: (o.cacher(), self.ouvrir_compte()), largeur=300, hauteur=44, variante="secondaire").pack(anchor="w")
         o.montrer(); ch.focus()
+
+    def ouvrir_compte(self):
+        """Connexion à un compte existant, création d'un compte (le joueur de cet appareil y est rattaché) ou mot de passe oublié."""
+        o = Superposition(self.container, largeur=480); i = o.interieur
+        etiquette(i, "Mon compte", "titre", 28).pack(anchor="w")
+        etiquette(i, "Le même compte sur ton PC, ton téléphone et le site : tu retrouves partout ton avancement.", "texte", 14, P["texte2"], wraplength=420, justify="left").pack(anchor="w", pady=(4, 14))
+        etiquette(i, "E-mail", "texte", 14, P["texte2"], True).pack(anchor="w")
+        ch_mail = Champ(i, largeur=420, hauteur=48, taille=16); ch_mail.pack(anchor="w", pady=(2, 10))
+        etiquette(i, "Mot de passe (6 caractères minimum)", "texte", 14, P["texte2"], True).pack(anchor="w")
+        ch_mdp = Champ(i, largeur=420, hauteur=48, taille=16, masque=True); ch_mdp.pack(anchor="w", pady=(2, 6))
+        msg = etiquette(i, "", "texte", 14, P["danger"], True, wraplength=420, justify="left"); msg.pack(anchor="w", pady=(4, 0))
+        oubli = etiquette(i, "Mot de passe oublié ?", "texte", 14, P["texte2"], cursor="hand2"); oubli.pack(anchor="w", pady=(6, 0))
+        self.fen_compte = (o, ch_mail, ch_mdp, msg)
+        def agir(action):
+            msg.config(text="Connexion…", fg=P["texte2"]); i.update_idletasks()
+            err = action(ch_mail.get(), ch_mdp.get())
+            if err: msg.config(text=err, fg=P["danger"]); return
+            o.cacher(); self.apres_synchro(); self.creer_menu_accueil()
+        def oublie(e=None):
+            if "@" not in ch_mail.get(): msg.config(text="Entre d'abord ton adresse e-mail.", fg=P["danger"]); return
+            err = compte.reinitialiser(ch_mail.get())
+            msg.config(text=err or f"Un e-mail pour choisir un nouveau mot de passe a été envoyé à {ch_mail.get().strip()}.", fg=P["danger"] if err else P["succes"])
+        oubli.bind("<Button-1>", oublie)
+        ch_mdp.bind_entree(lambda: agir(compte.connecter))
+        bf = tk.Frame(i, bg=i["bg"]); bf.pack(anchor="e", pady=(18, 0))
+        Bouton(bf, "Annuler", o.cacher, largeur=100, variante="discret").pack(side="left", padx=(0, 8))
+        Bouton(bf, "Créer le compte", lambda: agir(compte.creer), largeur=150, variante="secondaire").pack(side="left", padx=(0, 8))
+        Bouton(bf, "Se connecter", lambda: agir(compte.connecter), largeur=146).pack(side="left")
+        o.montrer(); ch_mail.focus()
 
     def show_skins(self):
         self.vider(); PageSkins(self.container, self).pack(fill="both", expand=True)
