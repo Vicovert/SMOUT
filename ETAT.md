@@ -5,13 +5,14 @@ _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travai
 **Dernière mise à jour : 24/11/2026**
 
 ## En ligne
-- Version : **8.19** (release Windows seule `SMOUT.8.19.exe`, 24/11/2026 ; site https://vicovert.github.io/SMOUT/ à jour). Création de compte corrigée (protection contre l'énumération des e-mails). 8.18 : téléphone sur un écran (adversaires en haut), clavier du jeu seul, pas de zoom au double appui, clavier qui suit la taille. 8.17 : comptes e-mail, pause/reprise, « Donner l'hôte ».
+- Version : **9.0** (release Windows seule `SMOUT.9.0.exe`, 24/11/2026 ; site https://vicovert.github.io/SMOUT/ à jour). Bouton « Lobby » de l'hôte, récapitulatif par manche pour tous les modes, « (hôte) » en fin de partie, pseudo en lettres/chiffres/espaces, moins de textes en double.
 - Protocole multi : `VERSION_JEU` 8.10, données sous `/v7`
 
 ## À faire par Victor
 - [x] E-mail/Mot de passe activé et règles Firebase republiées (fait par Victor le 24/11/2026).
-- [ ] Tester la 8.19 : création de compte, connexion sur un 2e appareil, partie multijoueur sur téléphone (pas de défilement, pas de zoom au double appui, « + » agrandit le clavier).
-- [ ] Supprimer les branches inutiles : `claude/project-thread-y6lqmp`, `doc-etat-8.17`, `regles-etape3`, `travail-8.10` à `travail-8.13`, `v4.3`, `v5.0`, `v6.0`, `v7.0` (et, facultatif, les sauvegardes d'avant le 24/11).
+- [x] 8.19 testée par Victor (comptes, téléphone).
+- [ ] Décrire l'idée de la 9.1 (complexe, annoncée par Victor).
+- [x] Branches inutiles supprimées (24/11/2026).
 
 ## En cours
 - Configuration de l'espace de travail : terminée (PR #1), Claude fusionne désormais lui-même les PR.
@@ -23,6 +24,8 @@ _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travai
 - README public (lien du site et des releases).
 
 ## Points ouverts
+- CI : 8 jobs de tests (base PC, base web, 6 tranches de parties), environ 4 min ; objectif 10 min au plus entre validation et release.
+- GitHub Pages doit rester sur la source « GitHub Actions » (incident du 24/11 : passée en « Deploy from a branch », site cassé puis rétabli).
 - Zoom au double appui : bloqué et testé dans Chrome sans écran ; à confirmer sur un vrai iPhone et un vrai Android.
 - Téléphone très petit (360×640) à 8 joueurs : la page de jeu dépasse encore d'environ 60 px.
 - Les fils cloud poussent sur des branches `claude/...` alors que le CI ne teste que `travail-*` : à trancher.
