@@ -99,7 +99,8 @@ def creer(adresse, mdp):
     try:
         jeton = auth().jeton()
         if not jeton: return "Connexion au serveur impossible. Vérifie ta connexion internet."
-        r = _identite("update", {"idToken": jeton, "email": adresse, "password": mdp or "", "returnSecureToken": True})
+        # signUp + idToken = rattachement (même identifiant) ; « update » est refusé quand la protection contre l'énumération des e-mails est active
+        r = _identite("signUp", {"idToken": jeton, "email": adresse, "password": mdp or "", "returnSecureToken": True})
         if r.status_code != 200: return message_erreur(r)
         d = r.json()
         if d.get("idToken"): auth()._appliquer(d["idToken"], d["refreshToken"], d["localId"], d.get("expiresIn", 3600))

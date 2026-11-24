@@ -8,7 +8,7 @@ class Sess(requests.Session):
     def request(self, method, url, *a, **k):
         if "firebasedatabase.app" in url: url = "http://127.0.0.1:9000/" + url.split(".app/", 1)[1]
         elif "securetoken" in url: url = "http://127.0.0.1:9000/token"
-        elif "identitytoolkit" in url: url = "http://127.0.0.1:9000/signup"
+        elif "identitytoolkit" in url: url = "http://127.0.0.1:9000/signup?op=" + url.split("accounts:")[1].split("?")[0]  # l'opération compte (update est refusé)
         return super().request(method, url, *a, **k)
 requests.Session = Sess
 import design, compte

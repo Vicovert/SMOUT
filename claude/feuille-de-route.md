@@ -2,6 +2,10 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
+## 8.19
+- Comptes : la création affichait « Les comptes ne sont pas encore activés sur le serveur » même avec E-mail/Mot de passe activé. Cause : la protection contre l'énumération des e-mails (activée par défaut sur le projet Firebase) refuse `accounts:update` (« Please verify the new email before changing email »). Le rattachement du joueur anonyme passe désormais par `accounts:signUp` avec son `idToken` (même identifiant), PC et web — vérifié sur le vrai projet avec un compte de test aussitôt supprimé.
+- Tests : le faux serveur refuse maintenant `update` comme le vrai projet (les tests de comptes reçoivent l'opération appelée), ce qui aurait détecté le bug.
+
 ## 8.18
 - Téléphone, page de jeu multijoueur (option « A » validée par Victor) : les mini-grilles des adversaires passent en haut (jusqu'à 4 par ligne, cadre avec nom et score), ma grille au milieu prend la hauteur qui reste, le clavier est en bas : tout tient sur un écran, sans défiler, de 2 à 8 joueurs (390×844 et 360×780 ; seul un très petit écran 360×640 à 8 joueurs défile encore un peu). Recalcul automatique quand la hauteur change (textes, Mot piégé). Ordinateur inchangé.
 - Téléphone : plus de bascule « clavier du téléphone », seul le clavier du jeu sert à écrire.

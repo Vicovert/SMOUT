@@ -218,6 +218,8 @@ class H(BaseHTTPRequestHandler):
         email = str(corps.get("email") or "").strip().lower()
         if corps.get("requestType") == "PASSWORD_RESET":  # mot de passe oublié (Firebase répond 200 même si l'adresse est inconnue)
             return self.rep(200, {"email": email}) if "@" in email else err("INVALID_EMAIL")
+        if (parse_qs(u.query).get("op") or [""])[0] == "update" and corps.get("email"):  # comme le vrai projet (protection contre l'énumération des e-mails)
+            return err("OPERATION_NOT_ALLOWED : Please verify the new email before changing email.")
         if corps.get("idToken") and "password" in corps:  # création du compte = rattachement du joueur anonyme (même uid)
             uid = str(corps["idToken"])[4:]
             if "@" not in email or "." not in email.split("@")[-1]: return err("INVALID_EMAIL")
