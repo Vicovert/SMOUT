@@ -24,10 +24,11 @@ etape "Règles Firebase v7"; $PY "$ICI/test_regles.py" 2>&1 | tee /tmp/t1.txt | 
 etape "Solo PC"; (xpy "$ICI/test_solo_base.py" "$DEPOT"; xpy "$ICI/test_solo_72.py" "$DEPOT") 2>&1 | tee /tmp/t2.txt | grep -E -A14 "ÉCHEC|False|conformes|Traceback|RAPPEL"; verifier /tmp/t2.txt
 etape "Comptes (web puis PC, compte créé sur le web relu sur PC)"; CROISE="croise$(date +%s)@test.fr"; ((cd "$ICI/web" && COMPTE_CROISE=$CROISE timeout 300 node compte_web.js); COMPTE_CROISE=$CROISE $PY "$ICI/test_compte.py" "$DEPOT") 2>&1 | tee /tmp/t_compte.txt | grep -E "ÉCHEC|conformes|EXCEPTION|Traceback"; verifier /tmp/t_compte.txt
 etape "Salon et partie : donner l'hôte, pause et reprise, relais au premier arrivé (web puis PC)"; ((cd "$ICI/web" && timeout 300 node hote_web.js); xpy "$ICI/test_hote_pc.py" "$DEPOT") 2>&1 | tee /tmp/t_hote.txt | grep -E "ÉCHEC|conformes|EXCEPTION|Traceback"; verifier /tmp/t_hote.txt
+etape "Amis (PC)"; xpy "$ICI/test_amis_pc.py" "$DEPOT" 2>&1 | tee /tmp/t_amis_pc.txt | grep -E "ÉCHEC|conformes|Traceback"; verifier /tmp/t_amis_pc.txt
 etape "Spectateurs et demandes pour regarder (PC)"; xpy "$ICI/test_spectateur_pc.py" "$DEPOT" 2>&1 | tee /tmp/t_spect_pc.txt | grep -E "ÉCHEC|conformes|Traceback"; verifier /tmp/t_spect_pc.txt
 fi
 if groupe base-web; then
-for t in solo_web solo72_web hors_ligne captures_multi clavier_tel jeu_tel spectateur_web retour_tel horloge_decalee; do etape "Web : $t"; (cd "$ICI/web" && timeout 400 node $t.js) 2>&1 | tee /tmp/t_$t.txt | grep -E "ÉCHEC|conformes|EXCEPTION"; verifier /tmp/t_$t.txt; done
+for t in solo_web solo72_web hors_ligne captures_multi clavier_tel jeu_tel spectateur_web amis_web retour_tel horloge_decalee; do etape "Web : $t"; (cd "$ICI/web" && timeout 400 node $t.js) 2>&1 | tee /tmp/t_$t.txt | grep -E "ÉCHEC|conformes|EXCEPTION"; verifier /tmp/t_$t.txt; done
 fi
 S="$ICI/scenario.sh"
 if bloc croise-a; then

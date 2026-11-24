@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import messagebox as tkm
 import json, random, os, sys, time, requests, threading, webbrowser, queue, traceback, hashlib, re
-import design
+import design, amis
 import tkinter.font as tkfont
 
 # --- CONFIGURATION DYNAMIQUE ---
@@ -496,6 +496,7 @@ class PageAccueil(tk.Frame):
         Icone(h, "retour", lambda: self.controller.controller.creer_menu_accueil()).pack(side="left")
         etiquette(h, "Multijoueur", "texte", 19, gras=True).pack(side="left", padx=16)
         lp = tk.Frame(h, bg=P["fond"]); lp.pack(side="right")
+        Icone(lp, "amis", lambda: self.controller.controller.ecran_amis(self.controller.controller.ouvrir_multi)).pack(side="left", padx=(0, 14))  # 9.2
         etiquette(lp, "Pseudo", "texte", 14, P["texte2"]).pack(side="left", padx=(0, 10))
         self.champ_pseudo = Champ(lp, largeur=200, hauteur=42, mono=True, taille=16)
         self.champ_pseudo.set(self.controller.pseudo if self.controller.pseudo != "ANONYME" else "")
@@ -760,6 +761,8 @@ class PageLobby(tk.Frame):
         self.lbl_status = etiquette(tg, "", "texte", 15, P["texte2"]); self.lbl_status.pack(anchor="w", pady=(2, 0))
         # code
         self.boite_code = Panneau(tete, padding=14, rayon=14, contour=P["mal"], tirets=True); self.boite_code.pack(side="right", anchor="n")
+        self.panneau_inviter = PanneauInviter(self, controller)  # 9.2
+        self.btn_inviter = Bouton(tete, "Inviter des amis", self.panneau_inviter.ouvrir, largeur=190, hauteur=44, variante="secondaire", taille=14); self.btn_inviter.pack(side="right", anchor="n", padx=(0, 14), pady=(18, 0))
         bc = self.boite_code.interieur
         gauche = tk.Frame(bc, bg=bc["bg"]); gauche.pack(side="left")
         self.lbl_code_titre = etiquette(gauche, espacer("Code du salon"), "texte", 11, P["texte2"], True); self.lbl_code_titre.pack(anchor="w")
@@ -976,6 +979,8 @@ class PageLobby(tk.Frame):
             self.controller.nb_joueurs, self.controller.statut_salon = len(p), d.get("status", "waiting")
             hote_nom = p.get(hid, {}).get("name", "")
             self.lbl_titre.config(text=f"Salon de {hote_nom.capitalize()}" if hote_nom else "Salon")
+            if self.controller.spectateur: self.btn_inviter.pack_forget()
+            elif not self.btn_inviter.winfo_ismapped(): self.btn_inviter.pack(side="right", anchor="n", padx=(0, 14), pady=(18, 0), after=self.boite_code)
             self.lbl_role.config(text="Tu es spectateur" if self.controller.spectateur else "Vous êtes l'hôte" if self.controller.is_host else "L'hôte règle la partie")
 
             mode = s.get("game_mode", "CLASSIQUE")
@@ -1142,6 +1147,8 @@ class PageJeu(tk.Frame):
         self.lbl_zoom = etiquette(zf, f"{int(self.user_zoom * 100)} %", "texte", 13, P["texte2"]); self.lbl_zoom.pack(side="left", padx=4)
         Icone(zf, "plus", lambda: self.adjust_zoom(0.1), 32).pack(side="left")
         # 9.1 : cloche de l'hôte (demandes pour regarder la partie) avec pastille, et panneau latéral sans voile
+        self.panneau_inviter = PanneauInviter(self, controller)  # 9.2 : inviter des amis pendant la partie (ils entrent en spectateurs)
+        self.btn_amis = Icone(zf, "amis", self.panneau_inviter.ouvrir, 36); self.btn_amis.pack(side="left", padx=(8, 0))
         self.zone_cloche = tk.Frame(zf, bg=P["fond"]); self.zone_cloche.pack(side="left", padx=(8, 0))
         self.cloche = Icone(self.zone_cloche, "cloche", self.basculer_tiroir, 36)
         self.badge = tk.Label(self.zone_cloche, text="", bg=P["danger"], fg="#ffffff", font=police("texte", 10, True), padx=4)
@@ -1358,6 +1365,7 @@ class PageJeu(tk.Frame):
         threading.Thread(target=self.bg_sync, args=(gen,), daemon=True).start(); self.ui_loop(gen)
         self.winfo_toplevel().bind("<Key>", self.clavier_physique); self.maj_affichage()
         if spect: self.fini_local = True; self.winfo_toplevel().unbind("<Key>")  # le spectateur ne joue pas
+        self.btn_amis.activer(not spect)
         self.maj_demandes(gen)
         if self.elimine:  # spectateur jusqu'à la fin de la partie
             self.fini_local = True; self.winfo_toplevel().unbind("<Key>")
@@ -2218,6 +2226,52 @@ class PageJeu(tk.Frame):
 
     def maj_clavier(self):
         for char, etat in self.statut_lettres.items(): self.clavier.set_couleur(char, P[etat] if etat else None)
+
+
+class PanneauInviter(tk.Frame):
+    """9.2 : panneau latéral « Inviter des amis » (salon et partie), sans voile : amis en ligne d'abord (comme panneauInviter du site)."""
+    def __init__(self, page, controller):
+        super().__init__(page, bg=P["panneau"], highlightthickness=1, highlightbackground=P["bordure"])
+        self.page, self.controller, self.invites, self.ouvert = page, controller, set(), False
+        t = tk.Frame(self, bg=P["panneau"]); t.pack(fill="x", padx=16, pady=(16, 8))
+        etiquette(t, "Inviter des amis", "texte", 17, P["texte"], True).pack(side="left")
+        Icone(t, "fermer", self.fermer, 32).pack(side="right")
+        self.liste = tk.Frame(self, bg=P["panneau"]); self.liste.pack(fill="x", padx=16)
+        etiquette(self, "Ils rejoignent sans taper le code (le mot de passe du salon reste demandé).", "texte", 11, P["texte2"], wraplength=290, justify="left").pack(side="bottom", anchor="w", padx=16, pady=14)
+    def fermer(self): self.ouvert = False; self.place_forget()
+    def ouvrir(self):
+        self.ouvert = True; self.place(relx=1, rely=0, anchor="ne", relheight=1, width=340); self.lift()
+        for w in self.liste.winfo_children(): w.destroy()
+        if not compte_email():
+            etiquette(self.liste, "Crée un compte pour avoir des amis.", "texte", 13, P["texte2"]).pack(anchor="w"); return
+        etiquette(self.liste, "Chargement…", "texte", 13, P["texte2"]).pack(anchor="w")
+        def fil():
+            try: amis.charger()
+            except Exception: traceback.print_exc()
+            self.controller.reponses_reseau.put((lambda _: self.remplir(), None))  # retour dans le fil de l'interface
+        threading.Thread(target=fil, daemon=True).start()
+    def remplir(self):
+        if not self.ouvert: return
+        for w in self.liste.winfo_children(): w.destroy()
+        ids = amis.amis_tries()
+        if not ids: etiquette(self.liste, "Pas encore d'amis : ajoute-les depuis l'écran Amis.", "texte", 13, P["texte2"], wraplength=290, justify="left").pack(anchor="w"); return
+        for k, u in enumerate(ids):
+            p = amis.E["profils"].get(u) or {}; st, etat, en_ligne = amis.statut(p)
+            pn = Panneau(self.liste, padding=10, rayon=12, couleur=P["tuile"], largeur=300); pn.pack(pady=(0, 8), anchor="w")
+            Avatar(pn.interieur, p.get("pseudo", "?"), 32, index=k).pack(side="left")
+            tt = tk.Frame(pn.interieur, bg=P["tuile"]); tt.pack(side="left", padx=10)
+            etiquette(tt, str(p.get("pseudo", "?")).capitalize(), "texte", 14, P["texte"], True).pack(anchor="w")
+            etiquette(tt, "● " + st, "texte", 12, {"on": P["succes"], "jeu": P["mal"]}.get(etat, P["texte_absent"])).pack(anchor="w")
+            if u in self.invites: etiquette(pn.interieur, "Invité ✓", "texte", 13, P["succes"], True).pack(side="right")
+            else:
+                def inviter(u=u):
+                    if amis.inviter(u, self.controller.lobby_code): self.invites.add(u); self.remplir()
+                Bouton(pn.interieur, "Inviter", inviter, largeur=92, hauteur=36, variante="principal" if en_ligne else "discret", taille=13).pack(side="right")
+
+
+def compte_email():
+    import compte
+    return compte.email()
 
 
 class PageScoreFinal(tk.Frame):

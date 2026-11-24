@@ -1,6 +1,6 @@
 import tkinter as tk
-import os, sys, json, colorsys, threading
-import design, compte
+import os, sys, json, colorsys, threading, traceback
+import design, compte, amis
 from design import P, police, etiquette, Bouton, Panneau, Icone, Avatar, Logo, CarteMenu, Defilant, Champ, Superposition, arrondi, calculer_palette, melanger, contraste
 design.charger_polices()  # avant la création de la fenêtre
 from page_solo import PageSolo, PageMenuSolo, PageParametres, PageStats, apply_theme_solo
@@ -450,6 +450,7 @@ class MenuPrincipal(tk.Tk):
         self.page_courante = None
         self.creer_menu_accueil()
         self.after(300, self.synchro_compte)
+        self._multi = None; self.bandeau = None; self.after(1500, self.boucle_amis)  # 9.2 : amis (comptes seulement)
 
     # --- compte (même avancement sur tous les appareils) ---
     def synchro_compte(self):
@@ -503,6 +504,7 @@ class MenuPrincipal(tk.Tk):
         self.avatar = Avatar(haut, self.pseudo(), 46, self.changer_pseudo); self.avatar.pack(side="right", padx=(10, 0))
         Icone(haut, "stats", self.ouvrir_stats).pack(side="right", padx=8)
         Icone(haut, "palette", self.show_skins).pack(side="right", padx=8)
+        self.bouton_amis(haut).pack(side="right", padx=8)
         centre = tk.Frame(page, bg=P["fond"]); centre.place(relx=0.5, rely=0.5, anchor="center")
         Logo(centre, 88, 14).pack()
         etiquette(centre, "Trouvez le mot caché.", "texte", 19, P["texte2"]).pack(pady=(12, 30))
@@ -603,7 +605,183 @@ class MenuPrincipal(tk.Tk):
         self.vider(); PageStats(self.container, self).pack(fill="both", expand=True)
 
     def ouvrir_multi(self):
-        self.vider(); PageMulti(parent=self.container, controller=self).pack(fill="both", expand=True)
+        self.vider(); self._multi = PageMulti(parent=self.container, controller=self); self._multi.pack(fill="both", expand=True)
+        return self._multi
+
+    # --- amis (9.2 ; même logique que l'objet Amis du site) ---
+    def bouton_amis(self, parent):
+        """Icône Amis avec pastille du nombre de demandes reçues."""
+        f = tk.Frame(parent, bg=P["fond"])
+        Icone(f, "amis", self.ecran_amis).pack()
+        n = len(amis.E["demandes"]) if compte.email() else 0
+        if n: tk.Label(f, text=str(n), bg=P["danger"], fg="#ffffff", font=police("texte", 10, True), padx=4).place(relx=1.0, rely=0.0, anchor="ne")
+        return f
+
+    def salon_actuel(self):
+        m = self._multi
+        try: return m.lobby_code if (m is not None and m.winfo_exists()) else ""
+        except Exception: return ""
+
+    def en_partie(self):
+        m = self._multi
+        try: return bool(m is not None and m.winfo_exists() and m.frames["PageJeu"].active_sync and m.frames["PageJeu"].winfo_ismapped())
+        except Exception: return False
+
+    def boucle_amis(self):
+        """Toutes les 10 s : signe de vie, demandes et invitations (dans un fil), puis bandeau."""
+        salon, fini = self.salon_actuel(), threading.Event()
+        def fil():
+            try: amis.tic(salon)
+            except Exception: traceback.print_exc()
+            fini.set()
+        def attendre_fin():  # le bandeau se met à jour dans le fil de l'interface
+            if fini.is_set(): self.maj_bandeau()
+            else: self.after(150, attendre_fin)
+        threading.Thread(target=fil, daemon=True).start(); self.after(150, attendre_fin)
+        self.after(10000, self.boucle_amis)
+
+    def maj_bandeau(self):
+        """Bandeau en haut de tous les écrans (sauf en pleine partie) : invitation ou demande d'ami."""
+        def fermer():
+            if self.bandeau is not None:
+                try: self.bandeau.destroy()
+                except Exception: pass
+            self.bandeau = None
+        if self.en_partie() or not compte.email(): return fermer()
+        E = amis.E
+        inv = next(((c, v) for c, v in E["invitations"].items() if "i" + c not in E["vues"] and c != self.salon_actuel()), None)
+        dem = None if inv else next(((u, v) for u, v in E["demandes"].items() if "d" + u not in E["vues"]), None)
+        if not inv and not dem: return fermer()
+        cle = "i" + inv[0] if inv else "d" + dem[0]
+        if self.bandeau is not None and getattr(self.bandeau, "cle", None) == cle: return
+        fermer()
+        nom = str((inv or dem)[1].get("pseudo", "?")).capitalize()
+        b = Panneau(self, padding=12, rayon=14, contour=P["mal"], largeur=560); b.cle = cle; i = b.interieur
+        Avatar(i, nom, 34, index=1).pack(side="left")
+        etiquette(i, f"{nom} t'invite dans son salon" if inv else f"{nom} veut être ton ami", "texte", 15, P["texte"], True).pack(side="left", padx=12)
+        def oui():
+            E["vues"].add(cle); fermer()
+            if inv: self.rejoindre_invitation(inv[0])
+            else: self.ecran_amis()
+        def non():
+            E["vues"].add(cle); fermer()
+            if inv: threading.Thread(target=lambda: amis.effacer_invitation(inv[0]), daemon=True).start()
+            self.maj_bandeau()
+        Bouton(i, "Ignorer", non, largeur=96, hauteur=38, variante="discret", taille=13).pack(side="right")
+        Bouton(i, "Rejoindre" if inv else "Voir", oui, largeur=110, hauteur=38, taille=13).pack(side="right", padx=(0, 8))
+        b.place(relx=0.5, y=10, anchor="n"); b.tk.call("raise", b._w); self.bandeau = b  # (Panneau est un Canvas : lift() y monte un dessin)
+
+    def rejoindre_invitation(self, code):
+        """Sans taper le code ; mot de passe demandé si le salon en a un ; partie en cours → spectateur directement."""
+        import page_multi as pm
+        idx = amis.lire(f"index/{code}")
+        if not idx or amis.maintenant_ms() - (idx.get("maj") or 0) > 30000:
+            amis.effacer_invitation(code); design.informer(self, "Ce salon n'existe plus.", "Salon fermé"); return
+        if idx.get("version") != pm.VERSION_JEU:
+            design.informer(self, f"Ce salon utilise une autre version du jeu ({idx.get('version', '?')}). Mets SMOUT à jour.", "Autre version"); return
+        m = self.ouvrir_multi(); self.update_idletasks()
+        if not m.player_id and not m.assurer_connexion(): design.informer(self, "Connexion au serveur impossible.", "Pas de connexion"); return
+        pr = m.frames["PageRejoindre"]
+        while True:
+            mdp = ""
+            if idx.get("prive"):
+                mdp = design.demander_texte(self, "Salon protégé", f"Entre le mot de passe du salon {code}.")
+                if mdp is None: return
+            preuve = pm.preuve_salon(code, mdp)
+            ok = pr.entrer_spectateur(code, mdp, preuve, True) if idx.get("status") == "playing" else pr.rejoindre(code, mdp, silencieux=True)
+            if ok: threading.Thread(target=lambda: amis.effacer_invitation(code), daemon=True).start(); return
+            if not idx.get("prive"): design.informer(self, "Impossible de rejoindre ce salon.", "Salon"); return
+            design.informer(self, "Mot de passe incorrect.", "Salon protégé")
+
+    def ecran_amis(self, retour=None):
+        """Écran Amis : mon code, ajouter par code, demandes reçues, liste avec statut (comme ecranAmis du site)."""
+        retour = retour or self.creer_menu_accueil
+        self.vider(); self.page_courante = "amis"
+        page = tk.Frame(self.container, bg=P["fond"]); page.pack(fill="both", expand=True); self.page_amis = page
+        h = tk.Frame(page, bg=P["fond"]); h.pack(fill="x", padx=28, pady=(18, 0))
+        Icone(h, "retour", retour).pack(side="left")
+        etiquette(h, "Amis", "texte", 18, P["texte"], True).pack(side="top", pady=8)
+        if not compte.email():
+            p = Panneau(page, padding=26, largeur=520); p.pack(pady=30)
+            etiquette(p.interieur, "Crée un compte pour avoir des amis", "titre", 24).pack()
+            etiquette(p.interieur, "Les amis suivent ton compte : tu les retrouves sur tous tes appareils.", "texte", 14, P["texte2"], wraplength=460, justify="center").pack(pady=(8, 18))
+            Bouton(p.interieur, "Se connecter ou créer un compte", self.ouvrir_compte, largeur=320).pack()
+            return
+        zone = Defilant(page, hauteur=600); zone.pack(fill="both", expand=True, pady=(6, 0))
+        c = tk.Frame(zone.interieur, bg=P["fond"]); c.pack(pady=(4, 30))
+        pc = Panneau(c, padding=16, rayon=14, contour=P["mal"], largeur=640); pc.pack()
+        etiquette(pc.interieur, design.espacer("Mon code ami"), "texte", 11, P["texte2"], True).pack(anchor="w")
+        self.lbl_code_ami = etiquette(pc.interieur, amis.E["code"] or "······", "chiffres", 30, P["mal"]); self.lbl_code_ami.pack(anchor="w")
+        etiquette(pc.interieur, "Donne-le pour ajouter des amis.", "texte", 13, P["texte2"]).pack(anchor="w")
+        def section(t): etiquette(c, design.espacer(t), "texte", 11, P["texte2"], True).pack(anchor="w", pady=(20, 6))
+        section("Ajouter un ami")
+        la = tk.Frame(c, bg=P["fond"]); la.pack(anchor="w")
+        self.champ_ami = Champ(la, largeur=500, hauteur=48, mono=True, taille=16); self.champ_ami.pack(side="left")
+        self.msg_amis = etiquette(c, "", "texte", 14, P["danger"], True); self.msg_amis.pack(anchor="w", pady=(6, 0))
+        def ajouter():
+            err = amis.ajouter(self.champ_ami.get())
+            if err: self.msg_amis.config(text=err, fg=P["danger"])
+            else: self.msg_amis.config(text="Demande envoyée ✓", fg=P["succes"]); self.champ_ami.set(""); dessiner()
+        Bouton(la, "Ajouter", ajouter, largeur=120, hauteur=48).pack(side="left", padx=(10, 0)); self.champ_ami.bind_entree(ajouter)
+        self.zone_dem, self.zone_liste = tk.Frame(c, bg=P["fond"]), tk.Frame(c, bg=P["fond"])
+        self.zone_dem.pack(anchor="w", fill="x"); self.zone_liste.pack(anchor="w", fill="x")
+        def ligne(parent, nom, i, st, etat, actions):
+            p = Panneau(parent, padding=10, rayon=12, couleur=P["tuile"], largeur=640); p.pack(pady=3, anchor="w")
+            Avatar(p.interieur, nom, 36, index=i).pack(side="left")
+            t = tk.Frame(p.interieur, bg=P["tuile"]); t.pack(side="left", padx=12)
+            etiquette(t, str(nom).capitalize(), "texte", 16, P["texte"], True).pack(anchor="w")
+            coul = {"on": P["succes"], "jeu": P["mal"]}.get(etat, P["texte_absent"])
+            etiquette(t, "● " + st, "texte", 13, coul).pack(anchor="w")
+            for txt, f, var in reversed(actions): Bouton(p.interieur, txt, f, largeur=max(96, 20 + len(txt) * 9), hauteur=36, variante=var, taille=13).pack(side="right", padx=(8, 0))
+        def dessiner():
+            if not compte.email(): return
+            if not amis.E["code"] or amis.E["uid_code"] != amis.uid(): amis.assurer_profil(self.salon_actuel())
+            amis.charger()
+            try:
+                if not page.winfo_exists(): return
+            except Exception: return
+            self.lbl_code_ami.config(text=amis.E["code"] or "······")
+            for w in self.zone_dem.winfo_children() + self.zone_liste.winfo_children(): w.destroy()
+            dem = list(amis.E["demandes"].items())
+            if dem:
+                etiquette(self.zone_dem, design.espacer(f"Demandes reçues ({len(dem)})"), "texte", 11, P["texte2"], True).pack(anchor="w", pady=(20, 6))
+                for k, (u, v) in enumerate(dem):
+                    ligne(self.zone_dem, v.get("pseudo", "?"), k + 2, "veut être ton ami", "off",
+                          [("Accepter", lambda u=u: (amis.accepter(u), dessiner()), "principal"), ("Refuser", lambda u=u: (amis.refuser(u), dessiner()), "discret")])
+            ids = amis.amis_tries()
+            etiquette(self.zone_liste, design.espacer(f"Mes amis ({len(ids)})"), "texte", 11, P["texte2"], True).pack(anchor="w", pady=(20, 6))
+            if not ids: etiquette(self.zone_liste, "Pas encore d'amis : donne ton code ou entre le leur.", "texte", 14, P["texte2"]).pack(anchor="w")
+            salon = self.salon_actuel()
+            for k, u in enumerate(ids):
+                p = amis.E["profils"].get(u) or {}; st, etat, _ = amis.statut(p)
+                if etat == "jeu": act = [("Rejoindre", lambda s=p.get("salon"): self.rejoindre_salon_ami(s), "discret")]
+                elif salon and etat == "on": act = [("Inviter", lambda u=u: amis.inviter(u, salon), "principal")]
+                else:
+                    def retirer(u=u, n=p.get("pseudo", "?")):
+                        if design.confirmer(self, "Retirer cet ami ?", f"{str(n).capitalize()} ne sera plus dans ta liste (et toi plus dans la sienne).", "Retirer"): amis.retirer(u); dessiner()
+                    act = [("Retirer", retirer, "discret")]
+                ligne(self.zone_liste, p.get("pseudo", "?"), k, st, etat, act)
+        self.dessiner_amis = dessiner
+        dessiner()
+        def rafraichir():
+            try:
+                if page.winfo_exists() and self.page_courante == "amis": dessiner(); self.after(8000, rafraichir)
+            except Exception: pass
+        self.after(8000, rafraichir)
+
+    def rejoindre_salon_ami(self, code):
+        """Salon d'un ami : comme avec le code (demande à l'hôte si la partie a commencé)."""
+        if not code: return
+        import page_multi as pm
+        idx = amis.lire(f"index/{code}") or {}
+        mdp = ""
+        if idx.get("prive"):
+            mdp = design.demander_texte(self, "Salon protégé", f"Entre le mot de passe du salon {code}.")
+            if mdp is None: return
+        m = self.ouvrir_multi(); self.update_idletasks()
+        if not m.player_id and not m.assurer_connexion(): return
+        if not m.frames["PageRejoindre"].rejoindre(code, mdp, silencieux=True):
+            design.informer(self, "Mot de passe incorrect." if idx.get("prive") else "Impossible de rejoindre ce salon.", "Salon")
 
     def quitter_jeu(self): self.quit(); self.destroy()
 

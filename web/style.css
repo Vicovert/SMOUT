@@ -405,3 +405,16 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 @keyframes tourne { to { transform: rotate(360deg); } }
 .bandeau-spect { display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--tuile); color: var(--texte); border-radius: 10px; padding: 8px 14px; font-weight: 600; font-size: 14px; margin: 8px auto 0; width: fit-content; }
 .vue-spect { width: 100%; }
+
+/* 9.2 : amis */
+.ami { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 12px; border-radius: 12px; background: var(--tuile); margin: 6px 0; }
+.ami .n { font-weight: 600; font-size: 16px; } .ami .st { font-size: 13px; color: var(--texte2); display: flex; align-items: center; gap: 6px; }
+.pt { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; } .pt.on { background: var(--succes); } .pt.jeu { background: var(--mal); } .pt.off { background: var(--texte-absent); }
+.ami .act { margin-left: auto; display: flex; gap: 8px; align-items: center; flex: none; }
+.ami .btn { height: 36px; font-size: 14px; }
+.code-ami { display: flex; align-items: center; gap: 14px; padding: 16px 18px; border-radius: 14px; border: 1.5px dashed var(--mal); }
+.code-ami .c { font-family: var(--f-chiffres); font-size: 30px; color: var(--mal); letter-spacing: .12em; }
+.sect { margin: 22px 0 8px; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--texte2); }
+.bandeau-inv { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); width: min(560px, calc(100vw - 20px)); z-index: 60; background: var(--panneau); border: 1.5px solid var(--mal); border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.4); padding: 12px 14px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.bandeau-inv .txt { flex: 1; min-width: 160px; font-size: 15px; } .bandeau-inv .btn { height: 38px; font-size: 14px; }
+.tiroir-inviter { gap: 6px; }

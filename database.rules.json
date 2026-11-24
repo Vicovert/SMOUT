@@ -275,7 +275,7 @@
           "spectateurs": {
             "$uid": {
               ".read": "auth != null && auth.uid === $uid",
-              ".write": "auth != null && ((auth.uid === $uid && (data.exists() || !newData.exists() || (data.parent().parent().child('status').val() === 'waiting' && (!root.child('v7/secrets/' + $code).exists() || newData.child('preuve').val() === root.child('v7/secrets/' + $code).val())))) || (!newData.exists() && data.child('last_seen').val() < now - 25000))",
+              ".write": "auth != null && ((auth.uid === $uid && (data.exists() || !newData.exists() || ((data.parent().parent().child('status').val() === 'waiting' || root.child('v7/invitations/' + $uid + '/' + $code).exists()) && (!root.child('v7/secrets/' + $code).exists() || newData.child('preuve').val() === root.child('v7/secrets/' + $code).val())))) || (!newData.exists() && data.child('last_seen').val() < now - 25000))",
               ".validate": "newData.hasChildren(['name'])",
               "name": {
                 ".validate": "newData.isString() && newData.val().length <= 30"
@@ -302,6 +302,85 @@
             },
             "preuve": {
               ".validate": "newData.isString() && newData.val().length <= 64"
+            },
+            "$autre": {
+              ".validate": false
+            }
+          }
+        }
+      },
+      "codes_amis": {
+        ".read": "auth != null",
+        "$c": {
+          ".write": "auth != null && ((!data.exists() && newData.val() === auth.uid) || (!newData.exists() && data.val() === auth.uid))",
+          ".validate": "$c.matches(/^[A-Z2-9]{6}$/) && newData.isString()"
+        }
+      },
+      "profils": {
+        "$uid": {
+          ".read": "auth != null",
+          ".write": "auth != null && auth.uid === $uid",
+          "pseudo": {
+            ".validate": "newData.isString() && newData.val().length <= 30"
+          },
+          "code": {
+            ".validate": "newData.isString() && newData.val().length <= 8"
+          },
+          "vu": {
+            ".validate": "newData.isNumber() && newData.val() <= now + 5000"
+          },
+          "salon": {
+            ".validate": "newData.isString() && newData.val().length <= 4"
+          },
+          "cree": {
+            ".validate": "newData.isNumber()"
+          },
+          "$autre": {
+            ".validate": false
+          }
+        }
+      },
+      "amis": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          "$ami": {
+            ".write": "auth != null && (auth.uid === $uid || (auth.uid === $ami && (!newData.exists() || root.child('v7/amis_demandes/' + $ami + '/' + $uid).exists())))",
+            ".validate": "newData.val() === true && $uid !== $ami"
+          }
+        }
+      },
+      "amis_demandes": {
+        "$cible": {
+          ".read": "auth != null && auth.uid === $cible",
+          "$de": {
+            ".write": "auth != null && ((auth.uid === $de && $de !== $cible) || (auth.uid === $cible && !newData.exists()))",
+            ".validate": "newData.hasChildren(['pseudo', 't'])",
+            "pseudo": {
+              ".validate": "newData.isString() && newData.val().length <= 30"
+            },
+            "t": {
+              ".validate": "newData.isNumber() && newData.val() <= now + 5000"
+            },
+            "$autre": {
+              ".validate": false
+            }
+          }
+        }
+      },
+      "invitations": {
+        "$cible": {
+          ".read": "auth != null && auth.uid === $cible",
+          "$code": {
+            ".write": "auth != null && ((auth.uid === $cible && !newData.exists()) || (newData.child('de').val() === auth.uid && root.child('v7/lobbies/' + $code + '/players/' + auth.uid).exists() && root.child('v7/amis/' + $cible + '/' + auth.uid).exists()) || (!newData.exists() && data.child('de').val() === auth.uid))",
+            ".validate": "newData.hasChildren(['de', 'pseudo', 't'])",
+            "de": {
+              ".validate": "newData.isString()"
+            },
+            "pseudo": {
+              ".validate": "newData.isString() && newData.val().length <= 30"
+            },
+            "t": {
+              ".validate": "newData.isNumber() && newData.val() <= now + 5000"
             },
             "$autre": {
               ".validate": false

@@ -127,4 +127,28 @@ t("demande : salon protégé, sans preuve refusée", req("PUT", f"v7/demandes/12
 t("spectateur : salon en attente, entrer avec la bonne preuve", (req("PUT", "v7/secrets/4321", A, "zz9"), req("PUT", "v7/lobbies/4321", A, {"status": "waiting", "maj": SV, "settings": reglages, "players": {ua: {"name": "A", "score": 0, "last_seen": SV}}}),
    req("PUT", f"v7/lobbies/4321/spectateurs/{uf}", F, {"name": "F", "last_seen": SV}), req("PUT", f"v7/lobbies/4321/spectateurs/{uf}", F, {"name": "F", "last_seen": SV, "preuve": "zz9"}))[2:], (401, 200))
 
+# ---- 9.2 : amis (code ami, demandes, liste, invitations)
+G, Hh = signup(), signup(); ug, uh = G[4:], Hh[4:]
+t("code ami : réserver son code", req("PUT", "v7/codes_amis/ABC234", G, ug), 200)
+t("code ami : le prendre pour un autre refusé", req("PUT", "v7/codes_amis/ABC234", Hh, uh), 401)
+t("code ami : format invalide refusé", req("PUT", "v7/codes_amis/abc", Hh, uh), 401)
+t("code ami : lisible", req("GET", "v7/codes_amis/ABC234", Hh), 200)
+t("profil : écrire le sien", req("PUT", f"v7/profils/{ug}", G, {"pseudo": "GAEL", "code": "ABC234", "vu": SV, "salon": ""}), 200)
+t("profil : écrire celui d'un autre refusé", req("PATCH", f"v7/profils/{ug}", Hh, {"pseudo": "PIRATE"}), 401)
+t("profil : champ inconnu refusé", req("PATCH", f"v7/profils/{uh}", Hh, {"pirate": 1}), 401)
+t("profil : lisible par tous", req("GET", f"v7/profils/{ug}", Hh), 200)
+t("ami : demande envoyée", req("PUT", f"v7/amis_demandes/{ug}/{uh}", Hh, {"pseudo": "HUGO", "t": SV}), 200)
+t("ami : s'ajouter seul dans la liste d'un autre sans demande refusé", req("PUT", f"v7/amis/{uh}/{ug}", G, True) if False else req("PUT", f"v7/amis/{ug}/{uh}", Hh, True), 401)
+t("ami : la cible lit ses demandes", req("GET", f"v7/amis_demandes/{ug}", G), 200)
+t("ami : un autre ne lit pas ses demandes", req("GET", f"v7/amis_demandes/{ug}", Hh), 401)
+t("ami : acceptée (la cible écrit les deux listes)", (req("PUT", f"v7/amis/{ug}/{uh}", G, True), req("PUT", f"v7/amis/{uh}/{ug}", G, True), req("DELETE", f"v7/amis_demandes/{ug}/{uh}", G)), (200, 200, 200))
+t("ami : liste privée", (req("GET", f"v7/amis/{uh}", Hh), req("GET", f"v7/amis/{uh}", G)), (200, 401))
+t("invitation : par un non-joueur du salon refusée", req("PUT", f"v7/invitations/{ug}/5678", Hh, {"de": uh, "pseudo": "HUGO", "t": SV}), 401)
+req("PUT", f"v7/lobbies/5678/players/{uh}", Hh, {"name": "HUGO", "score": 0, "last_seen": SV})
+t("invitation : d'un ami présent dans le salon", req("PUT", f"v7/invitations/{ug}/5678", Hh, {"de": uh, "pseudo": "HUGO", "t": SV}), 200)
+t("invitation : à quelqu'un qui n'est pas ami refusée", req("PUT", f"v7/invitations/{ue}/5678", Hh, {"de": uh, "pseudo": "HUGO", "t": SV}), 401)
+t("invitation : l'invité entre en spectateur pendant la partie", req("PUT", f"v7/lobbies/5678/spectateurs/{ug}", G, {"name": "GAEL", "last_seen": SV}), 200)
+t("invitation : l'invité l'efface", req("DELETE", f"v7/invitations/{ug}/5678", G), 200)
+t("ami : chacun peut retirer l'autre", (req("DELETE", f"v7/amis/{uh}/{ug}", G), req("DELETE", f"v7/amis/{ug}/{uh}", G)), (200, 200))
+
 print(f"{sum(ok)}/{len(ok)} conformes")
