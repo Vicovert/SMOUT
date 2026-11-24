@@ -1,6 +1,6 @@
 name: Auto Release with Executables
 
-# Tests : une seule fois, sur la branche de travail (4 jobs en parallèle) avant le squash-merge.
+# Tests : une seule fois, sur la branche de travail (8 jobs courts en parallèle, ~5 min) avant le squash-merge.
 # Sur main : builds + release seulement (l'arbre est celui de la branche testée) ; le site est publié par pages.yml.
 on:
   push:
@@ -14,14 +14,22 @@ on:
 
 jobs:
   tests:
-    name: Tests ${{ matrix.groupe }}
+    name: Tests ${{ matrix.nom }}
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 20
     if: github.ref != 'refs/heads/main'
     strategy:
       fail-fast: false
       matrix:
-        groupe: [base, croise-a, croise-b, piege]
+        include:  # base PC, base web, puis les parties croisées et Mot piégé réparties en 6 tranches (tests/lancer_tests.sh)
+          - { nom: base-pc, groupe: base-pc }
+          - { nom: base-web, groupe: base-web }
+          - { nom: parties-1, tranche: '0' }
+          - { nom: parties-2, tranche: '1' }
+          - { nom: parties-3, tranche: '2' }
+          - { nom: parties-4, tranche: '3' }
+          - { nom: parties-5, tranche: '4' }
+          - { nom: parties-6, tranche: '5' }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -30,10 +38,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: npm
+          cache-dependency-path: tests/web/package-lock.json
       - name: Dépendances
         run: |
-          sudo apt-get update
-          sudo apt-get install -y xvfb python3-tk
+          command -v xvfb-run >/dev/null || { sudo apt-get update && sudo apt-get install -y xvfb; }
+          python -c "import tkinter" 2>/dev/null || { sudo apt-get update && sudo apt-get install -y python3-tk; }
           pip install requests
           cd tests/web && npm install --no-audit --no-fund
       - name: Banc de test (relancé une fois en cas d'échec ponctuel)
@@ -41,12 +51,14 @@ jobs:
           PY: python
           CHROME: /usr/bin/google-chrome
           GROUPE: ${{ matrix.groupe }}
+          TRANCHE: ${{ matrix.tranche }}
+          NB_TRANCHES: '6'
         run: tests/lancer_tests.sh || (mkdir -p /tmp/essai1 && cp -r /tmp/t*.txt /tmp/sc /tmp/fb_refus.log /tmp/essai1/ 2>/dev/null; echo "Nouvel essai…" && tests/lancer_tests.sh)
       - name: Journaux en cas d'échec
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: journaux-tests-${{ matrix.groupe }}
+          name: journaux-tests-${{ matrix.nom }}
           path: |
             /tmp/t*.txt
             /tmp/sc/
