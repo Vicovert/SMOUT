@@ -1,5 +1,5 @@
 # Leçons apprises
-- Pages : si la source GitHub Pages repasse en « Deploy from a branch », chaque push sur une branche de travail republie le dépôt brut (site cassé) : Victor remet « GitHub Actions » (Settings → Pages), puis relancer pages.yml sur main (relancer encore si « Found 0 artifact »).
+- Pages : si la source GitHub Pages repasse en « Deploy from a branch », chaque push sur une branche de travail republie le dépôt brut (site cassé) : Victor remet « GitHub Actions » (Settings → Pages), puis relancer pages.yml sur main (pages.yml refait un 2e essai tout seul depuis la 9.0 ; relancer si les deux échouent).
 
 Une ligne par leçon, la plus récente en haut. Ajoutées à la clôture d'un fil (voir `claude/PASSATION.md`). Une leçon qui devient une règle durable passe dans `CLAUDE.md`.
 
