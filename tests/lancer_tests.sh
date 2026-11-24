@@ -26,7 +26,7 @@ etape "Comptes (web puis PC, compte créé sur le web relu sur PC)"; CROISE="cro
 etape "Salon et partie : donner l'hôte, pause et reprise, relais au premier arrivé (web puis PC)"; ((cd "$ICI/web" && timeout 300 node hote_web.js); xpy "$ICI/test_hote_pc.py" "$DEPOT") 2>&1 | tee /tmp/t_hote.txt | grep -E "ÉCHEC|conformes|EXCEPTION|Traceback"; verifier /tmp/t_hote.txt
 fi
 if groupe base-web; then
-for t in solo_web solo72_web hors_ligne captures_multi clavier_tel jeu_tel retour_tel horloge_decalee; do etape "Web : $t"; (cd "$ICI/web" && timeout 400 node $t.js) 2>&1 | tee /tmp/t_$t.txt | grep -E "ÉCHEC|conformes|EXCEPTION"; verifier /tmp/t_$t.txt; done
+for t in solo_web solo72_web hors_ligne captures_multi clavier_tel jeu_tel spectateur_web retour_tel horloge_decalee; do etape "Web : $t"; (cd "$ICI/web" && timeout 400 node $t.js) 2>&1 | tee /tmp/t_$t.txt | grep -E "ÉCHEC|conformes|EXCEPTION"; verifier /tmp/t_$t.txt; done
 fi
 S="$ICI/scenario.sh"
 if bloc croise-a; then

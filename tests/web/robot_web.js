@@ -180,7 +180,7 @@ async function jeuPiege(manche) {
       if (S.capture_jeu && manche === 1) { await p.keyboard.type("ab"); await sleep(200); await p.screenshot({ path: S.capture_jeu }); await p.keyboard.press("Backspace"); await p.keyboard.press("Backspace");
         R.deborde = await ev(() => { const w = document.documentElement.clientWidth; return [...document.querySelectorAll("body *")].filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && (r.right > w + 1 || r.left < -1); }).slice(0, 4).map(e => e.className); }); log("débordements", JSON.stringify(R.deborde)); } log(`partie ${partie} manche ${manche} mot ${mot}`);
       if (S.retour_salon) {  // l'hôte ramène tout le monde au salon en cours de partie (avec confirmation)
-        await sleep(3000); await clicTexte("button", "Lobby");  // 9.0 : bouton de l'hôte en haut à gauche
+        await sleep(3000); await clicTexte("button", "Lobby"); await sleep(400); await ev(() => document.querySelector(".voile:not(.cache) .dlg-oui")?.click());  // 9.0 : bouton de l'hôte en haut à gauche ; 9.1 : confirmation dans une fenêtre du jeu
         if (!(await attendre(() => document.querySelector(".joueur"), 30000))) { log("ÉCHEC pas de retour au salon"); return fin(false); }
         log("retour au salon (demandé par l'hôte)"); R.retour_salon = true; await sleep(2000); return fin(true);
       }
