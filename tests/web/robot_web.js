@@ -22,8 +22,8 @@ async function clicTexte(sel, txt) { return ev((s, t) => { const e = [...documen
 async function jeuPiege(manche) {
   const [mi, ma] = await ev(() => [M.reglages.min || 6, M.reglages.max || 7]);
   const txt = () => ev(() => document.body.innerText), msg = () => ev(() => document.querySelector(".msg")?.textContent || "");
-  const enChoix = () => ev(() => document.body.innerText.includes("Choisis le mot que")), enDevine = () => ev(() => (document.querySelector(".milieu")?.textContent || "").includes("mot choisi par"));
-  if (!(await attendre(() => /Choisis le mot que|Mot envoyé|Temps écoulé|mot choisi par|Tu regardes/.test(document.body.innerText), 30000))) { log("ÉCHEC pas de phase de choix"); return fin(false); }
+  const enChoix = () => ev(() => document.body.innerText.includes("Choisis le mot que")), enDevine = () => ev(() => (M.G && M.G.phase === "devine"));
+  if (!(await attendre(() => /Choisis le mot que|Mot envoyé|Temps écoulé|Mot choisi par|Tu regardes/.test(document.body.innerText), 30000))) { log("ÉCHEC pas de phase de choix"); return fin(false); }
   let choix = S.choix || "valide"; if (!(await enChoix())) { choix = "deja"; log(`manche ${manche} : mot de sa cible déjà choisi (reprise)`); }
   const effacer = async n => { for (let i = 0; i < n; i++) await p.keyboard.press("Backspace"); };
   if (choix === "invalide") {  // trop court, puis inconnu : refusés avec un message, sans rien envoyer
@@ -51,7 +51,7 @@ async function jeuPiege(manche) {
     await sleep(S.forcer_apres * 1000); log("démarrage forcé par l'hôte"); await clicTexte("button", "Forcer le démarrage");
   }
   if (S.planter_apres_choix === manche) { log("PLANTAGE simulé après le choix"); R.config = await ev(() => localStorage.getItem("smout_config")); fs.writeFileSync(S.sortie, JSON.stringify(Object.assign(R, { ok: true, plante: true }))); b.process().kill("SIGKILL"); process.exit(0); }
-  if (!(await attendre(() => (document.querySelector(".milieu")?.textContent || "").includes("mot choisi par") || /Manche terminée|Bien joué|Tu regardes/.test(document.body.innerText), 90000))) { log("ÉCHEC pas de mot à deviner"); return fin(false); }
+  if (!(await attendre(() => (M.G && M.G.phase === "devine") || /Manche terminée|Bien joué|Tu regardes/.test(document.body.innerText), 90000))) { log("ÉCHEC pas de mot à deviner"); return fin(false); }
   if (!(await enDevine())) return;
   const uid = await ev(() => FB.uid), pid = await ev(() => M.reglages.piege_id), code = R.code;
   const secret = (await db()).v7.pieges[code][pid][uid].mot;  // le robot « triche » via l'admin du faux serveur
@@ -180,7 +180,7 @@ async function jeuPiege(manche) {
       if (S.capture_jeu && manche === 1) { await p.keyboard.type("ab"); await sleep(200); await p.screenshot({ path: S.capture_jeu }); await p.keyboard.press("Backspace"); await p.keyboard.press("Backspace");
         R.deborde = await ev(() => { const w = document.documentElement.clientWidth; return [...document.querySelectorAll("body *")].filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && (r.right > w + 1 || r.left < -1); }).slice(0, 4).map(e => e.className); }); log("débordements", JSON.stringify(R.deborde)); } log(`partie ${partie} manche ${manche} mot ${mot}`);
       if (S.retour_salon) {  // l'hôte ramène tout le monde au salon en cours de partie (avec confirmation)
-        await sleep(3000); await clicTexte("button", "Retour au salon");
+        await sleep(3000); await clicTexte("button", "Lobby");  // 9.0 : bouton de l'hôte en haut à gauche
         if (!(await attendre(() => document.querySelector(".joueur"), 30000))) { log("ÉCHEC pas de retour au salon"); return fin(false); }
         log("retour au salon (demandé par l'hôte)"); R.retour_salon = true; await sleep(2000); return fin(true);
       }

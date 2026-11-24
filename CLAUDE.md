@@ -9,7 +9,7 @@ Site : https://vicovert.github.io/SMOUT/ — Dépôt : Vicovert/SMOUT. **Toujour
 - `web/` : `smout.js`, `style.css`, `index.html` ; `outils/export_web.py` génère `donnees.js` (dont la version) pour le site
 - `database.rules.json` : règles Firebase (chemin `/v7`, `VERSION_JEU`). **Je ne publie jamais les règles dans la console Firebase : c'est l'utilisateur qui le fait.**
 - `tests/` : banc de test (faux serveur Firebase `fb_regles.py`, robots PC/web, scénarios croisés)
-- `.github/workflows/release.yml` (push sur `travail-*` → tests en 4 jobs parallèles ; push sur `main` → build Windows + release, sans retester) et `pages.yml` (site, publié dès le push sur `main`)
+- `.github/workflows/release.yml` (push sur `travail-*` → tests en 8 jobs parallèles d'environ 3-5 min ; push sur `main` → build Windows + release, sans retester) et `pages.yml` (site, publié dès le push sur `main`)
 
 ## Règle d'équivalence
 Toute règle ou logique de jeu modifiée côté PC doit l'être à l'identique côté web (modes, `COULEURS_MODES`, `REGLES_MODES`, `RUSHS`, composants `Curseur`/`curseur`, etc.) et inversement.
@@ -40,13 +40,16 @@ Pour chaque tâche, **indiquer le modèle et l'effort conseillés** (ex. « Sonn
 - **Leçons apprises** : les noter dans `claude/lecons.md` (une ligne par leçon, la plus récente en haut) à la clôture d'un fil.
 - Les changements de documentation seule (`*.md`, `claude/`) ne changent pas la version et ne déclenchent ni tests ni release.
 
+## Durée d'une mise à jour : 5 à 10 min maximum (demandé 2 fois par Victor)
+Entre « c'est bon » de Victor et la release en ligne : **10 min au plus**. Donc : pousser `travail-X.Y` dès que le code est prêt (le CI dure ~5 min en 8 jobs), **pas de suite de tests en local en plus** (seulement le test ciblé de ce qu'on vient de modifier, et seulement s'il prend < 1 min), adapter les tests et robots touchés par le changement **avant** de pousser (textes, boutons renommés), faire les captures pendant que le CI tourne. Si un job échoue : lire son journal tout de suite, ne relancer que les jobs en échec.
+
 ## Tests (une seule fois : **soit** dans le CI, **soit** en local, jamais les deux)
 Par défaut : le CI, en poussant `travail-X.Y`. En local seulement si le CI est indisponible ; dans ce cas, mettre `[skip ci]` dans le dernier commit poussé sur `travail-X.Y` pour ne pas retester une seconde fois.
 Local (sans navigateur cloud, uniquement Chrome headless via puppeteer-core et Tk sous Xvfb) :
 - Faux Firebase : `(setsid nohup python3 tests/fb_regles.py 9000 >/dev/null 2>&1 &)`
 - Site local : `python3 outils/export_web.py /tmp/site` puis `(cd /tmp/site && setsid nohup python3 -m http.server 8000 --bind 127.0.0.1 >/dev/null 2>&1 &)`
-- **Ne pas lancer la suite complète en local** (25 min, séquentielle) : le CI la fait en ~8 min en parallèle dès qu'on pousse `travail-X.Y`. Si on teste par le CI, aucun test local en plus. Avant le squash-merge : attendre que les 4 jobs « Tests » de la branche soient verts (`actions_list`), puis squash-merger (la release de `main` ne retestant pas, l'arbre doit être celui de la branche testée).
-- Suite complète en local (secours) : `PY=python3 tests/lancer_tests.sh` ; une partie seulement : `GROUPE=base|croise-a|croise-b|piege`
+- **Ne pas lancer la suite complète en local** (25 min, séquentielle) : le CI la fait en ~8 min en parallèle dès qu'on pousse `travail-X.Y`. Si on teste par le CI, aucun test local en plus. Avant le squash-merge : attendre que les 8 jobs « Tests » de la branche soient verts (`actions_list`), puis squash-merger (la release de `main` ne retestant pas, l'arbre doit être celui de la branche testée).
+- Suite complète en local (secours) : `PY=python3 tests/lancer_tests.sh` ; une partie seulement : `GROUPE=base-pc|base-web|croise-a|croise-b|piege` ou `TRANCHE=0..5` (une tranche de parties, comme un job du CI)
   (la suite coupe le serveur http à la fin : le relancer avant un test isolé)
 - Scénario croisé isolé : `DUREE=150 tests/scenario.sh c1 'pc:{...}' 'web:{...}'`
 - Dépendances : `xvfb`, `python3-tk`, `pip install requests`, `cd tests/web && npm install`

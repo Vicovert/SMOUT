@@ -2,6 +2,14 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
+## 9.0
+- Hôte : bouton « Lobby » (flèche de retour + « Lobby », contour jaune) en haut à gauche, à côté de la flèche, en pleine partie (aussi pendant le choix du Mot piégé) et sur l'écran de fin de partie, PC et web, téléphone compris. Il ramène tous les joueurs au salon après confirmation (« Ramener tous les joueurs au salon ? »). Remplace le petit lien « Retour au salon » de droite. Design validé par Victor.
+- Moins de petits textes qui font doublon (PC et web) : plus de « mode · n lettres » ni de « Mot piégé · choisis le mot de … » en haut du jeu (il reste « Mot n° … » en Rush et « Mot choisi par … » pendant la devinette du Mot piégé), plus de ligne d'explication sous « Choisis le mot que … devra deviner », plus de « n sur m mots choisis », plus de « Salon de … · mode · Partie terminée » sur l'écran de fin.
+- Écran de fin : « (hôte) » en gris à côté du nom de l'hôte, sur le podium et dans le tableau (la couronne reste réservée au gagnant), mis à jour si l'hôte change.
+- Écran de fin, tous les modes : récapitulatif par manche, un bandeau par manche (option D validée par Victor), dans une zone qui défile quand la liste est longue (PC et téléphone). Classique, Blast, Précision, Mystère, Élimination, Coopératif : le mot de la manche en cases dans le bandeau, puis chaque joueur « trouvé en N » ou « pas trouvé » (l'hôte écrit `recap_manches/r<n>` = {mot, res} en passant à la suite, calculé depuis `match_data` ; pas de règle Firebase à republier, l'hôte peut écrire dans son salon). Rush et Chaîne : les mots de chaque manche en cases. Mot piégé : « Alice → Bob · mot en cases · trouvé en 3 / pas trouvé », « au hasard » signalé.
+- Pseudo : lettres (accents compris), chiffres et espaces uniquement, 15 caractères au plus, espaces multiples fusionnés et retirés au début et à la fin (`nettoyer_pseudo` / `nettoyerPseudo`, mêmes résultats PC et web) ; les pseudos déjà enregistrés sont nettoyés à la lecture.
+- Tests : « Lobby » visible en haut à gauche pour l'hôte seulement (web et PC, `hote_web.js`, `test_hote_pc.py`).
+
 ## 8.19
 - Comptes : la création affichait « Les comptes ne sont pas encore activés sur le serveur » même avec E-mail/Mot de passe activé. Cause : la protection contre l'énumération des e-mails (activée par défaut sur le projet Firebase) refuse `accounts:update` (« Please verify the new email before changing email »). Le rattachement du joueur anonyme passe désormais par `accounts:signUp` avec son `idToken` (même identifiant), PC et web — vérifié sur le vrai projet avec un compte de test aussitôt supprimé.
 - Tests : le faux serveur refuse maintenant `update` comme le vrai projet (les tests de comptes reçoivent l'opération appelée), ce qui aurait détecté le bug.
