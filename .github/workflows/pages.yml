@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deploiement.outputs.page_url }}
+      url: ${{ steps.deploiement.outputs.page_url || steps.deploiement2.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -34,9 +34,18 @@ jobs:
       - name: Construire la version web
         run: python outils/export_web.py _site
       - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v4
         with:
           path: _site
+      # GitHub ne voit parfois pas encore l'artefact juste après l'envoi (« Found 0 artifact ») : 2e essai 20 s plus tard
       - name: Publier
         id: deploiement
-        uses: actions/deploy-pages@v4
+        continue-on-error: true
+        uses: actions/deploy-pages@v5
+      - name: Attendre avant le 2e essai
+        if: steps.deploiement.outcome == 'failure'
+        run: sleep 20
+      - name: Publier (2e essai)
+        id: deploiement2
+        if: steps.deploiement.outcome == 'failure'
+        uses: actions/deploy-pages@v5
