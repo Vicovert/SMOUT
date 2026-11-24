@@ -2,6 +2,13 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
+## 8.18
+- Téléphone, page de jeu multijoueur (option « A » validée par Victor) : les mini-grilles des adversaires passent en haut (jusqu'à 4 par ligne, cadre avec nom et score), ma grille au milieu prend la hauteur qui reste, le clavier est en bas : tout tient sur un écran, sans défiler, de 2 à 8 joueurs (390×844 et 360×780 ; seul un très petit écran 360×640 à 8 joueurs défile encore un peu). Recalcul automatique quand la hauteur change (textes, Mot piégé). Ordinateur inchangé.
+- Téléphone : plus de bascule « clavier du téléphone », seul le clavier du jeu sert à écrire.
+- Téléphone : plus de zoom de la page au double appui ni au pincement (viewport non zoomable, `touch-action: manipulation`, gestes iOS bloqués ; un 2e appui rapide reste un clic).
+- PC et web, solo et multijoueur : le réglage « taille » (− 100 % +) agrandit ou réduit aussi le clavier (`Clavier.set_zoom` / `--kz`).
+- Tests : `tests/web/jeu_tel.js` (2, 4 et 8 joueurs sur téléphone : adversaires en haut, clavier visible, pas de défilement, zoom), `clavier_tel.js` revu (pas de clavier natif, pas de zoom au double appui, clavier qui suit la taille), clavier zoomé côté PC (solo et partie).
+
 ## 8.17
 - Comptes SMOUT (e-mail + mot de passe, Firebase Authentication), PC et web : « Créer un compte » rattache le joueur de l'appareil à l'adresse (même identifiant, rien n'est perdu) ; « Se connecter » sur un autre PC ou téléphone reprend le même joueur et son avancement (pseudo, thème, thèmes perso, réglages, statistiques, série et mot du jour, partie multijoueur en cours). L'avancement est copié sous `/v7/comptes/<uid>` (lisible par son seul propriétaire), envoyé 2 s après chaque changement et relu au démarrage. On reste connecté tant qu'on ne se déconnecte pas. Mot de passe oublié par e-mail. Accès : fenêtre « Ton pseudo » → section Compte.
 - Retour en pleine partie : fenêtre « Quitter la partie ? » avec Continuer / Quitter la partie / Mettre en pause. En pause, on garde sa place dans le salon et « Reprendre » (accueil du multijoueur) ramène dans la partie, aussi depuis un autre appareil connecté au même compte ; délai de reprise porté de 15 min à 2 h.

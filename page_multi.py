@@ -1038,6 +1038,7 @@ class PageJeu(tk.Frame):
             self.user_zoom = new_zoom
             self.lbl_zoom.config(text=f"{int(self.user_zoom * 100)} %")
             self.actualiser_tailles_grilles(); self.sauver_zoom_pref()
+            if getattr(self, "clavier", None) and self.clavier.winfo_exists(): self.clavier.set_zoom(self.user_zoom)  # le clavier suit la taille de la grille
     def on_resize(self, e):
         if e.widget == self:
             if abs(e.height - getattr(self, "_last_h", 0)) > 30:
@@ -1128,7 +1129,7 @@ class PageJeu(tk.Frame):
         self.labels_moi = self.creer_grille(self.moi_side, "", True)
         try: hf = self.winfo_toplevel().winfo_height()
         except Exception: hf = 860
-        self.clavier = Clavier(self.zone_clavier, self.ajouter_lettre, self.effacer, self.valider, hauteur=50 if hf >= 760 or hf < 200 else 40); self.clavier.pack()
+        self.clavier = Clavier(self.zone_clavier, self.ajouter_lettre, self.effacer, self.valider, hauteur=50 if hf >= 760 or hf < 200 else 40, zoom=self.user_zoom); self.clavier.pack()
 
         hid = dm.get("settings", {}).get("host_id") if dm else None
         self.adv_widgets, self.adv_grids, self.adv_last_word_len = {}, {}, {}

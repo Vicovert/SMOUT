@@ -181,7 +181,7 @@ class PageJeu(tk.Frame):
                 case.grid(row=l, column=c, padx=4, pady=4); ligne.append(case)
             self.grille_labels.append(ligne)
         self.label_message = etiquette(self, "", "texte", 15, P["danger"], True); self.label_message.pack(pady=(8, 4))
-        self.clavier = Clavier(self, self.ajouter_lettre, self.effacer, self.valider, hauteur=self.hauteur_touche()); self.clavier.pack(pady=(0, 16))
+        self.clavier = Clavier(self, self.ajouter_lettre, self.effacer, self.valider, hauteur=self.hauteur_touche(), zoom=lire_zoom()); self.clavier.pack(pady=(0, 16))
         lien = etiquette(self, "Abandonner", "texte", 14, P["texte2"], cursor="hand2"); lien.pack()
         lien.bind("<Button-1>", lambda e: self.gestion_fin("PERDU") if not self.fini_local else None)
         self.overlay_fin = EcranFin(self, ctl.nouvelle_partie, ctl.retour_accueil)
@@ -229,6 +229,7 @@ class PageJeu(tk.Frame):
         t = self.taille_tuile()
         for ligne in self.grille_labels:
             for case in ligne: case.set_taille(t)
+        if getattr(self, "clavier", None): self.clavier.set_zoom(z)  # le clavier suit la taille de la grille
 
     def score_actuel(self, ecoule):
         return max(0, self.score_initial - (ecoule * 2) - self.penalite_dict)

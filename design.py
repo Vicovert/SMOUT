@@ -11,7 +11,7 @@ def _appel_tk_sur(self, *args):
     return _appel_tk(self, *args)
 tk.CallWrapper.__call__ = _appel_tk_sur
 
-VERSION_APP = "8.17"
+VERSION_APP = "8.18"
 URL_WEB = "https://vicovert.github.io/SMOUT/"
 
 def mot_graine(liste_triee, graine, index=0):
@@ -575,23 +575,30 @@ class Curseur(tk.Canvas):
 
 
 class Clavier(tk.Frame):
-    """Clavier AZERTY avec Effacer et Valider intégrés."""
+    """Clavier AZERTY avec Effacer et Valider intégrés. zoom : le réglage « taille » (− 100 % +) agrandit aussi le clavier."""
     RANGS = ["AZERTYUIOP", "QSDFGHJKLM", "WXCVBN"]
-    def __init__(self, parent, on_lettre, on_effacer, on_valider, touche=42, hauteur=50):
+    def __init__(self, parent, on_lettre, on_effacer, on_valider, touche=42, hauteur=50, zoom=1.0):
         super().__init__(parent, bg=fond_parent(parent))
         self.on_lettre, self.on_effacer, self.on_valider = on_lettre, on_effacer, on_valider
-        self.touche, self.h, self.etats, self.canvas = touche, hauteur, {}, {}
+        self.touche0, self.h0, self.etats, self.canvas = touche, hauteur, {}, {}
+        self.set_zoom(zoom)
+    def set_zoom(self, zoom):
+        """(Re)construit les touches à la taille voulue, en gardant leurs couleurs."""
+        self.zoom = max(0.6, min(1.6, float(zoom or 1)))
+        self.touche, self.h = int(round(self.touche0 * self.zoom)), int(round(self.h0 * self.zoom))
+        for w in self.winfo_children(): w.destroy()
+        self.canvas = {}
         for i, rang in enumerate(self.RANGS):
-            f = tk.Frame(self, bg=fond_parent(parent)); f.pack(pady=4)
+            f = tk.Frame(self, bg=self["bg"]); f.pack(pady=4)
             if i == 2: self._speciale(f, "Effacer", self.on_effacer, "tuile")
             for ch in rang:
-                c = tk.Canvas(f, width=touche, height=hauteur, bg=fond_parent(parent), highlightthickness=0, cursor="hand2")
+                c = tk.Canvas(f, width=self.touche, height=self.h, bg=self["bg"], highlightthickness=0, cursor="hand2")
                 c.pack(side="left", padx=4); c.bind("<ButtonRelease-1>", lambda e=None, ch=ch: e is not None and self.on_lettre(ch))  # e absent : appel parasite de Tk, ignoré
-                self.canvas[ch] = c; self.etats[ch] = None; self._dessiner(ch)
+                self.canvas[ch] = c; self.etats.setdefault(ch, None); self._dessiner(ch)
             if i == 2: self._speciale(f, "Valider", self.on_valider, "principal")
     def _speciale(self, f, texte, cmd, variante):
         largeur = self.touche * 2 + 8
-        b = Bouton(f, texte, cmd, largeur=largeur, hauteur=self.h, variante=variante, taille=15, couleur=P["mal"])
+        b = Bouton(f, texte, cmd, largeur=largeur, hauteur=self.h, variante=variante, taille=max(9, round(15 * self.zoom)), couleur=P["mal"])
         b.pack(side="left", padx=4)
     def set_couleur(self, ch, couleur):
         if ch in self.canvas and self.etats.get(ch) != couleur: self.etats[ch] = couleur; self._dessiner(ch)
@@ -604,7 +611,7 @@ class Clavier(tk.Frame):
         else: fill, fg = P["tuile"], P["texte"]
         c.delete("all")
         arrondi(c, 1, 1, w - 1, h - 1, 8, fill=fill, outline="")
-        c.create_text(w / 2, h / 2, text=ch, fill=fg, font=police("chiffres", 17))
+        c.create_text(w / 2, h / 2, text=ch, fill=fg, font=police("chiffres", max(10, round(17 * self.zoom))))
 
 
 class Stat(tk.Frame):
