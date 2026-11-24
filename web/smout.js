@@ -21,7 +21,8 @@ const MODES = [
   ["PIEGE", "Mot piégé", "Choisis le mot d'un autre"],
 ];
 const RUSHS = ["RUSH", "CHAINE"];
-const MAX_JOUEURS = 8;  // joueurs par salon (identique au PC et aux règles Firebase : index/nb ≤ 8)
+const MAX_JOUEURS = 8;
+const DELAI_REPRISE = 7200;  // « Reprendre » est proposé pendant 2 h après la pause ou l'interruption (tant que le salon existe)  // joueurs par salon (identique au PC et aux règles Firebase : index/nb ≤ 8)
 const TEMPS_POSSIBLES = [15, 30, 45, 60, 90, 120, 150, 180, 240, 300, 360, 420, 480, 540, 600];  // pas du réglage du temps (s)
 // chaque mode a sa couleur (identique à COULEURS_MODES de page_multi.py) et une règle en une phrase
 const COULEURS_MODES = { CLASSIQUE: "#F5B83D", BLAST: "#FF6B6B", PRECISION: "#4CC9F0", MYSTERE: "#A78BFA", RUSH: "#FF8FC7", ELIMINATION: "#FF9F43", CHAINE: "#2DD4BF", COOP: "#7ED957", PIEGE: "#5B7CFA" };
@@ -97,7 +98,8 @@ const capitaliser = s => s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase(
 /* ------------------------------------------------------------------ configuration (équivalent de config.json) */
 const CLE_CONFIG = "smout_config";
 const lireConfig = () => { try { return JSON.parse(localStorage.getItem(CLE_CONFIG)) || {}; } catch (e) { return {}; } };
-function majConfig(v) { const c = Object.assign(lireConfig(), v); try { localStorage.setItem(CLE_CONFIG, JSON.stringify(c)); } catch (e) {} return c; }
+const APRES_MAJ_CONFIG = [];  // fonctions appelées avec les clés modifiées (Compte : envoi de l'avancement au compte)
+function majConfig(v) { const c = Object.assign(lireConfig(), v); try { localStorage.setItem(CLE_CONFIG, JSON.stringify(c)); } catch (e) {} for (const f of APRES_MAJ_CONFIG) { try { f(Object.keys(v)); } catch (e) {} } return c; }
 const aujourdhui = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 const hier = () => { const d = new Date(); d.setDate(d.getDate() - 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 function serieMotDuJour() {
@@ -167,6 +169,13 @@ function fusionCoop(md, essais) {
   return tout.slice(0, essais);
 }
 
+/* joueur qui reprend le rôle d'hôte : le premier arrivé dans le salon (heure « arrivee »), hors « exclu » ; même calcul que successeur() de page_multi.py */
+function successeur(joueurs, exclu = null, actifs = null) {
+  const c = (actifs || Object.keys(joueurs)).filter(p => p !== exclu && p in joueurs);
+  if (!c.length) return null;
+  const cle = p => ((joueurs[p] || {}).arrivee || 9e15);
+  return c.sort((a, b) => cle(a) - cle(b) || (a < b ? -1 : a > b ? 1 : 0))[0];
+}
 /* adversaires (mini-grilles) : [colonnes, taille de case, dense] qui remplissent au mieux la zone larg x haut (px) ; même calcul que disposition_adv de page_multi.py
    (dense : nom et score au-dessus de la grille, à partir de 3 adversaires si cela permet des cases plus grandes) */
 function dispositionAdv(nb, essais, longueur, larg, haut) {
@@ -510,10 +519,50 @@ function changerPseudo(apres) {
   ch.addEventListener("input", () => { const v = ch.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 15); if (v !== ch.value) ch.value = v; });
   const ok = () => { if (ch.value) { majConfig({ pseudo: ch.value }); apres(); } else o.cacher(); };
   ch.addEventListener("keydown", e => e.key === "Enter" && ok());
+  // compte : retrouver son avancement sur tous ses appareils
+  const cfg = lireConfig(), em = cfg.compte_email;
+  const zoneCompte = em
+    ? h("div.col", {}, h("div", { style: { marginTop: "4px" } }, `Connecté : ${em}`),
+        h("div.t2", { style: { fontSize: "13px", margin: "2px 0 12px" } }, "Ton avancement est enregistré sur ce compte et suit sur tous tes appareils."),
+        bouton("Se déconnecter", () => { if (confirm("Se déconnecter du compte sur cet appareil ?\nTon avancement reste enregistré sur le compte.")) { Compte.deconnecter(); o.cacher(); apres(); } }, { variante: "discret", largeur: 200, hauteur: 42 }))
+    : h("div.col", {}, cfg.compte_expire ? h("div.gras", { style: { color: "var(--danger)", marginTop: "4px" } }, "Ta session a expiré : reconnecte-toi.") : null,
+        h("div.t2", { style: { fontSize: "13px", margin: "4px 0 12px" } }, "Crée un compte pour retrouver ton avancement (statistiques, série, thèmes, partie en cours) sur tous tes appareils."),
+        bouton("Se connecter ou créer un compte", () => { o.cacher(); ouvrirCompte(apres); }, { variante: "secondaire", largeur: 300, hauteur: 44 }));
   const o = superposition(h("div.col", {}, h("div.titre", { style: { fontSize: "28px" } }, "Ton pseudo"),
     h("div.t2", { style: { margin: "4px 0 16px" } }, "Il s'affiche pour les autres joueurs en multijoueur."), ch,
-    h("div.ligne", { style: { justifyContent: "flex-end", gap: "10px", marginTop: "20px" } }, bouton("Annuler", () => o.cacher(), { variante: "discret", largeur: 130 }), bouton("Enregistrer", ok, { largeur: 160 }))), 460);
+    h("div.ligne", { style: { justifyContent: "flex-end", gap: "10px", marginTop: "20px" } }, bouton("Annuler", () => o.cacher(), { variante: "discret", largeur: 130 }), bouton("Enregistrer", ok, { largeur: 160 })),
+    h("div", { style: { height: "1px", background: "var(--bordure)", margin: "22px 0 14px" } }), h("div.gras", { style: { fontSize: "17px" } }, "Compte"), zoneCompte), 460);
   o.montrer(); ch.focus();
+}
+// connexion à un compte existant, création d'un compte (le joueur de cet appareil y est rattaché) ou mot de passe oublié
+function ouvrirCompte(apres) {
+  if (typeof apres !== "function") apres = accueil;
+  const champ = (type, auto) => h("input.champ", { type, autocomplete: auto, style: { width: "420px", maxWidth: "80vw", fontSize: "16px" } });
+  const mail = champ("email", "email"), mdp = champ("password", "current-password");
+  const msg = h("div.gras", { style: { fontSize: "14px", minHeight: "20px", marginTop: "6px", color: "var(--danger)" } });
+  const dire = (t, c = "var(--danger)") => { msg.textContent = t; msg.style.color = c; };
+  async function agir(action) {
+    dire("Connexion…", "var(--texte2)");
+    const err = await action.call(Compte, mail.value, mdp.value);
+    if (err) return dire(err);
+    o.cacher(); chargerTheme(); apres();
+  }
+  async function oublie() {
+    if (!mail.value.includes("@")) return dire("Entre d'abord ton adresse e-mail.");
+    const err = await Compte.reinitialiser(mail.value);
+    dire(err || `Un e-mail pour choisir un nouveau mot de passe a été envoyé à ${mail.value.trim()}.`, err ? "var(--danger)" : "var(--succes)");
+  }
+  mdp.addEventListener("keydown", e => e.key === "Enter" && agir(Compte.connecter));
+  const lab = t => h("div.t2.gras", { style: { fontSize: "14px", margin: "10px 0 2px" } }, t);
+  const o = superposition(h("div.col", {}, h("div.titre", { style: { fontSize: "28px" } }, "Mon compte"),
+    h("div.t2", { style: { margin: "4px 0 6px" } }, "Le même compte sur ton PC, ton téléphone et le site : tu retrouves partout ton avancement."),
+    lab("E-mail"), mail, lab("Mot de passe (6 caractères minimum)"), mdp, msg,
+    h("button.lien", { style: { alignSelf: "flex-start", marginTop: "6px" }, onclick: oublie }, "Mot de passe oublié ?"),
+    h("div.ligne", { style: { justifyContent: "flex-end", gap: "8px", marginTop: "18px", flexWrap: "wrap" } },
+      bouton("Annuler", () => o.cacher(), { variante: "discret", largeur: 110 }),
+      bouton("Créer le compte", () => agir(Compte.creer), { variante: "secondaire", largeur: 160 }),
+      bouton("Se connecter", () => agir(Compte.connecter), { largeur: 150 }))), 480);
+  o.montrer(); mail.focus();
 }
 
 /* ------------------------------------------------------------------ solo (modes : libre, mdj, marathon) */
@@ -874,6 +923,8 @@ function nuancier(onchange) {
 const FB = {
   uid: "", jetonId: null, refresh: lireConfig().auth_refresh || null, expire: 0, offset: 0, enCours: null,  // même joueur d'une visite à l'autre (reprise de partie)
   async jeton() {
+    const rt = lireConfig().auth_refresh || null;
+    if (rt !== this.refresh) { this.refresh = rt; this.jetonId = null; this.expire = 0; }  // connexion / déconnexion faite sur la page Compte
     if (this.jetonId && Date.now() / 1000 < this.expire - 120) return this.jetonId;
     if (this.enCours) return this.enCours;
     this.enCours = (async () => {
@@ -881,6 +932,7 @@ const FB = {
         if (this.refresh) {
           const r = await fetch(`https://securetoken.googleapis.com/v1/token?key=${FIREBASE_API_KEY}`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(this.refresh)}` });
           if (r.ok) { const d = await r.json(); this.appliquer(d.id_token, d.refresh_token, d.user_id, d.expires_in); return this.jetonId; }
+          if (lireConfig().compte_email) majConfig({ compte_email: null, compte_sync: null, compte_expire: true });  // session du compte refusée (mot de passe changé…) : déconnecté
         }
         const r = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_API_KEY}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ returnSecureToken: true }) });
         if (r.ok) { const d = await r.json(); this.appliquer(d.idToken, d.refreshToken, d.localId, d.expiresIn); }
@@ -912,6 +964,79 @@ const FB = {
 };
 const SV = { ".sv": "timestamp" };
 
+/* ------------------------------------------------------------------ compte (identique à compte.py)
+   Sans compte : un joueur anonyme par appareil. « Créer un compte » rattache ce joueur à l'e-mail (même identifiant) ;
+   « Se connecter » ailleurs reprend ce joueur et son avancement (le compte remplace les données de l'appareil).
+   L'avancement est copié sous /v7/comptes/<uid> (lisible par son seul propriétaire), envoyé après chaque changement, relu au chargement. */
+const CLES_SYNCHRO = ["pseudo", "theme", "custom_themes", "daltonien", "user_zoom", "nb_essais", "nb_lettres_min", "nb_lettres_max", "difficile",
+  "stats", "last_mdj", "mdj_serie", "mdj_dernier_gagne", "mdj_en_cours", "partie_en_cours"];
+const ERREURS_COMPTE = {
+  EMAIL_EXISTS: "Cette adresse a déjà un compte : utilise « Se connecter ».", INVALID_EMAIL: "Adresse e-mail invalide.", MISSING_PASSWORD: "Entre un mot de passe.",
+  WEAK_PASSWORD: "Mot de passe trop court (6 caractères minimum).", INVALID_LOGIN_CREDENTIALS: "E-mail ou mot de passe incorrect.",
+  INVALID_PASSWORD: "E-mail ou mot de passe incorrect.", EMAIL_NOT_FOUND: "E-mail ou mot de passe incorrect.", USER_DISABLED: "Ce compte est désactivé.",
+  TOO_MANY_ATTEMPTS_TRY_LATER: "Trop d'essais : réessaie dans quelques minutes.", OPERATION_NOT_ALLOWED: "Les comptes ne sont pas encore activés sur le serveur.",
+  CREDENTIAL_TOO_OLD_LOGIN_AGAIN: "Reconnecte-toi puis réessaie." };
+const PAS_DE_RESEAU = "Connexion au serveur impossible. Vérifie ta connexion internet.";
+const Compte = {
+  minuteur: null, bloque: false,
+  email() { return lireConfig().compte_email || null; },
+  async identite(op, corps) {
+    const r = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:${op}?key=${FIREBASE_API_KEY}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corps) });
+    let d = null; try { d = await r.json(); } catch (e) {} return { ok: r.ok, d };
+  },
+  erreur(d) { const c = String((((d || {}).error) || {}).message || "").split(" ")[0]; return ERREURS_COMPTE[c] || (c ? "Erreur du serveur : " + c : PAS_DE_RESEAU); },
+  // crée le compte en y rattachant le joueur de cet appareil (même identifiant, avancement conservé) ; renvoie null ou un message d'erreur
+  async creer(mail, mdp) {
+    mail = (mail || "").trim().toLowerCase();
+    try {
+      const t = await FB.jeton(); if (!t) return PAS_DE_RESEAU;
+      const { ok, d } = await this.identite("update", { idToken: t, email: mail, password: mdp || "", returnSecureToken: true });
+      if (!ok) return this.erreur(d);
+      if (d.idToken) FB.appliquer(d.idToken, d.refreshToken, d.localId, d.expiresIn || 3600);
+      majConfig({ compte_email: mail, compte_expire: null }); await this.pousser(); return null;
+    } catch (e) { return PAS_DE_RESEAU; }
+  },
+  // connexion : l'avancement du compte remplace celui de l'appareil (s'il n'en a pas, celui de l'appareil est envoyé)
+  async connecter(mail, mdp) {
+    mail = (mail || "").trim().toLowerCase();
+    try {
+      const { ok, d } = await this.identite("signInWithPassword", { email: mail, password: mdp || "", returnSecureToken: true });
+      if (!ok) return this.erreur(d);
+      FB.appliquer(d.idToken, d.refreshToken, d.localId, d.expiresIn || 3600);
+      majConfig({ compte_email: mail, compte_sync: null, compte_expire: null });
+      if (!(await this.tirer())) await this.pousser(); return null;
+    } catch (e) { return PAS_DE_RESEAU; }
+  },
+  async reinitialiser(mail) {
+    try { const { ok, d } = await this.identite("sendOobCode", { requestType: "PASSWORD_RESET", email: (mail || "").trim().toLowerCase() }); return ok ? null : this.erreur(d); }
+    catch (e) { return PAS_DE_RESEAU; }
+  },
+  // quitte le compte sur cet appareil : l'avancement local reste, un nouveau joueur anonyme sera créé au besoin
+  deconnecter() { majConfig({ compte_email: null, compte_sync: null, auth_refresh: null }); FB.jetonId = null; FB.refresh = null; FB.uid = ""; FB.expire = 0; },
+  async pousser() {
+    if (!this.email() || !(await FB.jeton())) return false;
+    const c = lireConfig(), donnees = Object.fromEntries(CLES_SYNCHRO.filter(k => k in c).map(k => [k, c[k]]));
+    if (!(await FB.ok("PUT", `comptes/${FB.uid}`, { maj: SV, donnees: JSON.stringify(donnees) }))) return false;
+    const m = await FB.get(`comptes/${FB.uid}/maj`); if (typeof m === "number") majConfig({ compte_sync: m }); return true;
+  },
+  // relit le compte : s'il est plus récent que la dernière synchronisation, il remplace l'avancement de l'appareil (true si appliqué)
+  async tirer() {
+    if (!this.email() || !(await FB.jeton())) return false;
+    const d = await FB.get(`comptes/${FB.uid}`);
+    if (!d || typeof d.maj !== "number" || d.maj <= (lireConfig().compte_sync || 0)) return false;
+    let donnees = {}; try { donnees = JSON.parse(d.donnees || "{}"); } catch (e) {}
+    const maj = Object.fromEntries(CLES_SYNCHRO.map(k => [k, k in donnees ? donnees[k] : null])); maj.compte_sync = d.maj;
+    this.bloque = true; try { majConfig(maj); } finally { this.bloque = false; }
+    return true;
+  },
+  apresMaj(cles) {  // envoi automatique, regroupé (au plus un envoi toutes les 2 s)
+    if (this.bloque || !this.email() || !cles.some(k => CLES_SYNCHRO.includes(k)) || this.minuteur) return;
+    this.minuteur = setTimeout(() => { this.minuteur = null; this.pousser(); }, 2000);
+  },
+  async demarrer() { if (this.email() && (await this.tirer())) { chargerTheme(); if (enAccueil) accueil(); } },
+};
+APRES_MAJ_CONFIG.push(cles => Compte.apresMaj(cles));
+
 /* ------------------------------------------------------------------ multijoueur : état commun (équivalent de PageMulti) */
 const M = {
   lobby: "", estHote: false, score: 0, reglages: { essais: 8, min: 6, max: 7, rounds: 3, round_num: 1, timer: 180, password: "", visible: true, game_mode: "CLASSIQUE" },
@@ -927,7 +1052,7 @@ const M = {
     // retiré du salon (ancien client, longue mise en veille) : on s'y réinscrit tout seul, sans déconnexion
     if (Date.now() - (this.dernierRetour || 0) > 3000) {
       this.dernierRetour = Date.now();
-      const moi = { name: this.pseudo(), score: this.score, last_seen: SV }, preuve = await preuveSalon(lobby, this.reglages.password || "");
+      const moi = { name: this.pseudo(), score: this.score, last_seen: SV, arrivee: SV }, preuve = await preuveSalon(lobby, this.reglages.password || "");
       if (preuve) moi.preuve = preuve;
       if (await FB.ok("PUT", `lobbies/${lobby}/players/${FB.uid}`, moi)) {
         const d2 = await FB.get(`lobbies/${lobby}`);
@@ -971,13 +1096,16 @@ const M = {
     const ss = dd.settings || {}; ss.rush_seed = 1000 + Math.floor(Math.random() * 999000); this.statut = "waiting";
     FB.put(`lobbies/${this.lobby}`, { status: "waiting", maj: SV, players: pp, settings: ss, match_data: null, fini_states: null, round_wins: null, rush_recap: null, piege_pret: null, piege_essais: null, piege_verdicts: null, piege_recap: null });
   },
+  // mise en pause : on garde sa place dans le salon (rien n'est supprimé) ; « Reprendre » y ramène, depuis n'importe quel appareil
+  // connecté au même compte. Un hôte en pause est relayé par le premier arrivé, comme un hôte inactif.
+  pause() { if (!this.lobby) return; this.memoriser(); this.lobby = ""; this.gen++; },
   async quitter(keepalive = false) {
     if (!this.lobby) return; const code = this.lobby; this.lobby = ""; this.gen++; if (!keepalive) this.oublier();  // départ volontaire
     const d = await FB.get(`lobbies/${code}`);
     if (!d) return;
     const joueurs = d.players || {};
     if ((d.settings || {}).host_id === FB.uid && Object.keys(joueurs).length > 1) {
-      const nouvel = Object.keys(joueurs).filter(p => p !== FB.uid).sort()[0];
+      const nouvel = successeur(joueurs, FB.uid);
       await FB.ok("PATCH", `lobbies/${code}/settings`, { host_id: nouvel }); await FB.ok("PATCH", `index/${code}`, { owner: nouvel });
     }
     if (joueurs[FB.uid]) { await FB.req("DELETE", `lobbies/${code}/players/${FB.uid}`, undefined, keepalive); delete joueurs[FB.uid]; }
@@ -997,7 +1125,7 @@ function barreHaut(onRetour, droite = "") {
 const pseudoDefini = () => pseudo() && pseudo() !== "ANONYME";
 const pseudoOk = retour => { if (pseudoDefini()) return true; changerPseudo(retour); return false; };
 async function rejoindre(c, motDePasse, silencieux = false, score = null) {
-  const joueur = { name: pseudo(), score: score || 0, last_seen: SV }; const preuve = await preuveSalon(c, motDePasse);
+  const joueur = { name: pseudo(), score: score || 0, last_seen: SV, arrivee: SV }; const preuve = await preuveSalon(c, motDePasse);
   if (preuve) joueur.preuve = preuve;
   if (!(await FB.ok("PUT", `lobbies/${c}/players/${FB.uid}`, joueur))) { if (!silencieux) alert("Salon introuvable"); return false; }
   const d = await FB.get(`lobbies/${c}`) || {};
@@ -1014,7 +1142,7 @@ async function multiAccueil() {
   const zoneReprise = h("div");
   function afficherReprise() {
     zoneReprise.innerHTML = ""; const pe = lireConfig().partie_en_cours;
-    if (!pe || Date.now() / 1000 - (pe.t || 0) > 900) return;
+    if (!pe || Date.now() / 1000 - (pe.t || 0) > DELAI_REPRISE) return;
     zoneReprise.append(h("div.panneau.ligne", { style: { marginBottom: "18px", padding: "14px 18px", gap: "10px", flexWrap: "wrap", boxShadow: "inset 0 0 0 1.5px var(--mal)" } },
       h("div.gras", { style: { fontSize: "16px", flex: 1, minWidth: "190px" } }, `Partie interrompue · salon ${pe.code}`),
       bouton("Reprendre", () => reprendre(pe), { largeur: 150, hauteur: 44 }), bouton("Ignorer", () => { M.oublier(); afficherReprise(); }, { variante: "discret", largeur: 110, hauteur: 44 })));
@@ -1114,7 +1242,7 @@ function creerSalon() {
       if (!(await FB.ok("DELETE", `lobbies/${code}`))) continue;  // refusé si le salon existe et est actif
       const preuve = await preuveSalon(code, sc.password);
       if (!(preuve ? await FB.ok("PUT", `secrets/${code}`, preuve) : await FB.ok("DELETE", `secrets/${code}`))) continue;
-      const hote = { name: pseudo(), score: 0, last_seen: SV }; if (preuve) hote.preuve = preuve;
+      const hote = { name: pseudo(), score: 0, last_seen: SV, arrivee: SV }; if (preuve) hote.preuve = preuve;
       if (await FB.ok("PUT", `lobbies/${code}`, { status: "waiting", maj: SV, settings: { game_mode: sc.game_mode, rounds: 3, essais: 8, min: 6, max: 7, timer: 180, host_id: uid, visible: sc.visible, version: VERSION_JEU }, players: { [uid]: hote } })) {
         M.lobby = code; M.estHote = true; M.score = 0; M.vuOk = Date.now(); M.nbJoueurs = 1; M.statut = "waiting"; M.majIndex(); M.demarrerBattement(); salon(); return;
       }
@@ -1181,11 +1309,17 @@ function salon() {
     sTemps.set(t); cRounds.set(r); majModes(); sync();
   }
   [cLettres, cRounds, sEssais, sTemps].forEach(w => { const s0 = w.set; w.set = (...a) => { s0(...a); majModes(); }; });  // le bandeau suit les réglages
-  function dessinerJoueur(slot, i, nom, hote, deco, moi) {
+  function dessinerJoueur(slot, i, nom, hote, deco, moi, donner) {  // donner : « Donner l'hôte » (affiché pour l'hôte sur la ligne des autres joueurs)
     slot.className = "joueur" + (nom ? " plein" : ""); slot.innerHTML = ""; slot.style.setProperty("--jc", COULEURS_AVATAR[i % 6]);
     if (!nom) { slot.append(h("div.avatar", { style: { width: "36px", height: "36px", background: "var(--vide)" } }), h("span.n", { style: { color: "var(--texte-absent)" } }, "Place libre")); return; }
     slot.append(...[avatar(nom, 36, i), h("span.n", {}, capitaliser(nom) + (moi ? " (vous)" : "")),
+      donner ? h("button.lien.r.donner-hote", { style: { color: "var(--mal)", fontWeight: 600, fontSize: "14px" }, onclick: donner }, "Donner l'hôte") :
       deco ? h("span.r", { style: { color: "var(--danger)", fontWeight: 400 } }, "Déconnecté") : hote ? h("span.r.ligne", { style: { color: "var(--mal)", gap: "6px" }, html: `<svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linejoin:round">${SVG.couronne}</svg>Hôte` }) : null].filter(Boolean));
+  }
+  // l'hôte passe son rôle à un autre joueur du salon (après confirmation)
+  async function donnerHote(pid, nom) {
+    if (!M.estHote || !confirm(`Donner le rôle d'hôte à ${capitaliser(nom)} ?\nC'est lui qui choisira le mode et lancera la partie.`)) return;
+    if (await FB.ok("PATCH", `lobbies/${M.lobby}/settings`, { host_id: pid })) { M.estHote = false; FB.patch(`index/${M.lobby}`, { owner: pid }); }
   }
   async function boucle() {
     while (gen === M.gen && M.lobby) {
@@ -1198,7 +1332,7 @@ function salon() {
         // un joueur inactif reste dans le salon (affiché « Déconnecté ») : pas d'exclusion pour inactivité
         let actifsL = Object.keys(p).filter(pid => !serverNow || serverNow - (p[pid].last_seen || 0) <= 25000); if (!actifsL.length) actifsL = Object.keys(p);
         let hid = s.host_id;
-        if (!actifsL.includes(hid)) { hid = actifsL.sort()[0]; if (hid === FB.uid) FB.patch(`lobbies/${M.lobby}/settings`, { host_id: hid }); }  // hôte parti ou inactif : relais
+        if (!actifsL.includes(hid)) { hid = successeur(p, null, actifsL); if (hid === FB.uid) FB.patch(`lobbies/${M.lobby}/settings`, { host_id: hid }); }  // hôte parti ou inactif : relais
         M.estHote = s.host_id === FB.uid; M.nbJoueurs = Object.keys(p).length; M.statut = d.status || "waiting";
         const hn = (p[hid] || {}).name;
         titre.textContent = hn ? `Salon de ${capitaliser(hn)}` : "Salon";
@@ -1210,7 +1344,8 @@ function salon() {
         majModes();
         if (d.status === "playing") { Object.assign(M.reglages, s); M.reglages.round_num = s.current_round || 1; partie(); return; }
         const pids = Object.keys(p);
-        slots.forEach((sl, i) => { const pid = pids[i]; if (pid) dessinerJoueur(sl, i, p[pid].name, pid === hid, serverNow > 0 && (serverNow - (p[pid].last_seen || 0)) / 1000 > 12, pid === FB.uid); else dessinerJoueur(sl, i); });
+        slots.forEach((sl, i) => { const pid = pids[i]; if (pid) dessinerJoueur(sl, i, p[pid].name, pid === hid, serverNow > 0 && (serverNow - (p[pid].last_seen || 0)) / 1000 > 12, pid === FB.uid,
+          M.estHote && pid !== FB.uid && pid !== hid ? () => donnerHote(pid, p[pid].name) : null); else dessinerJoueur(sl, i); });
         const n = pids.length;
         statut.textContent = `En attente des joueurs · ${n} sur ${MAX_JOUEURS}` + (M.reglages.visible ? "" : "  ·  salon privé");
         [cRounds, sEssais, cLettres, sTemps].forEach(w => w.activer(M.estHote)); Object.values(cartes).forEach(c => c.disabled = !M.estHote);
@@ -1327,7 +1462,7 @@ async function partie() {
   }
   const zm = h("span.t2", { style: { fontSize: "13px", minWidth: "44px", textAlign: "center" } }, `${Math.round((lireConfig().user_zoom || 1) * 100)} %`);
   const zoom = d => { const z = Math.round(Math.max(0.6, Math.min(1.6, (lireConfig().user_zoom || 1) + d)) * 100) / 100; majConfig({ user_zoom: z }); zm.textContent = `${Math.round(z * 100)} %`; gMoi.cases.flat().forEach(t => t.taille(tailleMoi())); G.casesChoix?.forEach?.(t => t.taille(tailleMoi())); };
-  ecran(h("div.entete", {}, icone("retour", quitterJeu, false, "Quitter"), info, h("div.ligne", {}, btnSalon, icone("moins", () => zoom(-0.1), false, "Réduire"), zm, icone("plus", () => zoom(0.1), false, "Agrandir"))),
+  ecran(h("div.entete", {}, (e => { e.dataset.dialogue = "1"; return e; })(icone("retour", quitterJeu, false, "Quitter")), info, h("div.ligne", {}, btnSalon, icone("moins", () => zoom(-0.1), false, "Réduire"), zm, icone("plus", () => zoom(0.1), false, "Agrandir"))),
     h("div.ligne", { style: { alignItems: "flex-start", flexWrap: "wrap", justifyContent: "center" } },
       h("div.centre", { style: { flex: 1, minWidth: "320px" } }, h("div.stats", { style: { marginTop: "4px", gap: "min(68px, 7.5vw)" } }, sM, sT, sS), zoneMoi, h("div.ligne", { style: { gap: "8px", margin: "8px 0 4px" } }, msg, lienDef), suivant, h("div", { style: { margin: "4px 0 16px" } }, kb)),
       advZone));
@@ -1339,7 +1474,16 @@ async function partie() {
     if (c && ALPHABET.includes(c)) ajouter(c); else if (e.key === "Backspace") effacer(); else if (e.key === "Enter") valider(); else return;
     e.preventDefault();
   };
-  function quitterJeu() { M.quitter(); accueil(); }
+  // retour pendant la partie : mettre en pause (on garde sa place et on revient par « Reprendre ») ou quitter définitivement
+  function quitterJeu() {
+    const o = superposition(h("div.col", {}, h("div.titre", { style: { fontSize: "26px" } }, "Quitter la partie ?"),
+      h("div.t2", { style: { margin: "6px 0 18px" } }, "En pause, tu gardes ta place dans le salon : « Reprendre » (accueil du multijoueur) te ramène dans la partie, aussi depuis un autre appareil connecté à ton compte."),
+      h("div.ligne", { style: { justifyContent: "flex-end", gap: "8px", flexWrap: "wrap" } },
+        bouton("Continuer", () => o.cacher(), { variante: "discret", largeur: 120 }),
+        bouton("Quitter la partie", () => { o.cacher(); enJeu = false; M.quitter(); accueil(); }, { variante: "secondaire", largeur: 170 }),
+        bouton("Mettre en pause", () => { o.cacher(); enJeu = false; M.pause(); multiAccueil(); }, { largeur: 170 }))), 500);
+    o.montrer();
+  }
   const maxTape = () => mode === "MYSTERE" ? G.mot.length - 1 : G.mot.length;
   function maj() {
     piegeFrappe();
@@ -1737,7 +1881,7 @@ async function partie() {
     let hid = s.host_id;
     let actifs = Object.keys(p).filter(pid => serverNow === 0 || (serverNow - (p[pid].last_seen || 0)) / 1000 <= 15);
     if (!actifs.length) actifs = Object.keys(p);
-    if (actifs.length && !actifs.includes(hid)) { const nh = [...actifs].sort()[0]; if (nh === FB.uid) FB.patch(`lobbies/${M.lobby}/settings`, { host_id: nh }); hid = nh; }
+    if (actifs.length && !actifs.includes(hid)) { const nh = successeur(p, null, actifs); if (nh === FB.uid) FB.patch(`lobbies/${M.lobby}/settings`, { host_id: nh }); hid = nh; }
     M.estHote = s.host_id === FB.uid; M.nbJoueurs = Object.keys(p).length; M._dernierSalon = d;
     btnSalon.classList.toggle("cache", !M.estHote);
     sM.set(String(s.current_round || 1), null, ` / ${s.rounds || 1}`);
@@ -1899,7 +2043,7 @@ async function resultats() {
     armer();
     if (ouvert) { ouvert.classList.add("cache"); return; }  // une fenêtre ouverte : on la ferme d'abord
     const b = document.querySelector('button.icone[aria-label="Retour"], button.icone[aria-label="Quitter"]');
-    if (enJeu && !confirm("Quitter la partie en cours ?")) return;
+    if (enJeu && !(b && b.dataset.dialogue) && !confirm("Quitter la partie en cours ?")) return;  // multijoueur : la fenêtre « Quitter la partie ? » s'en charge
     if (b) b.click(); else accueil();
   });
 }
@@ -1908,4 +2052,5 @@ async function resultats() {
 chargerTheme();
 {
   accueil();
+  Compte.demarrer();  // compte : relit l'avancement plus récent enregistré depuis un autre appareil
 }

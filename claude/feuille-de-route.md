@@ -2,6 +2,13 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
+## 8.17
+- Comptes SMOUT (e-mail + mot de passe, Firebase Authentication), PC et web : « Créer un compte » rattache le joueur de l'appareil à l'adresse (même identifiant, rien n'est perdu) ; « Se connecter » sur un autre PC ou téléphone reprend le même joueur et son avancement (pseudo, thème, thèmes perso, réglages, statistiques, série et mot du jour, partie multijoueur en cours). L'avancement est copié sous `/v7/comptes/<uid>` (lisible par son seul propriétaire), envoyé 2 s après chaque changement et relu au démarrage. On reste connecté tant qu'on ne se déconnecte pas. Mot de passe oublié par e-mail. Accès : fenêtre « Ton pseudo » → section Compte.
+- Retour en pleine partie : fenêtre « Quitter la partie ? » avec Continuer / Quitter la partie / Mettre en pause. En pause, on garde sa place dans le salon et « Reprendre » (accueil du multijoueur) ramène dans la partie, aussi depuis un autre appareil connecté au même compte ; délai de reprise porté de 15 min à 2 h.
+- Hôte : bouton « Donner l'hôte » sur la ligne de chaque joueur du salon ; si l'hôte part, le relais va au premier arrivé dans le salon (heure d'arrivée `arrivee`), et non plus au plus petit identifiant.
+- Règles Firebase : `comptes/<uid>` ; **à republier**, et **activer E-mail/Mot de passe** dans Authentication (sans quoi la création de compte affiche « Les comptes ne sont pas encore activés sur le serveur »). `VERSION_JEU` inchangée (8.10).
+- Tests : règles 83/83, comptes web 16/16 puis PC 20/20 (compte créé sur le web repris sur PC), salon et partie (donner l'hôte, pause, reprise, relais au premier arrivé) web 15/15 et PC 15/15.
+
 ## 8.16
 - Mot piégé : on voit en permanence chez les autres joueurs (sauf soi) le mot qu'ils doivent trouver (« Mot à trouver : … » sous leur grille, dès que la devinette est lancée), ce qu'ils tapent en direct (ligne en cours, publiée au plus 5 fois par seconde) et les lettres de leurs essais. Avec « Cible cachée », la cible du mot qu'on a choisi n'est révélée qu'à partir de la devinette.
 - Thème de chaque joueur : sa grille garde SES couleurs (bien placé, mal placé, absent, fond) chez tous les autres, dans tous les modes multijoueur, PC et web (`players/<uid>/theme`, publié au début de chaque manche).

@@ -18,36 +18,7 @@ def preuve_salon(code, mot_de_passe):
 
 mot_graine = design.mot_graine
 
-class AuthFirebase:
-    """Connexion anonyme Firebase (jeton renouvelé automatiquement, sans compte à créer)."""
-    def __init__(self, session):
-        self.session, self.lock = session, threading.Lock()
-        self.uid = self.id_token = None
-        self.refresh_token = design.lire_config().get("auth_refresh")  # même joueur d'un lancement à l'autre (reprise de partie)
-        self.expire = 0
-
-    def _appliquer(self, id_token, refresh_token, uid, expires_in):
-        if refresh_token != self.refresh_token: design.maj_config(auth_refresh=refresh_token)
-        self.id_token, self.refresh_token, self.uid = id_token, refresh_token, uid
-        self.expire = time.time() + int(expires_in)
-
-    def jeton(self):
-        with self.lock:
-            if self.id_token and time.time() < self.expire - 120: return self.id_token
-            try:
-                if self.refresh_token:
-                    r = self.session.post(f"https://securetoken.googleapis.com/v1/token?key={FIREBASE_API_KEY}",
-                                          data={"grant_type": "refresh_token", "refresh_token": self.refresh_token}, timeout=5)
-                    if r.status_code == 200:
-                        d = r.json(); self._appliquer(d["id_token"], d["refresh_token"], d["user_id"], d["expires_in"])
-                        return self.id_token
-                r = self.session.post(f"https://identitytoolkit.googleapis.com/v1/accounts:signUp?key={FIREBASE_API_KEY}",
-                                      json={"returnSecureToken": True}, timeout=5)
-                if r.status_code == 200:
-                    d = r.json(); self._appliquer(d["idToken"], d["refreshToken"], d["localId"], d["expiresIn"])
-            except Exception: traceback.print_exc()
-            return self.id_token
-
+from compte import AuthFirebase  # connexion Firebase partagée avec le compte (même joueur sur tous les appareils une fois connecté)
 
 
 # ===================================================================== thème
@@ -71,6 +42,7 @@ MODES = [
 ]
 NOM_MODE = {m: n for m, n, _ in MODES}
 RUSHS = ("RUSH", "CHAINE")  # modes « un maximum de mots avant la fin du temps »
+DELAI_REPRISE = 7200  # « Reprendre » est proposé pendant 2 h après la pause ou l'interruption (tant que le salon existe)
 MAX_JOUEURS = 8  # joueurs par salon (identique au web et aux règles Firebase : index/nb ≤ 8)
 TEMPS_POSSIBLES = (15, 30, 45, 60, 90, 120, 150, 180, 240, 300, 360, 420, 480, 540, 600)  # pas du réglage du temps (s)
 LARGEUR_REGLAGES = 628  # largeur des réglages du salon (3 cartes de mode de 204 px)
@@ -111,6 +83,14 @@ def fusion_coop(md, essais):
     return tout[:essais]
 
 PIEGE_FIN_INFINIE = 32503680000000  # Mot piégé : fin du choix (ms, an 3000) tant que l'hôte ne l'a pas fixée : on choisit sans limite de temps
+
+
+def successeur(joueurs, exclu=None, actifs=None):
+    """Joueur qui reprend le rôle d'hôte : le premier arrivé dans le salon (heure d'arrivée « arrivee »), hors « exclu ».
+    Même choix chez tous les joueurs (même calcul que successeur() de web/smout.js) ; None s'il n'y a personne."""
+    c = [pid for pid in (actifs if actifs is not None else list(joueurs)) if pid != exclu and pid in joueurs]
+    if not c: return None
+    return min(c, key=lambda pid: ((joueurs.get(pid) or {}).get("arrivee") or 9e15, pid))
 
 
 def disposition_adv(nb, essais, longueur, larg, haut):
@@ -278,7 +258,7 @@ class PageMulti(tk.Frame):
         # retiré du salon (ancien client, longue mise en veille) : on s'y réinscrit tout seul, sans déconnexion
         if time.time() - getattr(self, "dernier_retour", 0) > 3:
             self.dernier_retour = time.time()
-            moi = {"name": self.pseudo, "score": self.current_score, "last_seen": {".sv": "timestamp"}}
+            moi = {"name": self.pseudo, "score": self.current_score, "last_seen": {".sv": "timestamp"}, "arrivee": {".sv": "timestamp"}}
             preuve = preuve_salon(code, self.settings_config.get("password", ""))
             if preuve: moi["preuve"] = preuve
             if self.fb_ok("put", f"lobbies/{code}/players/{self.player_id}", moi):
@@ -319,6 +299,13 @@ class PageMulti(tk.Frame):
 
     def oublier_partie(self): design.maj_config(partie_en_cours=None)
 
+    def pause_partie(self):
+        """Mise en pause : on garde sa place dans le salon (rien n'est supprimé) ; « Reprendre » y ramène, depuis n'importe quel
+        appareil connecté au même compte. Un hôte en pause est relayé par le premier arrivé, comme un hôte inactif."""
+        if not self.lobby_code: return
+        self.memoriser_partie()
+        self.lobby_code, self.code_affiche, self.vu_ok = "", "", 0
+
     def start_heartbeat(self):
         if self.heartbeat_active and self.lobby_code: self.memoriser_partie()
         if self.heartbeat_active and self.lobby_code:
@@ -352,7 +339,7 @@ class PageMulti(tk.Frame):
                     players = data.get("players", {})
                     hote = data.get("settings", {}).get("host_id") == self.player_id
                     if hote and len(players) > 1:  # on passe la main avant de partir
-                        nouvel = sorted(pid for pid in players if pid != self.player_id)[0]
+                        nouvel = successeur(players, self.player_id)
                         self._requete("patch", f"lobbies/{code_to_clean}/settings", {"host_id": nouvel})
                         self._requete("patch", f"index/{code_index}", {"owner": nouvel})
                     if self.player_id in players:
@@ -502,7 +489,7 @@ class PageAccueil(tk.Frame):
     def afficher_reprise(self):
         for w in self.zone_reprise.winfo_children(): w.destroy()
         pe = design.lire_config().get("partie_en_cours")
-        if not pe or time.time() - pe.get("t", 0) > 900: return
+        if not pe or time.time() - pe.get("t", 0) > DELAI_REPRISE: return
         p = Panneau(self.zone_reprise, padding=14, largeur=796, contour=P["mal"]); p.pack(pady=(0, 18))
         i = p.interieur
         etiquette(i, f"Partie interrompue · salon {pe['code']}", "texte", 16, gras=True).pack(side="left", padx=(4, 0))
@@ -612,7 +599,7 @@ class PageRejoindre(tk.Frame):
 
     def rejoindre(self, code, mdp, silencieux=False, score=None):
         uid = self.controller.player_id
-        joueur = {"name": self.controller.pseudo, "score": score or 0, "last_seen": {".sv": "timestamp"}}
+        joueur = {"name": self.controller.pseudo, "score": score or 0, "last_seen": {".sv": "timestamp"}, "arrivee": {".sv": "timestamp"}}
         preuve = preuve_salon(code, mdp)
         if preuve: joueur["preuve"] = preuve
         # la base n'accepte l'inscription qu'avec la bonne preuve de mot de passe
@@ -818,7 +805,7 @@ class PageLobby(tk.Frame):
                 preuve = preuve_salon(code, sc["password"])
                 if not (ctl.fb_ok("put", f"secrets/{code}", preuve) if preuve else ctl.fb_ok("delete", f"secrets/{code}")): continue
                 mode = sc.get("game_mode", "CLASSIQUE")
-                hote = {"name": ctl.pseudo, "score": 0, "last_seen": {".sv": "timestamp"}}
+                hote = {"name": ctl.pseudo, "score": 0, "last_seen": {".sv": "timestamp"}, "arrivee": {".sv": "timestamp"}}
                 if preuve: hote["preuve"] = preuve
                 if ctl.fb_ok("put", f"lobbies/{code}", {"status": "waiting", "maj": {".sv": "timestamp"},
                         "settings": {"game_mode": mode, "rounds": 3, "essais": 8, "min": 6, "max": 7, "timer": 180, "host_id": uid, "visible": sc["visible"], "version": VERSION_JEU},
@@ -839,7 +826,8 @@ class PageLobby(tk.Frame):
         if not self.active_sync or gen != self.lobby_gen: return
         self.controller.lire_salon_async(lambda d: self.traiter_lobby(d, gen))
 
-    def dessiner_joueur(self, c, index, nom=None, hote=False, deco=False, moi=False):
+    def dessiner_joueur(self, c, index, nom=None, hote=False, deco=False, moi=False, donner=None):
+        """donner : fonction appelée par « Donner l'hôte » (affiché pour l'hôte sur la ligne des autres joueurs)."""
         c.delete("all"); w, h = 292, 48
         if nom is None:
             c.create_oval(12, 6, 42, 42, fill=P["vide"], outline="")
@@ -851,12 +839,25 @@ class PageLobby(tk.Frame):
         c.create_oval(12, 6, 42, 42, fill=coul, outline="")
         c.create_text(27, 24, text=nom[:1].upper(), fill="#16130a", font=police("texte", 15, True))
         aff = nom.capitalize() + (" (vous)" if moi else "")
-        c.create_text(56, h / 2, text=aff, anchor="w", fill=P["texte"], font=police("texte", 16, True), width=160)
-        if deco: c.create_text(w - 14, h / 2, text="Déconnecté", anchor="e", fill=P["danger"], font=police("texte", 14))
+        c.create_text(56, h / 2, text=aff, anchor="w", fill=P["texte"], font=police("texte", 16, True), width=110 if donner else 160)
+        if donner:  # l'hôte peut passer la main à ce joueur
+            c.create_text(w - 12, h / 2, text="Donner l'hôte", anchor="e", fill=P["mal"], font=police("texte", 13, True), tags="donner")
+            c.tag_bind("donner", "<ButtonRelease-1>", lambda e=None: donner())
+            c.tag_bind("donner", "<Enter>", lambda e=None: c.config(cursor="hand2")); c.tag_bind("donner", "<Leave>", lambda e=None: c.config(cursor=""))
+        if deco and not donner: c.create_text(w - 14, h / 2, text="Déconnecté", anchor="e", fill=P["danger"], font=police("texte", 14))
         elif hote:
             c.create_text(w - 14, h / 2, text="Hôte", anchor="e", fill=P["mal"], font=police("texte", 15, True))
             x = w - 66; y = h / 2
             c.create_line(x - 9, y + 5, x - 9, y - 4, x - 4, y + 1, x, y - 6, x + 4, y + 1, x + 9, y - 4, x + 9, y + 5, x - 9, y + 5, fill=P["mal"], width=1.8, joinstyle="round")
+
+    def donner_hote(self, pid, nom):
+        """L'hôte passe son rôle à un autre joueur du salon (après confirmation)."""
+        if not self.controller.is_host: return
+        if not tkm.askyesno("SMOUT", f"Donner le rôle d'hôte à {nom.capitalize()} ?\nC'est lui qui choisira le mode et lancera la partie."): return
+        ctl = self.controller
+        if ctl.fb_ok("patch", f"lobbies/{ctl.lobby_code}/settings", {"host_id": pid}):
+            ctl.is_host = False; ctl.fb_patch(f"index/{ctl.code_affiche}", {"owner": pid})
+            self._vue_hote = None; self._sig_bandeau = None
 
     def traiter_lobby(self, d, gen):
         if not self.active_sync or gen != self.lobby_gen: return
@@ -867,8 +868,8 @@ class PageLobby(tk.Frame):
             # un joueur inactif reste dans le salon (affiché « Déconnecté ») : pas d'exclusion pour inactivité
             actifs = [pid for pid, pdat in p.items() if not server_now or server_now - pdat.get("last_seen", 0) <= 25000] or list(p)
             hid = s.get("host_id")
-            if hid not in actifs:  # hôte parti ou inactif : le premier joueur actif prend le relais (même choix chez tous)
-                hid = sorted(actifs)[0]
+            if hid not in actifs:  # hôte parti ou inactif : le premier arrivé des joueurs actifs prend le relais (même choix chez tous)
+                hid = successeur(p, None, actifs)
                 if hid == self.controller.player_id: self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/settings", {"host_id": hid})
             self.controller.is_host = (s.get("host_id") == self.controller.player_id)
             self.controller.nb_joueurs, self.controller.statut_salon = len(p), d.get("status", "waiting")
@@ -897,7 +898,9 @@ class PageLobby(tk.Frame):
                 if i < len(pids):
                     pid = pids[i]
                     deco = server_now > 0 and (server_now - p[pid].get("last_seen", 0)) / 1000 > 12
-                    self.dessiner_joueur(slot, i, p[pid]["name"], pid == hid, deco, pid == self.controller.player_id)
+                    moi = pid == self.controller.player_id
+                    donner = (lambda pid=pid, n=p[pid]["name"]: self.donner_hote(pid, n)) if (self.controller.is_host and not moi and pid != hid) else None
+                    self.dessiner_joueur(slot, i, p[pid]["name"], pid == hid, deco, moi, donner)
                 else: self.dessiner_joueur(slot, i)
             n = len(p)
             self.lbl_status.config(text=f"En attente des joueurs · {n} sur {MAX_JOUEURS}" + ("  ·  salon privé" if not self.controller.settings_config.get("visible", True) else ""))
@@ -1052,7 +1055,24 @@ class PageJeu(tk.Frame):
         if not tkm.askyesno("Retour au salon", "Ramener tous les joueurs au salon ?\nLa partie en cours sera annulée."): return
         self.controller.ramener_au_salon()
 
-    def quitter_jeu(self): self.active_sync, self.timer_actif = False, False; self.winfo_toplevel().unbind("<Key>"); self.controller.quitter_lobby_logic(); self.controller.controller.creer_menu_accueil()
+    def quitter_jeu(self):
+        """Retour pendant la partie : mettre en pause (on garde sa place et on revient par « Reprendre ») ou quitter définitivement."""
+        if getattr(self, "fen_quitter", None) is not None and self.fen_quitter.winfo_exists() and self.fen_quitter.winfo_ismapped(): return
+        o = Superposition(self, largeur=500); i = o.interieur; self.fen_quitter = o
+        etiquette(i, "Quitter la partie ?", "titre", 26).pack(anchor="w")
+        etiquette(i, "En pause, tu gardes ta place dans le salon : « Reprendre » (accueil du multijoueur) te ramène dans la partie, "
+                     "aussi depuis un autre appareil connecté à ton compte.", "texte", 14, P["texte2"], wraplength=440, justify="left").pack(anchor="w", pady=(6, 18))
+        bf = tk.Frame(i, bg=i["bg"]); bf.pack(anchor="e")
+        Bouton(bf, "Continuer", o.cacher, largeur=120, variante="discret").pack(side="left", padx=(0, 8))
+        Bouton(bf, "Quitter la partie", lambda: (o.cacher(), self.quitter_definitif()), largeur=170, variante="secondaire").pack(side="left", padx=(0, 8))
+        Bouton(bf, "Mettre en pause", lambda: (o.cacher(), self.mettre_en_pause()), largeur=170).pack(side="left")
+        o.montrer()
+
+    def quitter_definitif(self): self.active_sync, self.timer_actif = False, False; self.winfo_toplevel().unbind("<Key>"); self.controller.quitter_lobby_logic(); self.controller.controller.creer_menu_accueil()
+
+    def mettre_en_pause(self):
+        self.active_sync, self.timer_actif = False, False; self.winfo_toplevel().unbind("<Key>")
+        self.controller.pause_partie(); self.controller.show_frame("PageAccueil")
 
     # --- construction d'une manche ---
     def initialiser_partie(self):
@@ -1195,7 +1215,7 @@ class PageJeu(tk.Frame):
         if not active_pids: active_pids = list(p.keys())
         # Réattribution de l'hôte s'il a quitté ou ne répond plus (sinon la partie reste bloquée)
         if active_pids and hid not in active_pids:
-            nouvel_hote = sorted(active_pids)[0]  # même choix chez tous les joueurs
+            nouvel_hote = successeur(p, None, active_pids)  # le premier arrivé, même choix chez tous les joueurs
             if nouvel_hote == self.controller.player_id:
                 self.controller.fb_patch(f"lobbies/{self.controller.lobby_code}/settings", {"host_id": nouvel_hote})
             hid = nouvel_hote

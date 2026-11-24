@@ -98,4 +98,12 @@ t("piégé : un non-participant écrit un verdict", req("PUT", f"v7/lobbies/5678
 t("piégé : la cible écrit son récapitulatif", req("PUT", f"v7/lobbies/5678/piege_recap/r1/{ub}", Bt, {"de": ua, "mot": "PATATE", "essais": 1}), 401)
 t("piégé : l'évaluateur révèle le mot en fin de manche", req("PUT", f"v7/lobbies/5678/piege_recap/r1/{ub}", A, {"de": ua, "mot": "PATATE", "essais": 2}), 200)
 t("piégé : supprimer les mots d'un salon actif", req("DELETE", "v7/pieges/5678", D), 401)
+# comptes : lisibles et modifiables par leur seul propriétaire
+t("compte : écriture par son propriétaire", req("PUT", f"v7/comptes/{ua}", A, {"maj": SV, "donnees": "{\"pseudo\": \"ALICE\"}"}), 200)
+t("compte : lecture par son propriétaire", req("GET", f"v7/comptes/{ua}", A), 200)
+t("compte : lecture par un autre joueur refusée", req("GET", f"v7/comptes/{ua}", Bt), 401)
+t("compte : écriture par un autre joueur refusée", req("PUT", f"v7/comptes/{ua}", Bt, {"maj": SV, "donnees": "{}"}), 401)
+t("compte : données qui ne sont pas du texte refusées", req("PUT", f"v7/comptes/{ua}", A, {"maj": SV, "donnees": {"pseudo": "X"}}), 401)
+t("compte : données sans date refusées", req("PUT", f"v7/comptes/{ua}", A, {"donnees": "{}"}), 401)
+
 print(f"{sum(ok)}/{len(ok)} conformes")
