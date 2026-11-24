@@ -341,6 +341,7 @@ const SVG = {
   chevron: '<path d="M9 6l6 6-6 6"/>', check: '<path d="M5 12l5 5 9-10"/>',
   couronne: '<path d="M3 18h18l-2-10-5 5-2-7-2 7-5-5z"/>',
   cloche: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>', fermer: '<path d="M6 6l12 12M18 6L6 18"/>',
+  amis: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.2c2.8.3 5 2.7 5 5.8"/>',
   salon: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',  // flèche de retour (bouton « Lobby »)
   stats: '<path d="M6 20v-7M12 20V6M18 20v-10"/>',
   crayon: '<path d="M4 20h4L19 9l-4-4L4 16z M14 6l4 4"/>',
@@ -540,7 +541,7 @@ function accueil() {
   const carte = (t, s, f, b, cls = "") => h("button.carte-menu" + cls, { onclick: f }, h("div", {}, h("div.t", {}, t), h("div.s", {}, s)), b ? h("div.d", {}, b) : h("span.chevron", { html: svg("chevron", 22) }));
   ecran(
     h("div.ligne", { style: { justifyContent: "flex-end", gap: "16px", padding: "22px 28px 0" } },
-      icone("palette", () => themes(), true, "Thèmes"), icone("stats", () => statistiques(), true, "Statistiques"), avatar(pseudo(), 46, 0, () => changerPseudo())),
+      boutonAmis(accueil), icone("palette", () => themes(), true, "Thèmes"), icone("stats", () => statistiques(), true, "Statistiques"), avatar(pseudo(), 46, 0, () => changerPseudo())),
     h("div.centre", { style: { flex: 1, justifyContent: "center", gap: "12px", padding: "16px 0" } },
       logo(Math.min(88, Math.floor((window.innerWidth - 80) / 5.8)), 14),
       h("div.t2", { style: { fontSize: "19px", margin: "0 0 22px" } }, "Trouvez le mot caché."),
@@ -1004,7 +1005,7 @@ const FB = {
     try {
       const t = await this.jeton(); if (!t) return { ok: false };
       // 9.1 : un spectateur n'écrit rien dans la partie (seulement sa fiche de spectateur, ses demandes, son horloge, son compte)
-      if (method !== "GET" && typeof M !== "undefined" && M.spectateur && !/^(horloge|comptes|demandes)\/|\/spectateurs\//.test(path)) return { ok: false };
+      if (method !== "GET" && typeof M !== "undefined" && M.spectateur && !/^(horloge|comptes|demandes|profils|amis|amis_demandes|invitations|codes_amis)\/|\/spectateurs\//.test(path)) return { ok: false };
       const avant = Date.now();
       const r = await fetch(`${FIREBASE_URL}${RACINE}/${path}.json?auth=${t}`, { method, keepalive, headers: { "Content-Type": "application/json" }, body: data === undefined ? undefined : JSON.stringify(data) });
       let j = null; try { j = await r.json(); } catch (e) {}
@@ -1230,7 +1231,7 @@ async function multiAccueil() {
     if (!(await rejoindre(pe.code, pe.mdp || "", true, Number(pe.score) || 0))) { M.oublier(); afficherReprise(); informer("Cette partie est terminée ou le salon n'existe plus.", "Partie terminée"); }
   }
   const tuileAction = (cls, t, st, f) => h("button.action." + cls, { onclick: f }, h("div.t", {}, t), h("div.s", {}, st));
-  ecran(h("div.entete", {}, icone("retour", accueil, false, "Retour"), h("div.milieu", { style: { color: "var(--texte)", fontWeight: 600, fontSize: "18px" } }, "Multijoueur"), puce),
+  ecran(h("div.entete", {}, icone("retour", accueil, false, "Retour"), h("div.milieu", { style: { color: "var(--texte)", fontWeight: 600, fontSize: "18px" } }, "Multijoueur"), h("div.ligne", { style: { gap: "10px" } }, boutonAmis(multiAccueil), puce)),
     h("div.centre", { style: { flex: 1, justifyContent: "center", paddingBottom: "60px" } }, h("div", { style: { width: "min(800px, 94vw)" } },
       zoneReprise,
       h("div.actions", {},
@@ -1279,6 +1280,177 @@ async function demanderARegarder(c, motDePasse, preuve) {
     if (++n % 3 === 0) FB.patch(chemin, { t: SV });  // la demande reste « active » pour l'hôte
   }
   return true;
+}
+
+/* ------------------------------------------------------------------ amis (9.2)
+   Réservé aux comptes e-mail (même joueur sur tous les appareils). Code ami (codes_amis/<CODE> → uid), profil public
+   (profils/<uid> : pseudo, code, vu, salon), liste (amis/<uid>/<ami>), demandes (amis_demandes/<cible>/<de>),
+   invitations (invitations/<cible>/<code du salon>) : on rejoint sans taper le code, le mot de passe reste demandé.
+   Même logique que amis.py côté PC. */
+const ALPHA_AMI = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const Amis = {
+  code: "", liste: {}, profils: {}, demandes: {}, invitations: {}, vues: new Set(), minuteur: null, n: 0,
+  actif() { return !!Compte.email() && !!FB.uid; },
+  async assurerProfil() {
+    const pr = await FB.get(`profils/${FB.uid}`) || {};
+    let code = pr.code || "";
+    if (!code || (await FB.get(`codes_amis/${code}`)) !== FB.uid) {
+      code = "";
+      for (let i = 0; i < 8 && !code; i++) { const c = Array.from({ length: 6 }, () => ALPHA_AMI[Math.floor(Math.random() * ALPHA_AMI.length)]).join(""); if (await FB.ok("PUT", `codes_amis/${c}`, FB.uid)) code = c; }
+    }
+    this.code = code;
+    await FB.ok("PATCH", `profils/${FB.uid}`, Object.assign({ pseudo: pseudo(), code, vu: SV, salon: M.lobby || "" }, pr.cree ? {} : { cree: SV }));
+  },
+  async tic() {  // signe de vie (toutes les 30 s) et relève des demandes et invitations (toutes les 10 s)
+    if (!Compte.email()) { this.code = ""; this.majBandeau(); return; }  // sans compte : rien (pas de connexion ouverte pour rien)
+    if (!FB.uid && !(await FB.jeton())) return;
+    if (!this.code || this.uidCode !== FB.uid) { this.uidCode = FB.uid; await this.assurerProfil(); }  // (autre compte : autre code)
+    else if (this.n++ % 3 === 0) FB.patch(`profils/${FB.uid}`, { pseudo: pseudo(), vu: SV, salon: M.lobby || "" });
+    this.demandes = await FB.get(`amis_demandes/${FB.uid}`) || {};
+    const inv = await FB.get(`invitations/${FB.uid}`) || {}, now = FB.maintenant() * 1000;
+    this.invitations = Object.fromEntries(Object.entries(inv).filter(([, v]) => v && now - (v.t || 0) < 10 * 60000));
+    this.majBandeau(); majPastilleAmis();
+  },
+  demarrer() { if (!this.minuteur) { this.minuteur = setInterval(() => this.tic(), 10000); this.tic(); } },
+  async ajouter(codeBrut) {
+    const code = String(codeBrut || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (code.length !== 6) return "Un code ami fait 6 caractères.";
+    const uid = await FB.get(`codes_amis/${code}`);
+    if (!uid) return "Aucun joueur avec ce code.";
+    if (uid === FB.uid) return "C'est ton propre code.";
+    if (this.liste[uid]) return "Vous êtes déjà amis.";
+    if (this.demandes[uid]) { await this.accepter(uid); return null; }  // il m'avait déjà demandé : on devient amis
+    return (await FB.ok("PUT", `amis_demandes/${uid}/${FB.uid}`, { pseudo: pseudo(), t: SV })) ? null : PAS_DE_RESEAU;
+  },
+  async accepter(de) {
+    await FB.ok("PUT", `amis/${FB.uid}/${de}`, true); await FB.ok("PUT", `amis/${de}/${FB.uid}`, true);
+    await FB.ok("DELETE", `amis_demandes/${FB.uid}/${de}`); delete this.demandes[de]; this.liste[de] = true; majPastilleAmis();
+  },
+  async refuser(de) { await FB.ok("DELETE", `amis_demandes/${FB.uid}/${de}`); delete this.demandes[de]; majPastilleAmis(); },
+  async retirer(ami) { await FB.ok("DELETE", `amis/${FB.uid}/${ami}`); await FB.ok("DELETE", `amis/${ami}/${FB.uid}`); delete this.liste[ami]; },
+  async charger() {
+    this.liste = await FB.get(`amis/${FB.uid}`) || {};
+    const ids = Object.keys(this.liste); const pr = await Promise.all(ids.map(u => FB.get(`profils/${u}`)));
+    ids.forEach((u, i) => this.profils[u] = pr[i] || {});
+  },
+  statut(p) {  // [texte, classe de la pastille, en ligne ?]
+    const age = FB.maintenant() * 1000 - ((p || {}).vu || 0);
+    if (age < 75000) return p.salon ? [`Dans un salon · ${p.salon}`, "jeu", true] : ["En ligne", "on", true];
+    const j = Math.floor(age / 86400000), hh = Math.floor(age / 3600000), mn = Math.max(1, Math.floor(age / 60000));
+    return [(p && p.vu) ? `Hors ligne · il y a ${j ? j + " j" : hh ? hh + " h" : mn + " min"}` : "Hors ligne", "off", false];
+  },
+  async inviter(ami) { return M.lobby && FB.ok("PUT", `invitations/${ami}/${M.lobby}`, { de: FB.uid, pseudo: pseudo(), t: SV }); },
+  // bandeau en haut de tous les écrans (sauf en pleine partie) : invitation ou demande d'ami
+  majBandeau() {
+    let b = document.querySelector(".bandeau-inv"); const fermer = () => { if (b) b.remove(); };
+    if (enJeu || !this.actif()) return fermer();
+    const inv = Object.entries(this.invitations).find(([c]) => !this.vues.has("i" + c) && c !== M.lobby);
+    const dem = !inv && Object.entries(this.demandes).find(([u]) => !this.vues.has("d" + u));
+    if (!inv && !dem) return fermer();
+    const cle = inv ? "i" + inv[0] : "d" + dem[0]; if (b && b.dataset.cle === cle) return; fermer();
+    const nom = capitaliser((inv ? inv[1] : dem[1]).pseudo || "?");
+    b = h("div.bandeau-inv", { "data-cle": cle }, avatar(nom, 34, 1), h("div.txt", {}, h("b", {}, nom), inv ? " t'invite dans son salon" : " veut être ton ami"),
+      bouton(inv ? "Rejoindre" : "Voir", () => { this.vues.add(cle); b.remove(); if (inv) rejoindreInvitation(inv[0]); else ecranAmis(); }, { largeur: 110 }),
+      bouton("Ignorer", () => { this.vues.add(cle); b.remove(); if (inv) FB.ok("DELETE", `invitations/${FB.uid}/${inv[0]}`); this.majBandeau(); }, { variante: "discret", largeur: 96 }));
+    b.querySelector(".btn").classList.add("inv-oui"); document.body.append(b);
+  },
+};
+function majPastilleAmis() {
+  const n = Object.keys(Amis.demandes).length;
+  document.querySelectorAll(".bouton-amis .badge").forEach(e => { e.textContent = String(n); e.classList.toggle("cache", !n); });
+}
+function boutonAmis(retour) {
+  const b = h("button.icone.cadre.bouton-amis.cloche", { type: "button", title: "Amis", "aria-label": "Amis", html: svg("amis", 22), onclick: () => ecranAmis(retour) });
+  b.append(h("span.badge.cache")); setTimeout(majPastilleAmis, 0); return b;
+}
+async function demanderMotDePasse(code) {
+  return new Promise(fin => {
+    const ch = h("input.champ", { type: "password", style: { width: "100%" } }), err = h("div.gras", { style: { color: "var(--danger)", minHeight: "20px", marginTop: "6px", fontSize: "14px" } });
+    let fait = false; const finir = v => { if (fait) return; fait = true; o.remove(); fin(v); };
+    const o = superposition(h("div.col", {}, h("div.titre", { style: { fontSize: "25px" } }, "Salon protégé"), h("div.t2", { style: { margin: "4px 0 14px" } }, `Entre le mot de passe du salon ${code}.`), ch, err,
+      h("div.ligne", { style: { justifyContent: "flex-end", gap: "10px", marginTop: "12px" } }, (b => { b.classList.add("dlg-non"); return b; })(bouton("Annuler", () => finir(null), { variante: "discret", largeur: 130 })),
+        (b => { b.classList.add("dlg-oui"); return b; })(bouton("Rejoindre", () => finir(ch.value.trim()), { largeur: 150 })))), 440);
+    ch.addEventListener("keydown", e => e.key === "Enter" && finir(ch.value.trim()));
+    nettoyageEcran.push(() => finir(null)); o.montrer(); ch.focus();
+  });
+}
+// rejoindre depuis une invitation : sans taper le code ; mot de passe demandé si le salon en a un ; partie en cours → spectateur directement
+async function rejoindreInvitation(code) {
+  if (!(await FB.jeton())) return informer(PAS_DE_RESEAU, "Pas de connexion");
+  await FB.synchro();
+  const idx = await FB.get(`index/${code}`);
+  if (!idx || FB.maintenant() * 1000 - (idx.maj || 0) > 30000) { FB.ok("DELETE", `invitations/${FB.uid}/${code}`); return informer("Ce salon n'existe plus.", "Salon fermé"); }
+  if (idx.version !== VERSION_JEU) return informer(`Ce salon utilise une autre version du jeu (${idx.version || "?"}). Mets SMOUT à jour.`, "Autre version");
+  if (M.lobby) await M.quitter();
+  let mdp = "";
+  for (;;) {
+    if (idx.prive) { mdp = await demanderMotDePasse(code); if (mdp === null) return; }
+    const preuve = await preuveSalon(code, mdp);
+    const ok = idx.status === "playing" ? await entrerSpectateur(code, mdp, preuve, true) : await rejoindre(code, mdp, true);
+    if (ok) { FB.ok("DELETE", `invitations/${FB.uid}/${code}`); return; }
+    if (!idx.prive) return informer("Impossible de rejoindre ce salon.", "Salon");
+    await informer("Mot de passe incorrect.", "Salon protégé");
+  }
+}
+// écran Amis : mon code, ajouter par code, demandes reçues, liste avec statut
+async function ecranAmis(retour = accueil) {
+  const gen = ++M.gen;
+  const entete = h("div.entete", {}, icone("retour", () => retour(), false, "Retour"), h("div.milieu", { style: { color: "var(--texte)", fontWeight: 600, fontSize: "18px" } }, "Amis"), h("div", { style: { width: "40px" } }));
+  if (!Compte.email()) {
+    ecran(entete, h("div.centre", {}, h("div.panneau", { style: { width: "min(520px, 92vw)", padding: "26px", marginTop: "30px", textAlign: "center" } }, h("div.titre", { style: { fontSize: "24px" } }, "Crée un compte pour avoir des amis"),
+      h("div.t2", { style: { margin: "8px 0 18px" } }, "Les amis suivent ton compte : tu les retrouves sur tous tes appareils."), bouton("Se connecter ou créer un compte", () => ouvrirCompte(() => ecranAmis(retour)), { largeur: 320 }))));
+    return;
+  }
+  const lblCode = h("div.c", {}, Amis.code || "······"), champ = h("input.champ.mono", { placeholder: "CODE AMI", maxlength: 6, style: { flex: 1, minWidth: 0, height: "48px" } });
+  const msg = h("div.gras", { style: { minHeight: "20px", fontSize: "14px", marginTop: "6px" } }), zoneDem = h("div"), zoneAmis = h("div");
+  champ.addEventListener("input", () => { champ.value = champ.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6); });
+  const ajouter = async () => { if (!champ.value) return; msg.style.color = "var(--danger)"; const e = await Amis.ajouter(champ.value);
+    if (e) msg.textContent = e; else { msg.style.color = "var(--succes)"; msg.textContent = "Demande envoyée ✓"; champ.value = ""; dessiner(); } };
+  champ.addEventListener("keydown", e => e.key === "Enter" && ajouter());
+  ecran(entete, h("div.centre", {}, h("div.ecran-amis", { style: { width: "min(640px, 94vw)", paddingBottom: "30px" } },
+    h("div.code-ami", {}, h("div", { style: { flex: 1 } }, h("div.caps", {}, "Mon code ami"), lblCode, h("div.t2", { style: { fontSize: "13px" } }, "Donne-le pour ajouter des amis.")),
+      icone("copier", () => { navigator.clipboard?.writeText(Amis.code); msg.style.color = "var(--succes)"; msg.textContent = "Code copié ✓"; }, true, "Copier")),
+    h("div.sect", {}, "Ajouter un ami"), h("div.ligne", { style: { gap: "10px" } }, champ, bouton("Ajouter", ajouter, { largeur: 120, hauteur: 48 })), msg,
+    zoneDem, zoneAmis)));
+  const ligne = (n, i, st, cls, act) => h("div.ami", {}, avatar(n, 36, i), h("div", { style: { minWidth: 0 } }, h("div.n", {}, capitaliser(n)), h("div.st", {}, h("span.pt." + cls), st)), h("div.act", {}, act));
+  async function dessiner() {
+    if (!Amis.code) await Amis.assurerProfil(); lblCode.textContent = Amis.code || "······";
+    await Amis.charger(); Amis.demandes = await FB.get(`amis_demandes/${FB.uid}`) || {}; majPastilleAmis();
+    if (gen !== M.gen) return;
+    const dem = Object.entries(Amis.demandes);
+    zoneDem.replaceChildren(...(dem.length ? [h("div.sect", {}, `Demandes reçues (${dem.length})`), ...dem.map(([u, v], i) => ligne(v.pseudo || "?", i + 2, "veut être ton ami", "off",
+      [bouton("Accepter", async () => { await Amis.accepter(u); dessiner(); }, { largeur: 104 }), bouton("Refuser", async () => { await Amis.refuser(u); dessiner(); }, { variante: "discret", largeur: 96 })]))] : []));
+    const ids = Object.keys(Amis.liste).sort((a, b) => Number(Amis.statut(Amis.profils[b])[2]) - Number(Amis.statut(Amis.profils[a])[2]));
+    zoneAmis.replaceChildren(h("div.sect", {}, `Mes amis (${ids.length})`), ...(ids.length ? ids.map((u, i) => { const p = Amis.profils[u] || {}, [st, cls] = Amis.statut(p);
+      const act = cls === "jeu" ? bouton("Rejoindre", () => rejoindreSalonAmi(p.salon), { variante: "discret", largeur: 110 })
+        : M.lobby && cls === "on" ? bouton("Inviter", () => Amis.inviter(u), { largeur: 100 })
+        : h("button.lien.retirer-ami", { style: { color: "var(--texte2)", fontSize: "14px" }, onclick: async () => { if (await confirmer("Retirer cet ami ?", `${capitaliser(p.pseudo || "?")} ne sera plus dans ta liste (et toi plus dans la sienne).`, "Retirer")) { await Amis.retirer(u); dessiner(); } } }, "Retirer");
+      return ligne(p.pseudo || "?", i, st, cls, act); }) : [h("div.t2", { style: { fontSize: "14px" } }, "Pas encore d'amis : donne ton code ou entre le leur.")]));
+  }
+  await dessiner();
+  const t = setInterval(() => { if (gen === M.gen) dessiner(); }, 8000); nettoyageEcran.push(() => clearInterval(t));
+}
+async function rejoindreSalonAmi(code) {  // salon d'un ami : comme avec le code (demande à l'hôte si la partie a commencé)
+  if (!code) return; const idx = await FB.get(`index/${code}`) || {};
+  let mdp = ""; if (idx.prive) { mdp = await demanderMotDePasse(code); if (mdp === null) return; }
+  if (!(await rejoindre(code, mdp))) informer(idx.prive ? "Mot de passe incorrect." : "Impossible de rejoindre ce salon.", "Salon");
+}
+// panneau « Inviter des amis » (salon et partie) : amis en ligne d'abord
+function panneauInviter() {
+  const liste = h("div.liste-inv"), t = h("div.tiroir.tiroir-inviter.cache", {}, h("div.tete-tiroir", {}, h("span", {}, "Inviter des amis"), icone("fermer", () => t.classList.add("cache"), false, "Fermer")), liste,
+    h("div.t2", { style: { fontSize: "12px", marginTop: "auto" } }, "Ils rejoignent sans taper le code (le mot de passe du salon reste demandé)."));
+  const invites = new Set();
+  t.ouvrir = async () => {
+    t.classList.remove("cache"); await Amis.charger();
+    const ids = Object.keys(Amis.liste).sort((a, b) => Number(Amis.statut(Amis.profils[b])[2]) - Number(Amis.statut(Amis.profils[a])[2]));
+    liste.replaceChildren(...(ids.length ? ids.map((u, i) => { const p = Amis.profils[u] || {}, [st, cls, on] = Amis.statut(p);
+      const zone = h("div.act");
+      const maj = () => zone.replaceChildren(invites.has(u) ? h("span.t2.invite-ok", { style: { fontSize: "14px", color: "var(--succes)" } }, "Invité ✓")
+        : (b => { b.classList.add("btn-inviter"); return b; })(bouton("Inviter", async () => { if (await Amis.inviter(u)) { invites.add(u); maj(); } }, { variante: on ? undefined : "discret", largeur: 92 })));
+      maj(); return h("div.ami", {}, avatar(p.pseudo || "?", 32, i), h("div", {}, h("div.n", {}, capitaliser(p.pseudo || "?")), h("div.st", {}, h("span.pt." + cls), st)), zone); })
+      : [h("div.t2", { style: { fontSize: "14px" } }, Compte.email() ? "Pas encore d'amis : ajoute-les depuis l'écran Amis." : "Crée un compte pour avoir des amis.")]));
+  };
+  document.body.append(t); nettoyageEcran.push(() => t.remove()); return t;
 }
 
 /* ---------- rejoindre un salon : code ou liste des salons publics */
@@ -1380,6 +1552,8 @@ function salon() {
     icone("copier", () => { navigator.clipboard?.writeText(M.lobby); lblCode.textContent = "Code copié ✓"; setTimeout(() => lblCode.textContent = "Code du salon", 1500); }, true, "Copier le code"));
   const slots = Array.from({ length: MAX_JOUEURS }, () => h("div.joueur"));
   const nbSpect = h("div.nb-spect.t2.cache");  // 9.1 : « 👁 x spectateurs » (non listés)
+  let tInviter = null; const btnInviter = bouton("Inviter des amis", () => (tInviter = tInviter || panneauInviter()).ouvrir(), { variante: "secondaire", largeur: 190, hauteur: 44 });  // 9.2 (panneau créé au 1er clic, après ecran())
+  btnInviter.classList.add("btn-inviter-amis");
   const cartes = {};
   const gm = h("div.grille-modes", {}, MODES.map(([m, n, d]) => { const c = cartes[m] = choix(n, d, () => setMode(m)); c.classList.add("mode"); c.style.setProperty("--mc", COULEURS_MODES[m]); return c; }));
   // bandeau du mode choisi par l'hôte (vu par les autres joueurs)
@@ -1398,7 +1572,7 @@ function salon() {
   const noteInvite = h("div.t2", { style: { fontSize: "14px", marginTop: "14px" } }, "L'hôte choisit le mode et les réglages.");
   const panneauPartie = h("div.panneau.salon-partie", { style: { flex: 1, minWidth: "min(300px, 100%)", padding: "22px" } }, bandeau, zoneHote, zoneReglages, noteInvite, h("div", { style: { marginTop: "18px" } }, lancer));
   ecran(barre, h("div", { style: { padding: "18px 4vw 30px" } },
-    h("div.ligne.salon-tete", {}, h("div", { style: { minWidth: "0" } }, titre, statut), h("div", { style: { marginLeft: "auto" } }, boite)),
+    h("div.ligne.salon-tete", {}, h("div", { style: { minWidth: "0" } }, titre, statut), h("div.ligne", { style: { marginLeft: "auto", gap: "12px", flexWrap: "wrap", justifyContent: "flex-end" } }, btnInviter, boite)),
     h("div.ligne", { style: { marginTop: "20px", gap: "20px", alignItems: "flex-start", flexWrap: "wrap" } },
       h("div.panneau.salon-joueurs", { style: { width: "320px", maxWidth: "100%" } }, h("div.gras", { style: { fontSize: "18px", marginBottom: "4px" } }, "Joueurs"), slots, nbSpect),
       panneauPartie)));
@@ -1459,6 +1633,7 @@ function salon() {
         M.estHote = s.host_id === FB.uid; M.nbJoueurs = Object.keys(p).length; M.statut = d.status || "waiting";
         const hn = (p[hid] || {}).name;
         titre.textContent = hn ? `Salon de ${capitaliser(hn)}` : "Salon";
+        btnInviter.classList.toggle("cache", M.spectateur);
         barre.droite.textContent = M.spectateur ? "Tu es spectateur" : M.estHote ? "Vous êtes l'hôte" : "L'hôte règle la partie";
         if (!M.estHote) {  // l'hôte garde ses propres réglages (la base peut avoir un temps de retard)
           modeActif = s.game_mode || "CLASSIQUE"; M.reglages.game_mode = modeActif;
@@ -1619,7 +1794,8 @@ async function partie() {
   const listeDem = h("div.liste-dem"), titreDem = h("span", {}, "Demandes");
   const tiroir = h("div.tiroir.cache", {}, h("div.tete-tiroir", {}, titreDem, icone("fermer", () => tiroir.classList.add("cache"), false, "Fermer")), listeDem,
     h("div.t2", { style: { fontSize: "12px", marginTop: "auto" } }, "Le jeu continue : tu peux jouer pendant que ce panneau est ouvert."));
-  const barreDroite = spect ? h("div", { style: { width: "40px" } }) : h("div.ligne", {}, icone("moins", () => zoom(-0.1), false, "Réduire"), zm, icone("plus", () => zoom(0.1), false, "Agrandir"), cloche);
+  let tInviter = null;  // 9.2 : inviter des amis pendant la partie (ils entrent en spectateurs) ; panneau créé au 1er clic, après ecran()
+  const barreDroite = spect ? h("div", { style: { width: "40px" } }) : h("div.ligne", {}, icone("moins", () => zoom(-0.1), false, "Réduire"), zm, icone("plus", () => zoom(0.1), false, "Agrandir"), icone("amis", () => (tInviter = tInviter || panneauInviter()).ouvrir(), false, "Inviter des amis"), cloche);
   ecran(h("div.entete", {}, h("div.ligne.gauche", {}, (e => { e.dataset.dialogue = "1"; return e; })(icone("retour", quitterJeu, false, "Quitter")), btnSalon), info, barreDroite),
     spect ? h("div.centre.vue-spect", {}, h("div.stats", { style: { marginTop: "4px", gap: "min(68px, 7.5vw)" } }, sM, sT, sCode), h("div.bandeau-spect", {}, "👁  Spectateur · tu regardes la partie"), advZone) :
     large ? h("div.ligne", { style: { alignItems: "flex-start", flexWrap: "wrap", justifyContent: "center" } },
@@ -1658,7 +1834,7 @@ async function partie() {
   }
   const tDem = setInterval(majDemandes, 2000); nettoyageEcran.push(() => clearInterval(tDem)); majDemandes();
   if (spect) sS.classList.add("cache");
-  enJeu = true;
+  enJeu = true; Amis.majBandeau();  // pas de bandeau d'invitation en pleine partie
   info.textContent = "";  // 9.0 : plus de « mode · n lettres » (doublon avec le salon et la grille)
   document.onkeydown = e => {
     if (spect || G.fini || e.ctrlKey || e.metaKey || e.altKey) return;  // le spectateur ne joue pas
@@ -2264,4 +2440,5 @@ chargerTheme();
 {
   accueil();
   Compte.demarrer();  // compte : relit l'avancement plus récent enregistré depuis un autre appareil
+  Amis.demarrer();  // 9.2 : amis (comptes seulement) : signe de vie, demandes, invitations
 }
