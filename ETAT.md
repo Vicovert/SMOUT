@@ -5,19 +5,20 @@ _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travai
 **Dernière mise à jour : 24/11/2026**
 
 ## En ligne
-- Version : **8.18** (release Windows seule `SMOUT.8.18.exe`, 24/11/2026 ; site https://vicovert.github.io/SMOUT/ à jour). Téléphone : page de jeu multijoueur sur un écran (adversaires en haut), clavier du jeu seul, pas de zoom au double appui ; le réglage « taille » agrandit aussi le clavier (PC et web). 8.17 : comptes e-mail, pause/reprise, « Donner l'hôte ».
+- Version : **8.19** (release Windows seule `SMOUT.8.19.exe`, 24/11/2026 ; site https://vicovert.github.io/SMOUT/ à jour). Création de compte corrigée (protection contre l'énumération des e-mails). 8.18 : téléphone sur un écran (adversaires en haut), clavier du jeu seul, pas de zoom au double appui, clavier qui suit la taille. 8.17 : comptes e-mail, pause/reprise, « Donner l'hôte ».
 - Protocole multi : `VERSION_JEU` 8.10, données sous `/v7`
 
 ## À faire par Victor
-- [ ] **Activer « E-mail/Mot de passe »** dans la console Firebase (Authentication → Mode de connexion) : sans cela, la création de compte (8.17) affiche « Les comptes ne sont pas encore activés sur le serveur ».
-- [ ] Republier `database.rules.json` dans la console Firebase (changements des 8.9, 8.10, 8.15, 8.16 et 8.17 : `horloge`, abandon d'un salon après 30 min, `nb ≤ 8` joueurs, `frappe` et `theme` des joueurs, `comptes/<uid>` — **indispensable pour les comptes**).
+- [x] E-mail/Mot de passe activé et règles Firebase republiées (fait par Victor le 24/11/2026).
+- [ ] Tester la 8.19 : création de compte, connexion sur un 2e appareil, partie multijoueur sur téléphone (pas de défilement, pas de zoom au double appui, « + » agrandit le clavier).
+- [ ] Supprimer les branches inutiles (voir « Prochaines pistes »).
 - [ ] Coller les instructions de projet (`claude/instructions-projet.md`) dans les réglages du projet.
 
 ## En cours
 - Configuration de l'espace de travail : terminée (PR #1), Claude fusionne désormais lui-même les PR.
 
 ## Prochaines pistes (non commencées)
-- Supprimer les branches inutiles (dont `travail-8.14` à `travail-8.18`, `doc-etat-8.14` à `doc-etat-8.18`) : `travail-8.10`, `travail-8.11`, `travail-8.12`, `regles-etape3`, `v4.3`, `v5.0`, `v6.0`, `v7.0`.
+- Supprimer les branches inutiles (dont `travail-8.14` à `travail-8.19`, `doc-etat-8.14` à `doc-etat-8.19`, `doc-fin-message`) : `travail-8.10`, `travail-8.11`, `travail-8.12`, `regles-etape3`, `v4.3`, `v5.0`, `v6.0`, `v7.0`.
 - Corriger `tests/README.md` (dit encore que les tests tournent sur `main`).
 - Test automatique d'équivalence PC ↔ web des constantes (`REGLES_MODES`, `RUSHS`, `COULEURS_MODES`).
 - Règles Firebase : empêcher l'hôte d'écrire n'importe quel score.
