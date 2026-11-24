@@ -240,17 +240,36 @@ function piegePoints(recap, uid, essaisMax) {
   }
   return total;
 }
-// lignes « Alice → Bob : MOT · trouvé en 3 » d'une manche
-function piegeLignesRecap(recapManche, deMap, noms) {
+// paires d'une manche : { de, pour, mot, essais, auto, annulee } (identique à piege_recap_entrees de page_multi.py)
+function piegeRecapEntrees(recapManche, deMap, noms) {
   recapManche = recapManche || {};
   if (!deMap) deMap = Object.fromEntries(Object.entries(recapManche).filter(([, x]) => x && typeof x === "object").map(([c, x]) => [c, x.de]));
   const nom = u => noms[u] || "?";
   return Object.entries(deMap).sort((a, b) => { const x = noms[a[1]] || "", y = noms[b[1]] || ""; return x < y ? -1 : x > y ? 1 : 0; }).map(([cible, cho]) => {
-    const x = recapManche[cible], a = capitaliser(nom(cho)), b = capitaliser(nom(cible));
-    if (!x || typeof x !== "object") return `${a} → ${b} : paire annulée`;
-    const k = Number(x.essais) || 0;
-    return `${a} → ${b} : ${x.mot ?? "?"} · ${k ? `trouvé en ${k}` : "pas trouvé"}` + (x.auto ? " (mot au hasard)" : "");
+    const x = recapManche[cible], e = { de: capitaliser(nom(cho)), pour: capitaliser(nom(cible)) };
+    if (!x || typeof x !== "object") return Object.assign(e, { annulee: true });
+    return Object.assign(e, { mot: String(x.mot ?? "?"), essais: Number(x.essais) || 0, auto: !!x.auto });
   });
+}
+// lignes « Alice → Bob : MOT · trouvé en 3 » d'une manche (fin de manche)
+function piegeLignesRecap(recapManche, deMap, noms) {
+  return piegeRecapEntrees(recapManche, deMap, noms).map(e => e.annulee ? `${e.de} → ${e.pour} : paire annulée`
+    : `${e.de} → ${e.pour} : ${e.mot} · ${e.essais ? `trouvé en ${e.essais}` : "pas trouvé"}` + (e.auto ? " (mot au hasard)" : ""));
+}
+// 9.0 : récapitulatif de fin de partie du Mot piégé, manche par manche : « Alice → Bob », le mot en cases, le résultat
+function piegeRecapBloc(rec, noms) {
+  const b = h("div.recap-piege");
+  for (const k of Object.keys(rec || {}).sort((a, c) => (parseInt(a.slice(1)) || 0) - (parseInt(c.slice(1)) || 0))) {
+    const lignes = piegeRecapEntrees(rec[k], null, noms); if (!lignes.length) continue;
+    b.append(h("div.manche", {}, `Manche ${k.slice(1)}`));
+    for (const e of lignes) {
+      const mot = h("div.mot");
+      if (!e.annulee) for (const ch of e.mot) { const t = tuile(22, true); t.maj(ch, e.essais ? "bien" : ""); mot.append(t); }  // trouvé : cases « bien placé » ; raté : cases neutres
+      b.append(h("div.paire", {}, h("div.qui", {}, h("span", {}, e.de), h("span.fl", {}, "→"), h("span", {}, e.pour)), mot,
+        h("div.res" + (e.annulee ? "" : e.essais ? ".ok" : ".ko"), {}, e.annulee ? "annulée" : e.essais ? `trouvé en ${e.essais}` : "pas trouvé", e.auto ? h("span.auto", {}, "au hasard") : null)));
+    }
+  }
+  return b;
 }
 
 /* ------------------------------------------------------------------ DOM */
@@ -1479,7 +1498,7 @@ async function partie() {
   ajusterTel();
   if (!large && window.ResizeObserver) { const ro = new ResizeObserver(() => requestAnimationFrame(ajusterTel)); ro.observe(zoneMoi.parentNode); nettoyageEcran.push(() => ro.disconnect()); }  // textes qui apparaissent, mot piégé…
   enJeu = true;
-  info.textContent = `${NOM_MODE[mode] || mode} · ${G.mot.length} lettres`;
+  info.textContent = "";  // 9.0 : plus de « mode · n lettres » (doublon avec le salon et la grille)
   document.onkeydown = e => {
     if (G.fini || e.ctrlKey || e.metaKey || e.altKey) return;
     const c = e.key.length === 1 ? e.key.toUpperCase() : "";
@@ -1614,11 +1633,11 @@ async function partie() {
   function piegeConstruireChoix(d) {
     piegeVider();
     const mi = conf.min || 6, ma = conf.max || 7, cache = !!conf.piege_cache, nom = cache ? "un autre joueur" : capitaliser(piegeNoms(d)[G.piegeCible] || "?");  // option du salon : cible cachée
-    info.textContent = cache ? `${NOM_MODE.PIEGE} · choisis un mot pour un autre joueur` : `${NOM_MODE.PIEGE} · choisis le mot de ${nom}`;
+    info.textContent = "";  // doublon avec « Choisis le mot que … devra deviner »
     const rg = h("div.ligne", { style: { gap: "8px", justifyContent: "center", margin: "12px 0 4px", flexWrap: "wrap" } });
     G.casesChoix = Array.from({ length: ma }, () => { const t = tuile(tailleMoi()); rg.append(t); return t; });
     zoneMoi.append(h("div.centre", {}, h("div.gras", { style: { fontSize: "19px" } }, cache ? "Choisis le mot que devra deviner un autre joueur (tu ne sais pas qui)" : `Choisis le mot que ${nom} devra deviner`),
-      h("div.t2", { style: { fontSize: "14px", marginTop: "2px" } }, piegeTexteLongueur(mi, ma) + (ma > mi ? " (cases en pointillé facultatives)" : "") + " · un mot du dictionnaire · gardé secret · pas de limite de temps"), rg));
+      rg));  // 9.0 : plus de ligne d'explication (longueur, dictionnaire, secret…) : les cases et les messages d'erreur suffisent
     G.ligne = 0; piegeRendreChoix(); piegeZoneHote();
   }
   function piegeRendreChoix() {
@@ -1635,7 +1654,7 @@ async function partie() {
   function piegeMajEtat(d) {
     if (!G.etatPiege || !G.etatPiege.isConnected) return;
     const pret = (d || M._dernierSalon || {}).piege_pret || {};
-    G.etatPiege.textContent = `${Object.keys(G.piegeDe).filter(t => t in pret).length} sur ${Object.keys(G.piegeDe).length} mots choisis` + (piegeFinConnue() ? " · c'est parti !" : "");
+    G.etatPiege.textContent = "";  // 9.0 : plus de « n sur m mots choisis » (chaque grille adverse dit déjà « Choisit un mot… »)
     G.zoneForcer.classList.toggle("cache", !(M.estHote && !piegeFinConnue()));  // seul l'hôte peut forcer le démarrage
   }
   // affiche le mot qu'on a choisi pour sa cible (jamais ceux choisis par ou pour les autres)
@@ -1694,7 +1713,7 @@ async function partie() {
     piegeVider(); G.phase = "devine"; G.piegeN = n; G.premiere = prem; G.mot = prem + "?".repeat(Math.max(0, n - 1));
     G.ligne = 0; G.tape = [prem]; G.attenteVerdict = null; G.statut = {};
     gMoi = grille(conf.essais || 6, n, tailleMoi()); zoneMoi.append(gMoi);
-    info.textContent = `${NOM_MODE.PIEGE} · mot choisi par ${capitaliser(piegeNoms(d)[G.piegeDe[FB.uid]] || "?")} · ${n} lettres`;
+    info.textContent = conf.piege_cache ? "" : `Mot choisi par ${capitaliser(piegeNoms(d)[G.piegeDe[FB.uid]] || "?")}`;
     const essais = (d.piege_essais || {})[FB.uid] || {};
     for (let k = 0; k < (conf.essais || 6); k++) {  // reprise : on rejoue les essais déjà envoyés
       const t = essais[`e${k}`]; if (typeof t !== "string") break;
@@ -1828,7 +1847,7 @@ async function partie() {
     FB.patch(pj, { rush_index: G.rush, score: M.score });
     const ng = grille(conf.essais || 6, G.mot.length, tailleMoi()); gMoi.replaceWith(ng); gMoi = ng;
     for (const ch of ALPHABET) kb.setCouleur(ch, null);
-    info.textContent = `${NOM_MODE[mode]} · mot n° ${G.rush + 1} · ${G.mot.length} lettres`; maj();
+    info.textContent = `Mot n° ${G.rush + 1}`; maj();
   }
   function finirRound(vic) {
     G.fini = true; (gMoi.cases[Math.min(G.ligne, gMoi.cases.length - 1)] || []).forEach(t => t.classList.remove("curseur"));
@@ -1898,7 +1917,7 @@ async function partie() {
     btnSalon.classList.toggle("cache", !M.estHote);
     sM.set(String(s.current_round || 1), null, ` / ${s.rounds || 1}`);
     const moi = p[FB.uid] || {}; sS.set(nombre(Math.max(M.score, typeof moi.score === "number" ? moi.score : 0)));
-    if (RUSHS.includes(mode)) info.textContent = `${NOM_MODE[mode]} · mot n° ${G.rush + 1} · ${G.mot.length} lettres`;
+    if (RUSHS.includes(mode)) info.textContent = `Mot n° ${G.rush + 1}`;
     const fs = d.fini_states || {}, md = d.match_data || {};
     if (mode === "COOP") { G.coopMd = md; rendreCoop(); }
     const fc = actifs.filter(pid => fs[pid]).length;
@@ -1997,19 +2016,21 @@ async function resultats() {
   const top = classement[0][1].score || 0, gagnants = classement.filter(([, v]) => (v.score || 0) === top).map(([, v]) => capitaliser(v.name));
   const rang = {}; let r = 0; classement.forEach(([pid, v], i) => { if (i > 0 && (v.score || 0) < (classement[i - 1][1].score || 0)) r = i; rang[pid] = r; });
   const ordre = classement.length >= 3 ? [1, 0, 2] : classement.length === 2 ? [1, 0] : [0];
+  // 9.0 : le symbole de l'hôte (couronne, comme dans le salon) reste à côté de son nom, mis à jour si l'hôte change
+  const icoHote = pid => h("span.ico-hote" + (pid === s.host_id ? "" : ".cache"), { "data-pid": pid, title: "Hôte", html: svg("couronne", 16) });
   const hauteurs = [150, 110, 84];  // indexées par le rang : ex aequo = même marche
   const podium = h("div.podium", {}, ordre.map(k => { const [pid, v] = classement[k]; const premier = rang[pid] === 0;
     return h("div.centre", {}, premier ? h("div", { style: { color: "var(--mal)" }, html: `<svg viewBox="0 0 24 24" style="width:30px;height:30px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linejoin:round">${SVG.couronne}</svg>` }) : null,
-      h("div.gras", { style: { fontSize: "17px", margin: "6px 0 12px" } }, capitaliser(v.name)),
+      h("div.gras.nom-podium", { style: { fontSize: "17px", margin: "6px 0 12px" } }, capitaliser(v.name), icoHote(pid)),
       h("div.marche", { style: { height: hauteurs[rang[pid]] + "px", background: premier ? "var(--mal)" : "var(--tuile)", color: premier ? "var(--sur-mal)" : "var(--texte)" } }, h("div.rang", {}, String(rang[pid] + 1)), h("div.gras", { style: { fontSize: "16px" } }, `${nombre(v.score || 0)} pt${(v.score || 0) > 1 ? "s" : ""}`))); }));
   const tab = h("div.tableau", {}, h("div.r.h", {}, h("span", { style: { width: "62px" } }, "#"), h("span", {}, "Joueur"), h("span.p", {}, "Points")),
-    classement.map(([pid, v]) => h("div.r" + (pid === FB.uid ? ".moi" : ""), {}, h("span", { style: { width: "62px" } }, String(rang[pid] + 1)), h("span", {}, capitaliser(v.name) + (pid === FB.uid ? " (vous)" : "")), h("span.p", {}, nombre(v.score || 0)))));
+    classement.map(([pid, v]) => h("div.r" + (pid === FB.uid ? ".moi" : ""), {}, h("span", { style: { width: "62px" } }, String(rang[pid] + 1)), h("span.nom", {}, capitaliser(v.name) + (pid === FB.uid ? " (vous)" : ""), icoHote(pid)), h("span.p", {}, nombre(v.score || 0)))));
   const recap = h("div.t2", { style: { textAlign: "center", fontSize: "14px", whiteSpace: "pre-line" } });
   const majRecap = dd => {
     if ((dd.settings || {}).game_mode === "PIEGE") {  // qui a choisi quoi pour qui, manche par manche
       const rec = dd.piege_recap || {}, noms = Object.fromEntries(Object.entries(dd.players || {}).map(([pid, v]) => [pid, v.name || "?"]));
-      const l = []; for (const k of Object.keys(rec).sort((a, b) => (parseInt(a.slice(1)) || 0) - (parseInt(b.slice(1)) || 0))) l.push(`Manche ${k.slice(1)}`, ...piegeLignesRecap(rec[k], null, noms));
-      recap.textContent = l.join("\n"); return;
+      const sig = JSON.stringify(rec); if (recap.dataset.sig === sig) return; recap.dataset.sig = sig;
+      recap.replaceChildren(piegeRecapBloc(rec, noms)); return;
     }
     const rc = dd.rush_recap; if (!RUSHS.includes((dd.settings || {}).game_mode) || !rc) return;
     const l = Array.isArray(rc) ? rc.map((w, i) => w && Array.isArray(w) ? `Manche ${i} : ${w.join(", ")}` : null).filter(Boolean)
@@ -2017,7 +2038,7 @@ async function resultats() {
     recap.textContent = l.join("\n"); };
   majRecap(d);
   const mot = mode === "PIEGE" ? "" : M.dernierMot;
-  const btnSalonFin = boutonSalon("Ramener tous les joueurs au salon ?"), haut = barreHaut(() => { M.quitter(); accueil(); }, (hote ? `Salon de ${capitaliser(hote)} · ` : "") + `${NOM_MODE[mode] || mode} · Partie terminée`);
+  const btnSalonFin = boutonSalon("Ramener tous les joueurs au salon ?"), haut = barreHaut(() => { M.quitter(); accueil(); });  // 9.0 : plus de « Salon de … · mode · Partie terminée »
   haut.firstChild.after(btnSalonFin); btnSalonFin.classList.toggle("cache", !M.estHote);
   ecran(haut,
     h("div.centre", { style: { padding: "18px 0 30px", gap: "0" } },
@@ -2035,7 +2056,10 @@ async function resultats() {
     const dd = await M.lireSalon();
     if (gen !== M.gen) return;
     if (dd && dd.status === "waiting") { M.score = 0; salon(); return; }
-    if (dd && dd.settings) { M.estHote = dd.settings.host_id === FB.uid; btnSalonFin.classList.toggle("cache", !M.estHote); }  // l'hôte a pu changer
+    if (dd && dd.settings) {  // l'hôte a pu changer
+      M.estHote = dd.settings.host_id === FB.uid; btnSalonFin.classList.toggle("cache", !M.estHote);
+      document.querySelectorAll(".ico-hote").forEach(e => e.classList.toggle("cache", e.dataset.pid !== dd.settings.host_id));
+    }
     if (dd && (dd.settings || {}).game_mode === "PIEGE") {  // dernier mot révélé après la fin : récapitulatif et score à jour
       majRecap(dd);
       const total = piegePoints(dd.piege_recap, FB.uid, Number((dd.settings || {}).essais || 8));
