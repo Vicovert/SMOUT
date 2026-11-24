@@ -289,7 +289,7 @@ const SVG = {
   engrenage: '<circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>', jouer: '<path d="M8 5l11 7-11 7z"/>', infini: '<path d="M5 12c0-2.5 1.8-4 3.8-4 3.5 0 3.5 8 7.2 8 2 0 3-1.7 3-4s-1-4-3-4c-3.7 0-3.7 8-7.2 8-2 0-3.8-1.5-3.8-4z"/>',
   chevron: '<path d="M9 6l6 6-6 6"/>', check: '<path d="M5 12l5 5 9-10"/>',
   couronne: '<path d="M3 18h18l-2-10-5 5-2-7-2 7-5-5z"/>',
-  salon: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.2c2.8.3 5 2.7 5 5.8"/>',
+  salon: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',  // flèche de retour (bouton « Lobby »)
   stats: '<path d="M6 20v-7M12 20V6M18 20v-10"/>',
   crayon: '<path d="M4 20h4L19 9l-4-4L4 16z M14 6l4 4"/>',
   cadenas: '<rect x="5" y="11" width="14" height="10" rx="2.5" fill="currentColor"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
@@ -1109,7 +1109,7 @@ const deCode = c => c === "B" ? "bien" : c === "M" ? "mal" : "absent";
 // 9.0 : bouton de l'hôte « Retour au salon » (en haut à gauche, à côté de la flèche) : ramène tous les joueurs au salon, après confirmation
 function boutonSalon(question) {
   return h("button.btn-salon.cache", { type: "button", title: "Ramener tous les joueurs au salon", onclick: () => { if (M.estHote && confirm(question)) M.ramenerAuSalon(); } },
-    h("span.ico", { html: svg("salon", 18) }), h("span.long", {}, "Retour au salon"), h("span.court", {}, "Salon"));
+    h("span.ico", { html: svg("salon", 18) }), "Lobby");
 }
 function barreHaut(onRetour, droite = "") {
   const d = h("div.droite", {}, droite);

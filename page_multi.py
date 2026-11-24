@@ -23,7 +23,7 @@ from compte import AuthFirebase  # connexion Firebase partagée avec le compte (
 
 # ===================================================================== thème
 import design
-from design import (Curseur, P, police, etiquette, espacer, Tuile, Bouton, Panneau, Icone, Avatar, Clavier, Stat, Chips, CarteChoix,
+from design import (Curseur, P, police, etiquette, espacer, Tuile, Bouton, BoutonLobby, Panneau, Icone, Avatar, Clavier, Stat, Chips, CarteChoix,
                     Champ, TuileAction, Interrupteur, Superposition, Stepper, TuileReglage, CarteSalon, Defilant, arrondi, melanger, fenetre_aide)
 
 BG = ACCENT1 = ACCENT2 = MUTED = KEY_BG = TXT1 = None
@@ -1001,9 +1001,11 @@ class PageJeu(tk.Frame):
         self._frappe_prog, self._frappe_env, self._frappe_voulue = None, None, ""  # frappe en direct (Mot piégé)
         # En-tête
         h = tk.Frame(self, bg=P["fond"]); h.pack(fill="x", padx=28, pady=(18, 0))
-        Icone(h, "retour", self.quitter_jeu).pack(side="left")
+        gf = tk.Frame(h, bg=P["fond"]); gf.pack(side="left")
+        Icone(gf, "retour", self.quitter_jeu).pack(side="left")
+        # 9.0 : bouton de l'hôte « Lobby » en haut à gauche (ramène tous les joueurs au salon, après confirmation)
+        self.btn_salon = BoutonLobby(gf, self.retour_salon_hote); self.btn_salon_visible = False
         zf = tk.Frame(h, bg=P["fond"]); zf.pack(side="right")
-        self.btn_salon = Bouton(zf, "Retour au salon", self.retour_salon_hote, largeur=170, hauteur=34, variante="discret", taille=13); self.btn_salon_visible = False
         Icone(zf, "moins", lambda: self.adjust_zoom(-0.1), 32).pack(side="left")
         self.lbl_zoom = etiquette(zf, f"{int(self.user_zoom * 100)} %", "texte", 13, P["texte2"]); self.lbl_zoom.pack(side="left", padx=4)
         Icone(zf, "plus", lambda: self.adjust_zoom(0.1), 32).pack(side="left")
@@ -1048,7 +1050,7 @@ class PageJeu(tk.Frame):
         """L'hôte peut ramener tout le monde au salon en cours de partie (avec confirmation)."""
         if self.controller.is_host != self.btn_salon_visible:
             self.btn_salon_visible = self.controller.is_host
-            if self.btn_salon_visible: self.btn_salon.pack(side="left", padx=(0, 16), before=self.btn_salon.master.winfo_children()[1])
+            if self.btn_salon_visible: self.btn_salon.pack(side="left", padx=(8, 0))
             else: self.btn_salon.pack_forget()
 
     def retour_salon_hote(self):
@@ -2013,6 +2015,8 @@ class PageScoreFinal(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg=P["fond"]); self.controller, self.active_sync = controller, False
         self.lbl_haut = barre_haut(self, self.quitter_depuis_score, "Partie terminée")
+        hb = self.lbl_haut.master  # 9.0 : bouton de l'hôte « Lobby » à côté de la flèche
+        self.btn_lobby_haut = BoutonLobby(hb, self.retour_lobby_confirme); self.lobby_haut_visible = None
         zone = Defilant(self, hauteur=200); zone.pack(fill="both", expand=True)
         self.corps = tk.Frame(zone.interieur, bg=P["fond"]); self.corps.pack(fill="both", expand=True, pady=(0, 20))
         self.lbl_rush_recap = tk.Label(self, text="")  # conservé pour la logique de récapitulatif
@@ -2115,6 +2119,7 @@ class PageScoreFinal(tk.Frame):
         self.lbl_wait = Bouton(bf, "En attente de l'hôte…", lambda: None, largeur=280, hauteur=56, variante="discret", taille=16); self.lbl_wait.activer(False)
         (self.btn_lobby if self.controller.is_host else self.lbl_wait).pack(side="left", padx=8)
         Bouton(bf, "Retour à l'accueil", self.quitter_depuis_score, largeur=240, hauteur=56, variante="discret", taille=17).pack(side="left", padx=8)
+        self.maj_lobby_haut()
         self.fin_gen = getattr(self, "fin_gen", 0) + 1
         self.ecouter_fin(self.fin_gen)
 
@@ -2126,6 +2131,8 @@ class PageScoreFinal(tk.Frame):
         if not self.active_sync or gen != self.fin_gen: return
         if d and d.get("status") == "waiting": self.active_sync = False; self.controller.current_score = 0; self.controller.show_frame("PageLobby")
         else:
+            if d and d.get("settings", {}).get("host_id"):  # l'hôte a pu changer
+                self.controller.is_host = d["settings"]["host_id"] == self.controller.player_id; self.maj_lobby_haut()
             if d and self.lbl_rush_recap.cget("text") != "\n".join(self.recap_rush(d)):
                 self.maj_rush_recap(d)
             if d and d.get("settings", {}).get("game_mode") == "PIEGE":  # dernier mot révélé après la fin : score à jour
@@ -2136,3 +2143,11 @@ class PageScoreFinal(tk.Frame):
             self.after(1000, lambda: self.ecouter_fin(gen))
 
     def retour_lobby_host(self): self.controller.ramener_au_salon()
+    def retour_lobby_confirme(self):
+        if self.controller.is_host and tkm.askyesno("Lobby", "Ramener tous les joueurs au salon ?"): self.controller.ramener_au_salon()
+    def maj_lobby_haut(self):
+        v = bool(self.controller.is_host)
+        if v == self.lobby_haut_visible: return
+        self.lobby_haut_visible = v
+        if v: self.btn_lobby_haut.pack(side="left", padx=(12, 0), after=self.btn_lobby_haut.master.winfo_children()[0])
+        else: self.btn_lobby_haut.pack_forget()

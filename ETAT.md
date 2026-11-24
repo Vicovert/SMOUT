@@ -11,14 +11,12 @@ _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travai
 ## À faire par Victor
 - [x] E-mail/Mot de passe activé et règles Firebase republiées (fait par Victor le 24/11/2026).
 - [ ] Tester la 8.19 : création de compte, connexion sur un 2e appareil, partie multijoueur sur téléphone (pas de défilement, pas de zoom au double appui, « + » agrandit le clavier).
-- [ ] Supprimer les branches inutiles (voir « Prochaines pistes »).
-- [ ] Coller les instructions de projet (`claude/instructions-projet.md`) dans les réglages du projet.
+- [ ] Supprimer les branches inutiles : `claude/project-thread-y6lqmp`, `doc-etat-8.17`, `regles-etape3`, `travail-8.10` à `travail-8.13`, `v4.3`, `v5.0`, `v6.0`, `v7.0` (et, facultatif, les sauvegardes d'avant le 24/11).
 
 ## En cours
 - Configuration de l'espace de travail : terminée (PR #1), Claude fusionne désormais lui-même les PR.
 
 ## Prochaines pistes (non commencées)
-- Supprimer les branches inutiles (dont `travail-8.14` à `travail-8.19`, `doc-etat-8.14` à `doc-etat-8.19`, `doc-fin-message`) : `travail-8.10`, `travail-8.11`, `travail-8.12`, `regles-etape3`, `v4.3`, `v5.0`, `v6.0`, `v7.0`.
 - Corriger `tests/README.md` (dit encore que les tests tournent sur `main`).
 - Test automatique d'équivalence PC ↔ web des constantes (`REGLES_MODES`, `RUSHS`, `COULEURS_MODES`).
 - Règles Firebase : empêcher l'hôte d'écrire n'importe quel score.

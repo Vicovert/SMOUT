@@ -50,6 +50,9 @@ const db = async () => (await (await fetch(BASE + "/__admin.json")).json()) || {
   await attendre(B, () => !document.querySelector(".salon-partie button.lancer")?.disabled, 8000);
   await ev(B, () => document.querySelector(".salon-partie button.lancer").click());
   ok("partie lancée par le nouvel hôte", await attendre(C, () => !!document.querySelector(".clavier"), 15000));
+  const lobby = p => ev(p, () => { const b = document.querySelector(".entete .btn-salon"); if (!b || b.classList.contains("cache")) return null; const r = b.getBoundingClientRect(), q = document.querySelector('button.icone[aria-label="Quitter"]').getBoundingClientRect(); return { t: b.textContent.trim(), gauche: r.left < innerWidth / 2 && r.left >= q.right - 1 }; });
+  ok("9.0 : l'hôte voit « Lobby » en haut à gauche, à côté de la flèche", await attendre(B, () => { const b = document.querySelector(".entete .btn-salon"); return b && !b.classList.contains("cache"); }, 8000) && JSON.stringify(await lobby(B)) === JSON.stringify({ t: "Lobby", gauche: true }), JSON.stringify(await lobby(B)));
+  ok("9.0 : les autres joueurs ne voient pas « Lobby »", (await lobby(C)) === null);
   await ev(C, () => document.querySelector('button.icone[aria-label="Quitter"]').click()); await sleep(300);
   ok("retour en partie : fenêtre « Quitter la partie ? » (Continuer / Quitter / Mettre en pause)", await ev(C, () => ["Continuer", "Quitter la partie", "Mettre en pause"].every(t => [...document.querySelectorAll(".voile:not(.cache) button")].some(x => x.textContent === t))));
   await clic(C, "Mettre en pause"); await sleep(800);

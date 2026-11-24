@@ -2,6 +2,11 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
+## 9.0
+- Hôte : bouton « Lobby » (flèche de retour + « Lobby », contour jaune) en haut à gauche, à côté de la flèche, en pleine partie (aussi pendant le choix du Mot piégé) et sur l'écran de fin de partie, PC et web, téléphone compris. Il ramène tous les joueurs au salon après confirmation (« Ramener tous les joueurs au salon ? »). Remplace le petit lien « Retour au salon » de droite. Design validé par Victor.
+- Web, téléphone : titre de l'écran de fin de partie limité à 2 lignes.
+- Tests : « Lobby » visible en haut à gauche pour l'hôte seulement (web et PC, `hote_web.js`, `test_hote_pc.py`).
+
 ## 8.19
 - Comptes : la création affichait « Les comptes ne sont pas encore activés sur le serveur » même avec E-mail/Mot de passe activé. Cause : la protection contre l'énumération des e-mails (activée par défaut sur le projet Firebase) refuse `accounts:update` (« Please verify the new email before changing email »). Le rattachement du joueur anonyme passe désormais par `accounts:signUp` avec son `idToken` (même identifiant), PC et web — vérifié sur le vrai projet avec un compte de test aussitôt supprimé.
 - Tests : le faux serveur refuse maintenant `update` comme le vrai projet (les tests de comptes reçoivent l'opération appelée), ce qui aurait détecté le bug.

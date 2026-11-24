@@ -68,6 +68,7 @@ ok("l'hôte rendu par BOB : ALICE a de nouveau la main", attendre(lambda: m.is_h
 # partie : pause puis reprise
 pump(1); lob.lancer(); pump(3)
 J = m.frames["PageJeu"]
+ok("9.0 : l'hôte voit « Lobby » en haut à gauche, à côté de la flèche", attendre(lambda: J.btn_salon.winfo_ismapped(), 8) and J.btn_salon.texte == "Lobby" and J.btn_salon.winfo_rootx() < J.winfo_rootx() + J.winfo_width() / 2)
 J.quitter_jeu(); pump(0.5)
 ok("retour en partie : fenêtre « Quitter la partie ? »", J.fen_quitter.winfo_ismapped())
 J.fen_quitter.cacher(); J.mettre_en_pause(); pump(1.5)

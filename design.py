@@ -11,7 +11,7 @@ def _appel_tk_sur(self, *args):
     return _appel_tk(self, *args)
 tk.CallWrapper.__call__ = _appel_tk_sur
 
-VERSION_APP = "8.19"
+VERSION_APP = "9.0"
 URL_WEB = "https://vicovert.github.io/SMOUT/"
 
 def mot_graine(liste_triee, graine, index=0):
@@ -572,6 +572,24 @@ class Curseur(tk.Canvas):
             self.create_oval(x - 11, y - 11, x + 11, y + 11, fill=coul, outline=fond_parent(self), width=3)
         txt = (f"{self.v[0]} à {self.v[1]}" if self.v[0] != self.v[1] else str(self.v[0])) if self.plage else self.fmt(self.v[0])
         self.create_text(self.l - 4, y, text=txt, anchor="e", fill=P["texte"] if self.actif else P["texte2"], font=police("chiffres", 15, True))
+
+
+class BoutonLobby(Bouton):
+    """9.0 : bouton de l'hôte « Lobby » (flèche de retour + texte, contour jaune), en haut à gauche de la partie et de la fin de partie.
+    Même rendu que .btn-salon du site."""
+    def __init__(self, parent, commande):
+        super().__init__(parent, "Lobby", commande, largeur=96, hauteur=36, variante="secondaire", taille=14, couleur=P["mal"])
+    def _dessiner(self):
+        self.delete("all")
+        fill, out, fg = self._couleurs()
+        if self.survol and self.actif: fill, fg = P["mal"], P["sur_mal"]
+        arrondi(self, 1, 1, self.largeur - 1, self.hauteur - 1, min(12, self.hauteur / 2.6), fill=fill, outline=out, width=1.5)
+        x, m = 16, self.hauteur / 2  # flèche de retour : pointe à gauche puis crochet vers le bas
+        self.create_line(x + 4, m - 6, x, m - 2, x + 4, m + 2, fill=fg, width=2, capstyle="round", joinstyle="round")
+        self.create_line(x, m - 2, x + 9, m - 2, fill=fg, width=2, capstyle="round")
+        self.create_arc(x + 4, m - 2, x + 14, m + 8, start=-90, extent=180, style="arc", outline=fg, width=2)
+        self.create_line(x + 9, m + 8, x + 6, m + 8, fill=fg, width=2, capstyle="round")
+        self.create_text(x + 22, m, text=self.texte, anchor="w", fill=fg, font=police("texte", self.taille, True))
 
 
 class Clavier(tk.Frame):
