@@ -289,6 +289,7 @@ const SVG = {
   engrenage: '<circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>', jouer: '<path d="M8 5l11 7-11 7z"/>', infini: '<path d="M5 12c0-2.5 1.8-4 3.8-4 3.5 0 3.5 8 7.2 8 2 0 3-1.7 3-4s-1-4-3-4c-3.7 0-3.7 8-7.2 8-2 0-3.8-1.5-3.8-4z"/>',
   chevron: '<path d="M9 6l6 6-6 6"/>', check: '<path d="M5 12l5 5 9-10"/>',
   couronne: '<path d="M3 18h18l-2-10-5 5-2-7-2 7-5-5z"/>',
+  salon: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.2c2.8.3 5 2.7 5 5.8"/>',
   stats: '<path d="M6 20v-7M12 20V6M18 20v-10"/>',
   crayon: '<path d="M4 20h4L19 9l-4-4L4 16z M14 6l4 4"/>',
   cadenas: '<rect x="5" y="11" width="14" height="10" rx="2.5" fill="currentColor"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
@@ -1105,6 +1106,11 @@ window.addEventListener("pagehide", () => { if (M.lobby && FB.jetonId) fetch(`${
 const preuveSalon = async (code, mdp) => mdp ? (await sha256hex(`${code}:${mdp}`)).slice(0, 32) : null;
 const enCodes = res => res.map(e => e === "bien" ? "B" : e === "mal" ? "M" : "A");
 const deCode = c => c === "B" ? "bien" : c === "M" ? "mal" : "absent";
+// 9.0 : bouton de l'hôte « Retour au salon » (en haut à gauche, à côté de la flèche) : ramène tous les joueurs au salon, après confirmation
+function boutonSalon(question) {
+  return h("button.btn-salon.cache", { type: "button", title: "Ramener tous les joueurs au salon", onclick: () => { if (M.estHote && confirm(question)) M.ramenerAuSalon(); } },
+    h("span.ico", { html: svg("salon", 18) }), h("span.long", {}, "Retour au salon"), h("span.court", {}, "Salon"));
+}
 function barreHaut(onRetour, droite = "") {
   const d = h("div.droite", {}, droite);
   const e = h("div.barre-haut", {}, icone("retour", onRetour, true, "Retour"), h("div.titre", { style: { fontSize: "24px" } }, "SMOUT"), d); e.droite = d; return e;
@@ -1403,7 +1409,7 @@ async function partie() {
   const suivant = bouton("Manche suivante", clicSuivant, { largeur: 300, hauteur: 52 }); suivant.classList.add("cache");
   const kb = clavier(ajouter, effacer, valider, kh);
   // l'hôte peut ramener tout le monde au salon en cours de partie (avec confirmation)
-  const btnSalon = h("button.lien.cache", { onclick: () => { if (M.estHote && confirm("Ramener tous les joueurs au salon ?\nLa partie en cours sera annulée.")) M.ramenerAuSalon(); } }, "Retour au salon");
+  const btnSalon = boutonSalon("Ramener tous les joueurs au salon ?\nLa partie en cours sera annulée.");
   const advZone = h("div" + (large ? "" : ".adv-tel"), { style: large ? { display: "grid", gap: "14px 18px", padding: "20px 40px 0 10px", alignContent: "start" } : {} });
   const adv = {};
   const opp = Object.entries((dm || {}).players || {}).filter(([pid]) => pid !== FB.uid);
@@ -1455,7 +1461,7 @@ async function partie() {
   }
   const zm = h("span.t2", { style: { fontSize: "13px", minWidth: "44px", textAlign: "center" } }, `${Math.round((lireConfig().user_zoom || 1) * 100)} %`);
   const zoom = d => { const z = Math.round(Math.max(0.6, Math.min(1.6, (lireConfig().user_zoom || 1) + d)) * 100) / 100; majConfig({ user_zoom: z }); zm.textContent = `${Math.round(z * 100)} %`; gMoi.cases.flat().forEach(t => t.taille(tailleMoi())); G.casesChoix?.forEach?.(t => t.taille(tailleMoi())); kb.zoom(z); };
-  ecran(h("div.entete", {}, (e => { e.dataset.dialogue = "1"; return e; })(icone("retour", quitterJeu, false, "Quitter")), info, h("div.ligne", {}, btnSalon, icone("moins", () => zoom(-0.1), false, "Réduire"), zm, icone("plus", () => zoom(0.1), false, "Agrandir"))),
+  ecran(h("div.entete", {}, h("div.ligne.gauche", {}, (e => { e.dataset.dialogue = "1"; return e; })(icone("retour", quitterJeu, false, "Quitter")), btnSalon), info, h("div.ligne", {}, icone("moins", () => zoom(-0.1), false, "Réduire"), zm, icone("plus", () => zoom(0.1), false, "Agrandir"))),
     large ? h("div.ligne", { style: { alignItems: "flex-start", flexWrap: "wrap", justifyContent: "center" } },
       h("div.centre", { style: { flex: 1, minWidth: "320px" } }, h("div.stats", { style: { marginTop: "4px", gap: "min(68px, 7.5vw)" } }, sM, sT, sS), zoneMoi, h("div.ligne", { style: { gap: "8px", margin: "8px 0 4px" } }, msg, lienDef), suivant, h("div", { style: { margin: "4px 0 16px" } }, kb)),
       advZone)
@@ -2011,7 +2017,9 @@ async function resultats() {
     recap.textContent = l.join("\n"); };
   majRecap(d);
   const mot = mode === "PIEGE" ? "" : M.dernierMot;
-  ecran(barreHaut(() => { M.quitter(); accueil(); }, (hote ? `Salon de ${capitaliser(hote)} · ` : "") + `${NOM_MODE[mode] || mode} · Partie terminée`),
+  const btnSalonFin = boutonSalon("Ramener tous les joueurs au salon ?"), haut = barreHaut(() => { M.quitter(); accueil(); }, (hote ? `Salon de ${capitaliser(hote)} · ` : "") + `${NOM_MODE[mode] || mode} · Partie terminée`);
+  haut.firstChild.after(btnSalonFin); btnSalonFin.classList.toggle("cache", !M.estHote);
+  ecran(haut,
     h("div.centre", { style: { padding: "18px 0 30px", gap: "0" } },
       mot ? h("div.t2", { style: { fontSize: "17px" } }, "Le dernier mot était") : null,
       mot ? h("div.ligne", { style: { gap: "8px", margin: "8px 0 12px" } }, [...mot].map(ch => { const t = tuile(46); t.maj(ch, "bien"); return t; })) : null,
@@ -2027,6 +2035,7 @@ async function resultats() {
     const dd = await M.lireSalon();
     if (gen !== M.gen) return;
     if (dd && dd.status === "waiting") { M.score = 0; salon(); return; }
+    if (dd && dd.settings) { M.estHote = dd.settings.host_id === FB.uid; btnSalonFin.classList.toggle("cache", !M.estHote); }  // l'hôte a pu changer
     if (dd && (dd.settings || {}).game_mode === "PIEGE") {  // dernier mot révélé après la fin : récapitulatif et score à jour
       majRecap(dd);
       const total = piegePoints(dd.piege_recap, FB.uid, Number((dd.settings || {}).essais || 8));
