@@ -165,6 +165,8 @@ t("classement : moyenne absurde refusée", req("PATCH", f"v7/classements/mdj/{ug
 t("classement : essais absurdes refusés", req("PATCH", f"v7/classements/mdj/{ug}", G, {"essais": 50}), 401)
 t("classement : record marathon", req("PUT", f"v7/classements/marathon/{ug}", G, {"pseudo": "GAEL", "record": 31, "maj": SV}), 200)
 t("classement : score marathon (9.7)", req("PATCH", f"v7/classements/marathon/{ug}", G, {"score": 45210}), 200)
+t("classement : détail du marathon (9.10)", req("PATCH", f"v7/classements/marathon/{ug}", G, {"mots": 23, "essais": 6, "lmin": 6, "lmax": 10, "difficile": True}), 200)
+t("classement : essais du marathon absurdes refusés", req("PATCH", f"v7/classements/marathon/{ug}", G, {"essais": 12}), 401)
 t("classement : score marathon absurde refusé", req("PATCH", f"v7/classements/marathon/{ug}", G, {"score": 99999999}), 401)
 t("classement : record marathon absurde refusé", req("PATCH", f"v7/classements/marathon/{ug}", G, {"record": 9999}), 401)
 t("classement : champ inconnu refusé", req("PATCH", f"v7/classements/marathon/{ug}", G, {"pirate": 1}), 401)

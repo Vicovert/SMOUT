@@ -112,8 +112,8 @@ const res = []; const ok = (nom, c, info = "") => { res.push(!!c); console.log((
   await p.evaluate(() => supprimerTheme("MON BLEU")); ok("suppression du thème perso → thème par défaut", await p.evaluate(() => !THEMES["MON BLEU"] && themeActuel === D.theme_defaut));
   // pseudo
   await p.evaluate(() => accueil()); await p.evaluate(() => changerPseudo()); await sleep(100);
-  await p.evaluate(() => { const c = document.querySelector(".voile:not(.cache) input"); c.value = ""; }); await p.type(".voile:not(.cache) input", "  élise-marie  2! "); await p.keyboard.press("Enter"); await sleep(100);
-  ok("pseudo nettoyé (lettres avec accents, chiffres, espaces simples, en majuscules)", (await p.evaluate(() => lireConfig().pseudo)) === "ÉLISEMARIE 2", await p.evaluate(() => lireConfig().pseudo));
+  await p.evaluate(() => { const c = document.querySelector(".voile:not(.cache) input"); c.value = ""; }); await p.type(".voile:not(.cache) input", "  léa-marie  2! "); await p.keyboard.press("Enter"); await sleep(100);
+  ok("pseudo nettoyé (lettres avec accents, chiffres, espaces simples, en majuscules)", (await p.evaluate(() => lireConfig().pseudo)) === "LÉAMARIE 2", await p.evaluate(() => lireConfig().pseudo));
   await p.close();
 
   // ---------- mise en page téléphone

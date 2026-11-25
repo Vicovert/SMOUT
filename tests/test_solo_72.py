@@ -1,5 +1,5 @@
 """Tests solo 7.2 (PC) : marathon, difficile, accueil et menu solo, statistiques, daltonien, captures."""
-import sys, os, time, datetime, tkinter as tk
+import sys, os, time, datetime, json, tkinter as tk
 
 # diagnostic CI : quand un rappel Tkinter échoue, on affiche la fonction, les arguments et le widget (la trace seule n'indique pas qui l'a appelé)
 import tkinter as _tkdiag
@@ -58,7 +58,7 @@ for w in sorted(j.controller.banque_verif):
     if j.fini_local: break
     if len(w) == len(j.mot) and w[0] == j.mot[0] and w != j.mot: taper(j, w)
 pump(0.4); st = D.lire_stats()
-ok("marathon terminé → record 3", st["marathon"]["record"] == 3 and st["marathon"]["parties"] == 1, str(st["marathon"]))
+ok("marathon terminé → record 3", st["marathon"]["record"] == 3 and st["marathon"]["parties"] == 1, json.dumps(st["marathon"]))  # (json : « false » et pas « : False », que le banc prend pour un échec)
 capture("marathon_fin")
 app.creer_menu_accueil(); pump()
 # --- accueil allégé + page intermédiaire du solo

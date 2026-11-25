@@ -201,11 +201,15 @@ def valider(N, cible):
     if len(cible) >= 4 and cible[1] == "classements":  # 9.4
         n, d = lire(N, cible[:4]), lire(D := DATA, cible[:4])
         if existe(n):
-            cles = {"mdj": ({"pseudo", "meilleure", "maj"}, {"actuelle", "jour", "essais", "moyenne"}), "marathon": ({"pseudo", "record", "maj"}, {"score"})}.get(cible[2])
+            cles = {"mdj": ({"pseudo", "meilleure", "maj"}, {"actuelle", "jour", "essais", "moyenne"}), "marathon": ({"pseudo", "record", "maj"}, {"score", "mots", "essais", "lmin", "lmax", "difficile"})}.get(cible[2])
             if not cles or not isinstance(n, dict) or not cles[0] <= set(n) or set(n) - cles[0] - cles[1]: return False
             if not isinstance(n["pseudo"], str) or len(n["pseudo"]) > 30 or not isinstance(n["maj"], (int, float)) or n["maj"] > maintenant() + 5000: return False
             if cible[2] == "marathon" and not (isinstance(n["record"], (int, float)) and 0 <= n["record"] <= 500): return False
             if cible[2] == "marathon" and "score" in n and not (isinstance(n["score"], (int, float)) and 0 <= n["score"] <= 10000000): return False  # 9.7
+            if cible[2] == "marathon":  # 9.10 : mots et réglages de la meilleure partie
+                for k, (a, b) in {"mots": (0, 500), "essais": (4, 8), "lmin": (6, 10), "lmax": (6, 10)}.items():
+                    if k in n and not (isinstance(n[k], (int, float)) and not isinstance(n[k], bool) and a <= n[k] <= b): return False
+                if "difficile" in n and not isinstance(n["difficile"], bool): return False
             if cible[2] == "mdj":
                 m = n["meilleure"]
                 if not isinstance(m, (int, float)) or m < 0: return False
