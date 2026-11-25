@@ -7,8 +7,9 @@ Site : https://vicovert.github.io/SMOUT/ — Dépôt : Vicovert/SMOUT. **Toujour
 ## Structure
 - `main.py`, `page_solo.py`, `page_multi.py`, `design.py` : appli bureau (composants UI dans `design.py`, `VERSION_APP` y est définie)
 - `web/` : `smout.js`, `style.css`, `index.html` ; `outils/export_web.py` génère `donnees.js` (dont la version) pour le site
-- `database.rules.json` : règles Firebase (chemin `/v7`, `VERSION_JEU`). **Je ne publie jamais les règles dans la console Firebase : c'est l'utilisateur qui le fait.**
+- `database.rules.json` : règles Firebase (chemin `/v7`, `VERSION_JEU`). **Publiées automatiquement** par `.github/workflows/regles.yml` (`outils/publier_regles.py`, secret GitHub `FIREBASE_SA`) à chaque fusion dans `main` qui les modifie : vérifier ensuite que le run « Règles Firebase » est vert (sinon lire son journal) ; republier à la demande avec `actions_run_trigger` (workflow_dispatch). Victor n'a plus à les publier (demandé par Victor le 25/11/2026).
 - `tests/` : banc de test (faux serveur Firebase `fb_regles.py`, robots PC/web, scénarios croisés)
+- `.github/workflows/regles.yml` : publie les règles Firebase (voir ci-dessus).
 - `.github/workflows/release.yml` (push sur `travail-*` → tests en 8 jobs parallèles d'environ 3-5 min ; push sur `main` → build Windows + release, sans retester) et `pages.yml` (site, publié dès le push sur `main`)
 
 ## Règle d'équivalence
@@ -63,4 +64,4 @@ Local (sans navigateur cloud, uniquement Chrome headless via puppeteer-core et T
 
 ## Interdits
 - Ne pas utiliser de navigateur distant/cloud pour tester.
-- Ne pas toucher à la console Firebase ni aux secrets.
+- Ne jamais lire, afficher ni demander la clé `FIREBASE_SA` (elle reste dans les secrets GitHub) ; ne pas ouvrir la console Firebase.

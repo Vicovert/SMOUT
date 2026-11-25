@@ -1,0 +1,22 @@
+# Publie les règles Firebase (database.rules.json) dès qu'elles changent sur main, ou à la demande.
+# Clé du compte de service : secret FIREBASE_SA (Settings → Secrets and variables → Actions).
+name: Règles Firebase
+on:
+  push:
+    branches: [main]
+    paths: [database.rules.json]
+  workflow_dispatch:
+concurrency: regles-firebase
+jobs:
+  publier:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install google-auth requests
+      - name: Publier et vérifier
+        env:
+          FIREBASE_SA: ${{ secrets.FIREBASE_SA }}
+        run: python outils/publier_regles.py
