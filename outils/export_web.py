@@ -34,13 +34,19 @@ def construire(sortie):
         f.write("// Généré automatiquement depuis le code PC (outils/export_web.py) : ne pas modifier à la main.\n")
         f.write("window.SMOUT_DONNEES = " + json.dumps(donnees, ensure_ascii=False) + ";\n")
     open(os.path.join(sortie, ".nojekyll"), "w").close()
+    # 9.5 : dernière version publiée, lue par le jeu (jamais en cache) pour proposer la mise à jour
+    with open(os.path.join(sortie, "version.json"), "w", encoding="utf-8") as f: json.dump({"version": donnees["version"]}, f)
+    # 9.5 : fichiers appelés avec la version, pour qu'un rechargement prenne bien les nouveaux (pas l'ancien cache du navigateur)
+    ip = os.path.join(sortie, "index.html"); html = open(ip, encoding="utf-8").read()
+    for f in ("style.css", "donnees.js", "smout.js"): html = html.replace(f'"{f}"', f'"{f}?v={donnees["version"]}"')
+    open(ip, "w", encoding="utf-8").write(html)
     # Service worker (jeu installable et solo hors ligne) : liste des fichiers + empreinte du contenu pour forcer la mise à jour
     import hashlib
     fichiers, empreinte = [], hashlib.sha256()
     for d, _, fs in sorted(os.walk(sortie)):
         for f in sorted(fs):
             chemin = os.path.relpath(os.path.join(d, f), sortie).replace(os.sep, "/")
-            if chemin in ("sw.js", ".nojekyll") or chemin.endswith((".ico", ".txt")) and "LICENCE" in chemin: continue
+            if chemin in ("sw.js", ".nojekyll", "version.json") or chemin.endswith((".ico", ".txt")) and "LICENCE" in chemin: continue
             fichiers.append(chemin); empreinte.update(chemin.encode()); empreinte.update(open(os.path.join(d, f), "rb").read())
     cache = f"smout-{donnees['version']}-{empreinte.hexdigest()[:10]}"
     with open(os.path.join(sortie, "sw.js"), "w", encoding="utf-8") as f:
@@ -54,7 +60,7 @@ self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c =>
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(k => Promise.all(k.filter(n => n !== CACHE).map(n => caches.delete(n)))).then(() => self.clients.claim())); });
 self.addEventListener("fetch", e => {
   const u = new URL(e.request.url);
-  if (e.request.method !== "GET" || u.origin !== location.origin) return;  // Firebase et connexion : toujours en ligne
+  if (e.request.method !== "GET" || u.origin !== location.origin || u.pathname.endsWith("/version.json")) return;  // Firebase, connexion et numéro de version : toujours en ligne
   const page = e.request.mode === "navigate";
   // pages : réseau d'abord (dernière version), cache si hors ligne ; fichiers : cache d'abord
   e.respondWith(page

@@ -521,6 +521,8 @@ class MenuPrincipal(tk.Tk):
         CarteMenu(centre, "Mot du jour", "Un mot, une partie par jour", lambda: self.ouvrir_solo(True), largeur=796, hauteur=h, badge=badge.strip(" ·") if badge else None,
                   couleur="#4CC9F0", texte="#14182A").pack(pady=(26, 0))  # couleur propre au Mot du jour (comme .carte-menu.mdj du web)
         etiquette(page, f"SMOUT v{design.VERSION_APP}", "texte", 14, P["texte2"]).pack(side="bottom", pady=22)
+        if not getattr(self, "maj_lancee", False): self.maj_lancee = True; self.verifier_maj()
+        self.after(300, self.proposer_maj)
 
     def changer_pseudo(self):
         o = Superposition(self.container, largeur=460); i = o.interieur; self.fen_pseudo = o
@@ -789,6 +791,83 @@ class MenuPrincipal(tk.Tk):
         if not m.player_id and not m.assurer_connexion(): return
         if not m.frames["PageRejoindre"].rejoindre(code, mdp, silencieux=True):
             design.informer(self, "Mot de passe incorrect." if idx.get("prive") else "Impossible de rejoindre ce salon.", "Salon")
+
+    # ---------------------------------------------------------------- 9.5 : version obsolète
+    URL_DERNIERE = "https://api.github.com/repos/Vicovert/SMOUT/releases/latest"
+
+    def verifier_maj(self):
+        """Au lancement (version Windows seulement) : la dernière release est-elle plus récente ? Lecture dans un fil."""
+        if not getattr(sys, "frozen", False) and not os.environ.get("SMOUT_MAJ_TEST"): return
+        res, fini = {}, threading.Event()
+        def fil():
+            try:
+                import requests
+                j = requests.get(os.environ.get("SMOUT_MAJ_TEST") or self.URL_DERNIERE, timeout=8, headers={"Accept": "application/vnd.github+json"}).json()
+                a = next(a for a in j.get("assets", []) if a.get("name", "").lower().endswith(".exe"))
+                res.update(version=str(j["tag_name"]).lstrip("vV"), url=a["browser_download_url"], nom=a["name"], page=j.get("html_url", ""))
+            except Exception: pass
+            fini.set()
+        def attendre():
+            if not fini.is_set(): self.after(300, attendre); return
+            if res and design.version_plus_recente(res["version"], design.VERSION_APP): self.maj_dispo = res; self.proposer_maj()
+        threading.Thread(target=fil, daemon=True).start(); self.after(300, attendre)
+
+    def proposer_maj(self):
+        """Seulement sur l'accueil (jamais en pleine partie), une fois par lancement."""
+        m = getattr(self, "maj_dispo", None)
+        if not m or getattr(self, "maj_montree", False) or self.page_courante != "accueil": return
+        self.maj_montree = True
+        if design.dialogue(self, "Version obsolète", f"La version {m['version']} est disponible (tu as la {design.VERSION_APP}).",
+                           [("Plus tard", False, "discret"), ("Mettre à jour", True, "principal")]): self.charger_maj()
+
+    def charger_maj(self):
+        """Télécharge SMOUT.X.Y.exe à côté de l'actuel, le lance et ferme celui-ci."""
+        m = self.maj_dispo
+        if not getattr(sys, "frozen", False) and not os.environ.get("SMOUT_MAJ_TEST"):
+            import webbrowser; webbrowser.open(m["page"]); return
+        dossier = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else os.environ.get("SMOUT_MAJ_DOSSIER", ".")
+        dest = os.path.join(dossier, m["nom"])
+        o = Superposition(self.container, largeur=460); i = o.interieur
+        etiquette(i, "Mise à jour", "titre", 25).pack(anchor="w")
+        txt = etiquette(i, "Téléchargement… 0 %", "texte", 15, P["texte2"]); txt.pack(anchor="w", pady=(8, 4))
+        o.montrer(); o.dialogue = True
+        etat = {"pc": 0, "fini": False, "erreur": None}
+        def fil():
+            try:
+                import requests
+                with requests.get(m["url"], stream=True, timeout=30) as r:
+                    r.raise_for_status(); total = int(r.headers.get("content-length") or 0); lu = 0
+                    with open(dest + ".part", "wb") as f:
+                        for bloc in r.iter_content(256 * 1024):
+                            f.write(bloc); lu += len(bloc)
+                            if total: etat["pc"] = int(lu * 100 / total)
+                os.replace(dest + ".part", dest)
+            except Exception as e: etat["erreur"] = str(e) or "erreur"
+            etat["fini"] = True
+        def suivre():
+            if not etat["fini"]: txt.config(text=f"Téléchargement… {etat['pc']} %"); self.after(200, suivre); return
+            if etat["erreur"]:
+                txt.config(text="Le téléchargement a échoué. Réessaie plus tard ou télécharge la nouvelle version sur la page des versions.")
+                txt.config(wraplength=390, justify="left")
+                bf = tk.Frame(i, bg=i["bg"]); bf.pack(anchor="e", pady=(14, 0))
+                Bouton(bf, "Fermer", o.cacher, largeur=120, hauteur=44, variante="discret", taille=14).pack(side="left", padx=(0, 10))
+                import webbrowser
+                Bouton(bf, "Ouvrir la page", lambda: (webbrowser.open(m["page"]), o.cacher()), largeur=170, hauteur=44, taille=14).pack(side="left")
+                return
+            txt.config(text="Lancement de la nouvelle version…"); self.update_idletasks()
+            try:
+                import subprocess
+                # nouveau programme indépendant : sans les variables du dossier temporaire de celui-ci (PyInstaller)
+                tmp = getattr(sys, "_MEIPASS", None)
+                env = {k: v for k, v in os.environ.items() if not k.startswith(("_MEI", "_PYI")) and not (tmp and tmp in v)}
+                env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
+                drapeaux = 0x00000008 | 0x00000200 if os.name == "nt" else 0  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+                if not os.environ.get("SMOUT_MAJ_TEST"): subprocess.Popen([dest], cwd=dossier, env=env, creationflags=drapeaux, close_fds=True)
+                self.maj_lancee_fichier = dest
+            except Exception as e:
+                txt.config(text=f"Impossible de lancer {m['nom']} : ouvre-le toi-même (dossier {dossier})."); return
+            self.after(400, self.quitter_jeu)
+        threading.Thread(target=fil, daemon=True).start(); self.after(200, suivre)
 
     def quitter_jeu(self): self.quit(); self.destroy()
 

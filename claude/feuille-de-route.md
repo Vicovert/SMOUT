@@ -2,7 +2,12 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
-## 9.4
+## 9.5
+- Version obsolète (demande de Victor : il fallait fermer et rouvrir le jeu) : au lancement et au retour sur l'appli, l'accueil affiche une fenêtre centrée « Version obsolète · la X.Y est disponible » avec « Plus tard » et « Mettre à jour » (une fois par lancement, jamais en pleine partie).
+  - Site : lit `version.json` (généré par `export_web.py`, jamais en cache, ignoré par le service worker) ; « Mettre à jour » vide le cache hors ligne et recharge ; `index.html` appelle `smout.js`, `style.css` et `donnees.js` avec `?v=X.Y`.
+  - PC (Windows seulement) : lit la dernière release GitHub ; « Mettre à jour » télécharge `SMOUT.X.Y.exe` à côté de l'actuel, le lance et se ferme (en cas d'échec : bouton vers la page des versions).
+- Classement du mot du jour : la copine de Victor jouait sur PC ; un SMOUT.exe en 9.3 ou avant n'envoie rien au classement (il faut au moins la 9.4).
+
 - Classements (maquettes validées par Victor ; top 5 + ma place, toucher une ligne ouvre la fiche), PC et web :
   - mot du jour (meilleure série, série en cours en note) sur l'accueil : colonne à droite sur grand écran, sous les cartes sinon ;
   - marathon (record de mots) dans le menu Solo (colonne à gauche sur grand écran) et en partie (« Classement : 4e · 15 mots pour dépasser X ») ;
