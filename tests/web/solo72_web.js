@@ -31,7 +31,7 @@ const res = []; const ok = (nom, c, info = "") => { res.push(!!c); console.log((
   await p.evaluate(() => [...document.querySelectorAll("button.lien")].find(x => x.textContent === "Abandonner").click()); await sleep(300);
   const st = await p.evaluate(() => lireStats().marathon);
   ok("marathon terminé → record 3", st.record === 3 && (await texte(p)).includes("Marathon terminé") && (await texte(p)).includes("Nouveau record"), JSON.stringify(st));
-  await p.evaluate(() => menuSolo()); ok("badge Record 3 dans la page Solo", (await texte(p)).includes("Record 3"));
+  await p.evaluate(() => menuSolo()); ok("badge Record (en points, 9.7) dans la page Solo", st.meilleur_points > 0 && (await texte(p)).includes(`Record ${await p.evaluate(n => nombre(n), st.meilleur_points)} pts`), JSON.stringify(st));
   // difficile
   await p.evaluate(() => majConfig({ difficile: true }));
   await p.evaluate(() => solo("libre")); await sleep(300);

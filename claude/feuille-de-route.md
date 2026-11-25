@@ -2,7 +2,13 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
-## 9.6
+## 9.7
+- Nouveau calcul du score en solo et en marathon (option A validée par Victor), même formule PC (`design.score_mot`) et web (`scoreMot`) :
+  - points = 100 par lettre × (1 + essais restants / essais permis) × réglages (8 essais ×1, 6 ×1,3, 4 ×1,6 ; difficile ×1,25) × rapidité (−10 % par minute, au plus −50 %) × (−5 % par mot inconnu) ;
+  - le score affiché pendant la partie = les points si le mot est trouvé à cet essai.
+- Classement du marathon en points (meilleur score d'une partie), repart de zéro : nouvelle stat `marathon.meilleur_points` ; base `classements/marathon/<uid>/score` (**règles à republier**) ; en direct « Encore N pts pour dépasser X » ; fiche joueur et menu Solo en points.
+- Tests : règles 134/134, `classements_web.js`, `test_classements_pc.py`, `test_solo_base.py` (mot inconnu −5 %).
+
 - Classement du mot du jour (maquette C validée par Victor) : deux colonnes, « série max » (pastille 🔥, ordre du classement) et « aujourd'hui » (pastille verte « 3 essais », rouge « raté », grise « pas joué ») ; « Ta série en cours » retirée (doublon). PC et web.
   - Le résultat du jour vient des stats (historique) : aussi pour une partie jouée avant la mise à jour. Base : `classements/mdj/<uid>/jour` (date) et `essais` (0 = raté) ; **règles à republier**.
 - Mot du jour sans score (demande de Victor) : plus de score pendant la partie ni à la fin, « Mot inconnu » sans −100 points, partage sans « pts ». PC et web.

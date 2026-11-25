@@ -22,12 +22,12 @@ def req(m, chemin, uid, corps=None):
 def db(): return json.loads(urllib.request.urlopen(B + "/__admin.json").read() or b"null") or {}
 def inscrire(): return json.loads(urllib.request.urlopen(urllib.request.Request(B + "/signup", method="POST", data=b"{}")).read())["localId"]
 uz = inscrire()
-req("PUT", f"v7/classements/marathon/{uz}", uz, {"pseudo": "ZEBULON", "record": 58, "maj": SV}); req("PUT", f"v7/classements/mdj/{uz}", uz, {"pseudo": "ZEBULON", "meilleure": 40, "maj": SV})
+req("PUT", f"v7/classements/marathon/{uz}", uz, {"pseudo": "ZEBULON", "record": 58, "score": 58000, "maj": SV}); req("PUT", f"v7/classements/mdj/{uz}", uz, {"pseudo": "ZEBULON", "meilleure": 40, "maj": SV})
 req("PUT", f"v7/profils/{uz}", uz, {"pseudo": "ZEBULON", "code": "", "vu": SV, "salon": "", "cree": 1790000000000})
-design.maj_config(pseudo="ZOE", stats={"mdj": {"parties": 9, "victoires": 9, "repartition": {}, "serie": 0, "meilleure_serie": 6, "meilleur_score": 0}, "marathon": {"parties": 2, "record": 11, "record_score": 0, "mots": 20}})
+design.maj_config(pseudo="ZOE", stats={"mdj": {"parties": 9, "victoires": 9, "repartition": {}, "serie": 0, "meilleure_serie": 6, "meilleur_score": 0}, "marathon": {"parties": 2, "record": 11, "record_score": 0, "mots": 20, "meilleur_points": 11000}})
 ok("compte créé", compte.creer(f"zoe{int(time.time())}@test.fr", "secret1") is None)
 classements.pousser(); moi = compte.auth().uid; d = db()["v7"]["classements"]
-ok("envoyé à la base (mot du jour 6, marathon 11)", d["mdj"][moi]["meilleure"] == 6 and d["marathon"][moi]["record"] == 11)
+ok("envoyé à la base (mot du jour 6, marathon 11)", d["mdj"][moi]["meilleure"] == 6 and d["marathon"][moi]["record"] == 11 and d["marathon"][moi].get("score") == 11000)
 l = classements.lire("marathon")
 ok("lecture triée", [e["valeur"] for e in l] == sorted([e["valeur"] for e in l], reverse=True) and l[0]["valeur"] >= 58)
 app = Mn.MenuPrincipal()

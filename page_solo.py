@@ -150,7 +150,7 @@ class PageJeu(tk.Frame):
             mi, ma = conf["nb_lettres_min"], conf["nb_lettres_max"]; filtre = [m for m in mots if mi <= len(m) <= ma]
             self.mot = random.choice(filtre if filtre else mots); self.nb_essais_partie = conf["nb_essais"]
 
-        self.score_initial, self.penalite_dict, self.historique_complet, self.fini_local = (len(self.mot) * 100) * (13 - self.nb_essais_partie), 0, [], False
+        self.penalite_dict, self.inconnus, self.historique_complet, self.fini_local = 0, 0, [], False
         self.statut_lettres = {l: None for l in ALPHABET}
         titre = TITRES[mode] + (f" · mot {ctl.marathon['mots'] + 1}" if mode == "marathon" else "") \
             + f" · {len(self.mot)} lettres" + (" · difficile" if ctl.difficile else "")
@@ -193,7 +193,7 @@ class PageJeu(tk.Frame):
         if mode == "mdj": self.reprendre_mdj()
         if mode == "marathon" and (ctl.winfo_width() if ctl.winfo_width() > 200 else 1200) >= 1180:  # 9.4 : classement en direct, à gauche
             import classements
-            classements.PanneauClassement(self, "marathon", live=ctl.marathon["mots"], largeur=260, on_fiche=lambda u: classements.fiche_joueur(ctl, u)).place(x=24, y=110, anchor="nw")
+            classements.PanneauClassement(self, "marathon", live=ctl.marathon["score"], largeur=260, on_fiche=lambda u: classements.fiche_joueur(ctl, u)).place(x=24, y=110, anchor="nw")
 
     def reprendre_mdj(self):
         """Mot du jour quitté avant d'avoir vu le mot : on retrouve ses essais, son score et son temps (jamais une grille vierge avec les indices en poche)."""
@@ -236,7 +236,8 @@ class PageJeu(tk.Frame):
         if getattr(self, "clavier", None): self.clavier.set_zoom(z)  # le clavier suit la taille de la grille
 
     def score_actuel(self, ecoule):
-        return max(0, self.score_initial - (ecoule * 2) - self.penalite_dict)
+        # 9.7 : points si le mot est trouvé à cet essai
+        return design.score_mot(len(self.mot), self.nb_essais_partie, self.ligne_actuelle + 1, self.controller.difficile, ecoule, self.inconnus)
 
     def update_loop(self, gen):
         if self.timer_actif and gen == self.timer_gen:
@@ -253,8 +254,8 @@ class PageJeu(tk.Frame):
         tentative = "".join(self.mot_tape)
         if tentative not in self.controller.banque_verif and tentative != self.mot:
             if self.controller.mode == "mdj": self.message("Mot inconnu"); return  # 9.6 : mot du jour sans points
-            self.penalite_dict += 100
-            self.message("Mot inconnu  ·  −100 points"); return
+            self.inconnus += 1; self.s_score.set(nombre(self.score_actuel(int(time.time() - self.debut_temps))))
+            self.message("Mot inconnu  ·  −5 %"); return
         if self.controller.difficile:
             err = design.verifier_difficile(self.mot_tape, [("".join(ch for ch, _ in l), [e for _, e in l]) for l in self.historique_complet])
             if err: self.message(err, duree=2200); return
@@ -264,6 +265,7 @@ class PageJeu(tk.Frame):
         else:
             self.ligne_actuelle += 1; self.mot_tape = [self.mot[0]]
             self.s_essai.set(str(self.ligne_actuelle + 1)); self.maj_affichage()
+            if self.controller.mode != "mdj": self.s_score.set(nombre(self.score_actuel(int(time.time() - self.debut_temps))))
             if self.controller.mode == "mdj": self.sauver_mdj()
 
     def appliquer_essai(self, tentative):
@@ -295,9 +297,9 @@ class PageJeu(tk.Frame):
                 self.after(1300, lambda: self.initialiser_partie() if self.winfo_exists() else None)
                 return
             self.winfo_toplevel().unbind("<Key>")
-            m = ctl.marathon; ancien = design.lire_stats()["marathon"]["record"]
+            m = ctl.marathon; ancien = design.lire_stats()["marathon"].get("meilleur_points", 0)
             record = design.enregistrer_marathon(m["mots"], m["score"], self.mot)
-            note = "Nouveau record !" if record and m["mots"] else f"Record : {max(ancien, m['mots'])} mot" + ("s" if max(ancien, m["mots"]) > 1 else "")
+            note = "Nouveau record !" if record and m["score"] else f"Record : {nombre(max(ancien, m['score']))} pts"
             partage = f"SMOUT · Marathon · {m['mots']} mot{'s' if m['mots'] > 1 else ''} · {nombre(m['score'])} pts" + (" · difficile" if ctl.difficile else "") + f"\n{design.URL_WEB}"
             self.overlay_fin.afficher(False, self.mot, self.historique_complet, "Marathon terminé",
                                       [("Mots trouvés", str(m["mots"]), None), ("Score total", nombre(m["score"]), P["mal"]), ("Temps", mmss(m["temps"]), None)],
@@ -365,7 +367,7 @@ class PageMenuSolo(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg=P["fond"]); self.controller = controller
         entete(self, "", controller.creer_menu_accueil)
-        rec = design.lire_stats()["marathon"]["record"]
+        rec = design.lire_stats()["marathon"].get("meilleur_points", 0)
         centre = tk.Frame(self, bg=P["fond"])
         large = (controller.winfo_width() if controller.winfo_width() > 200 else 1200) >= 1180
         centre.place(relx=0.5, rely=0.46, anchor="center", x=170 if large else 0)  # 9.4 : place pour le classement à gauche
@@ -379,7 +381,7 @@ class PageMenuSolo(tk.Frame):
         CarteMenu(centre, "Jouer", "Partie normale · un mot, à votre rythme", lambda: controller.ouvrir_solo(False), largeur=796, hauteur=170,
                   couleur=P["bien"], texte=P["sur_bien"], degrade=melanger(P["bien"], P["mal"], 0.45), icone="jouer", rond=True, grand=True).pack()
         ligne = tk.Frame(centre, bg=P["fond"]); ligne.pack(pady=(14, 0))
-        CarteMenu(ligne, "Marathon", f"Record {rec}" if rec else "Jusqu'à l'erreur", controller.ouvrir_marathon, largeur=390, hauteur=96,
+        CarteMenu(ligne, "Marathon", f"Record {nombre(rec)} pts" if rec else "Jusqu'à l'erreur", controller.ouvrir_marathon, largeur=390, hauteur=96,
                   couleur=COULEUR_MARATHON, texte="#14182A", icone="infini").pack(side="left", padx=(0, 16))
         CarteMenu(ligne, "Paramètres", resume_reglages(charger_config_solo()), controller.ouvrir_parametres, largeur=390, hauteur=96,
                   couleur=COULEUR_PARAMETRES, texte="#14182A", icone="engrenage").pack(side="left")
@@ -417,7 +419,7 @@ class PageStats(tk.Frame):
         i = p.interieur
         etiquette(i, "Marathon", "texte", 18, gras=True).pack(anchor="w")
         l = tk.Frame(i, bg=i["bg"]); l.pack(anchor="w", pady=(8, 0))
-        for k, (lib, v) in enumerate((("Record", m["record"]), ("Meilleur score", nombre(m["record_score"])), ("Parties", m["parties"]))):
+        for k, (lib, v) in enumerate((("Record", nombre(m.get("meilleur_points", 0)) + " pts"), ("Plus de mots", m["record"]), ("Parties", m["parties"]))):
             Stat(l, lib, str(v), taille=22).grid(row=0, column=k, padx=(0, 14))
         p = Panneau(bas, padding=20, largeur=1022); p.grid(row=0, column=0, sticky="n")
         i = p.interieur

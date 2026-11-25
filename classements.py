@@ -13,7 +13,7 @@ ENVOYE = {}
 def lire(type_):
     d = amis.lire(f"classements/{type_}") or {}
     auj = datetime.date.today().isoformat()
-    l = [{"uid": u, "pseudo": v.get("pseudo") or "?", "valeur": int(v.get("meilleure" if type_ == "mdj" else "record") or 0), "actuelle": int(v.get("actuelle") or 0),
+    l = [{"uid": u, "pseudo": v.get("pseudo") or "?", "valeur": int(v.get("meilleure" if type_ == "mdj" else "score") or 0), "actuelle": int(v.get("actuelle") or 0),
           "jour": max(0, int(v.get("essais") or 0)) if v.get("jour") == auj else None}  # 9.6 : essais du mot du jour d'aujourd'hui (0 = raté, None = pas joué)
          for u, v in d.items() if isinstance(v, dict)]
     return sorted([e for e in l if e["valeur"] > 0], key=lambda e: (-e["valeur"], str(e["pseudo"])))
@@ -28,7 +28,8 @@ def pousser():
     dj = next((x for x in st["historique"] if x.get("g") == "mdj" and x.get("d") == auj), None) if design.lire_config().get("last_mdj") == auj else None
     jour = {"jour": auj, "essais": min(8, int(dj.get("e") or 1)) if dj.get("v") else 0} if dj else {}
     lignes = {"mdj": dict({"pseudo": ps, "meilleure": m, "actuelle": min(serie, m), "maj": SV}, **jour) if (m > 0 or dj) else None,
-              "marathon": {"pseudo": ps, "record": min(500, st["marathon"].get("record", 0)), "maj": SV} if st["marathon"].get("record", 0) > 0 else None}
+              "marathon": {"pseudo": ps, "record": min(500, st["marathon"].get("record", 0)), "score": min(10000000, st["marathon"].get("meilleur_points", 0)), "maj": SV}
+                          if st["marathon"].get("meilleur_points", 0) > 0 else None}  # 9.7 : marathon en points (nouveau calcul, repart de zéro)
     for t, l in lignes.items():
         if not l: continue
         sig = repr(sorted((k, v) for k, v in l.items() if k != "maj"))
@@ -49,7 +50,7 @@ class PanneauClassement(tk.Frame):
         self.p = Panneau(self, padding=14, rayon=16, contour=P["bordure"], largeur=largeur); self.p.pack()
         t = tk.Frame(self.p.interieur, bg=P["panneau"]); t.pack(fill="x")
         etiquette(t, "Mot du jour" if type_ == "mdj" else "Marathon", "texte", 15, P["texte"], True).pack(side="left")
-        etiquette(t, "en direct" if live is not None else ("meilleure série" if type_ == "mdj" else "record de mots"), "texte", 11, P["texte2"], True).pack(side="right")
+        etiquette(t, "en direct" if live is not None else ("meilleure série" if type_ == "mdj" else "meilleur score"), "texte", 11, P["texte2"], True).pack(side="right")
         self.deux = type_ == "mdj" and live is None  # 9.6 : colonnes « série max » (pastille 🔥) et « aujourd'hui » (pastille de couleur)
         if self.deux:
             etiq = t.winfo_children()[-1]; etiq.pack_forget()
@@ -99,12 +100,12 @@ class PanneauClassement(tk.Frame):
                 txt, coul = ("pas joué", P["texte2"]) if j is None else ((f"{j} essai" + ("s" if j > 1 else ""), P["succes"]) if j > 0 else ("raté", P["danger"]))
                 puce(f, txt, coul, 92, gras=j is not None).pack(side="right", padx=(4, 2))
                 puce(f, str(e["valeur"]), P["mal"], 64, flamme=True).pack(side="right", padx=4)
-            else: etiquette(f, str(e["valeur"]), "chiffres", 13, P["mal"]).pack(side="right", padx=6)
+            else: etiquette(f, design.nombre(e["valeur"]), "chiffres", 13, P["mal"]).pack(side="right", padx=6)
             if e.get("uid") and self.on_fiche:
                 for w in [f] + f.winfo_children(): w.bind("<Button-1>", lambda ev, u=e["uid"]: self.on_fiche(u))
         if self.live is not None:
             devant = l[i - 1] if i > 0 else None
-            self.note.config(text=f"Encore {devant['valeur'] - self.live + 1} mots pour dépasser {str(devant['pseudo']).capitalize()}" if devant else "Tu es en tête !")
+            self.note.config(text=f"Encore {design.nombre(devant['valeur'] - self.live + 1)} pts pour dépasser {str(devant['pseudo']).capitalize()}" if devant else "Tu es en tête !")
         elif not compte.email(): self.note.config(text="Crée un compte pour apparaître dans le classement.")
         elif self.type == "mdj": self.note.config(text="")  # 9.6 : « Ta série en cours » retirée (doublon avec le tableau)
         else: self.note.config(text="")  # 9.6 : « Ton record » retiré (doublon avec le tableau)
@@ -150,7 +151,7 @@ def fiche_joueur(fenetre, uid):
     etiquette(i, f"Joueur depuis {depuis}" if depuis else "Ancienneté inconnue", "texte", 14, P["texte2"]).pack()
     st = tk.Frame(i, bg=i["bg"]); st.pack(pady=(10, 6))
     design.Stat(st, "Meilleure série", str(cm.get("meilleure") or 0), P["mal"], 28).pack(side="left", padx=14)
-    design.Stat(st, "Record marathon", str(cr.get("record") or 0), P["mal"], 28).pack(side="left", padx=14)
+    design.Stat(st, "Record marathon", design.nombre(cr.get("score") or 0), P["mal"], 28).pack(side="left", padx=14)
     msg = etiquette(i, "", "texte", 13, P["succes"], True); msg.pack()
     bf = tk.Frame(i, bg=i["bg"]); bf.pack(pady=(8, 0))
     design.Bouton(bf, "Fermer", o.destroy, largeur=120, hauteur=44, variante="discret", taille=14).pack(side="left")

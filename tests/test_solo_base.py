@@ -9,7 +9,7 @@ pump(0.5)
 # solo libre : mot inconnu puis victoire au clavier physique
 app.ouvrir_solo(False); pump(); j = app.container.winfo_children()[0].jeu
 for ch in "Z" * (len(j.mot) - 1): j.ajouter_lettre(ch)
-j.valider(); print("Mot inconnu pénalisé :", j.penalite_dict == 100, "| message :", j.label_message.cget("text"))
+j.valider(); print("Mot inconnu pénalisé :", j.inconnus == 1, "| message :", j.label_message.cget("text"))
 for _ in range(len(j.mot)): j.effacer()
 print("Effacer garde la 1re lettre :", j.mot_tape == [j.mot[0]])
 class E: pass
