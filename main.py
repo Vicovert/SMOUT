@@ -523,22 +523,21 @@ class MenuPrincipal(tk.Tk):
         etiquette(page, f"SMOUT v{design.VERSION_APP}", "texte", 14, P["texte2"]).pack(side="bottom", pady=22)
 
     def changer_pseudo(self):
-        o = Superposition(self.container, largeur=460); i = o.interieur
-        etiquette(i, "Ton pseudo", "titre", 28).pack(anchor="w")
+        o = Superposition(self.container, largeur=460); i = o.interieur; self.fen_pseudo = o
+        def fermer(): o.cacher(); self.creer_menu_accueil()
+        tt = tk.Frame(i, bg=i["bg"]); tt.pack(fill="x")
+        etiquette(tt, "Ton pseudo", "titre", 28).pack(side="left")
+        Icone(tt, "fermer", fermer, 36).pack(side="right")  # 9.4 : une croix plutôt que « Annuler »
         etiquette(i, "Il s'affiche pour les autres joueurs en multijoueur.", "texte", 15, P["texte2"]).pack(anchor="w", pady=(4, 16))
         ch = Champ(i, largeur=400, hauteur=52, mono=True, taille=19); ch.pack(anchor="w")
         ch.set(design.nettoyer_pseudo(design.lire_config().get("pseudo", "")))
-        def filtrer(*a):
+        enreg = etiquette(i, "", "texte", 13, P["texte2"]); enreg.pack(anchor="w", pady=(6, 0))
+        def filtrer(*a):  # 9.4 : enregistré tout seul à chaque modification (pas de bouton « Enregistrer »)
             v = design.nettoyer_pseudo(ch.get())
-            if v != ch.get(): ch.set(v)
+            if v != ch.get(): ch.set(v)  # (Tk ne relance pas la trace pendant son propre rappel)
+            if v.strip(): design.maj_config(pseudo=v.strip()); enreg.config(text="Enregistré ✓")
         ch.var.trace_add("write", filtrer)
-        def ok():
-            if ch.get().strip(): design.maj_config(pseudo=ch.get().strip()); self.creer_menu_accueil()
-            else: o.cacher()
-        ch.bind_entree(ok)
-        bf = tk.Frame(i, bg=i["bg"]); bf.pack(anchor="e", pady=(20, 0))
-        Bouton(bf, "Annuler", o.cacher, largeur=130, variante="discret").pack(side="left", padx=10)
-        Bouton(bf, "Enregistrer", ok, largeur=160).pack(side="left")
+        ch.bind_entree(fermer)
         # compte : retrouver son avancement sur tous ses appareils
         tk.Frame(i, bg=P["bordure"], height=1, width=400).pack(anchor="w", pady=(22, 14))
         cfg = design.lire_config(); em = cfg.get("compte_email")
@@ -555,7 +554,7 @@ class MenuPrincipal(tk.Tk):
                 etiquette(i, "Ta session a expiré : reconnecte-toi.", "texte", 14, P["danger"], True).pack(anchor="w", pady=(4, 0))
             etiquette(i, "Crée un compte pour retrouver ton avancement (statistiques, série, thèmes, partie en cours) sur tous tes appareils.", "texte", 13, P["texte2"], wraplength=400, justify="left").pack(anchor="w", pady=(4, 12))
             Bouton(i, "Se connecter ou créer un compte", lambda: (o.cacher(), self.ouvrir_compte()), largeur=300, hauteur=44, variante="secondaire").pack(anchor="w")
-        o.montrer(); ch.focus()
+        o.montrer()  # 9.4 : pas de focus automatique
 
     def ouvrir_compte(self):
         """Connexion à un compte existant, création d'un compte (le joueur de cet appareil y est rattaché) ou mot de passe oublié."""

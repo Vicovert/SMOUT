@@ -582,8 +582,10 @@ function placerClassement(b, cote) {
 function changerPseudo(apres) {
   if (typeof apres !== "function") apres = accueil;  // appelée aussi comme gestionnaire de clic
   const ch = h("input.champ.mono", { maxlength: 15, style: { width: "400px", maxWidth: "80vw" }, value: nettoyerPseudo(lireConfig().pseudo) });
-  ch.addEventListener("input", () => { const v = nettoyerPseudo(ch.value); if (v !== ch.value) ch.value = v; });
-  const ok = () => { const v = ch.value.trim(); if (v) { majConfig({ pseudo: v }); apres(); } else o.cacher(); };
+  // 9.4 : enregistré tout seul à chaque modification (pas de bouton « Enregistrer ») ; la croix ou Entrée ferme
+  const enreg = h("div.t2", { style: { fontSize: "13px", minHeight: "18px", marginTop: "6px" } });
+  ch.addEventListener("input", () => { const v = nettoyerPseudo(ch.value); if (v !== ch.value) ch.value = v; const t = v.trim(); if (t) { majConfig({ pseudo: t }); enreg.textContent = "Enregistré ✓"; } });
+  const ok = () => { o.cacher(); apres(); };
   ch.addEventListener("keydown", e => e.key === "Enter" && ok());
   // compte : retrouver son avancement sur tous ses appareils
   const cfg = lireConfig(), em = cfg.compte_email;
@@ -594,11 +596,10 @@ function changerPseudo(apres) {
     : h("div.col", {}, cfg.compte_expire ? h("div.gras", { style: { color: "var(--danger)", marginTop: "4px" } }, "Ta session a expiré : reconnecte-toi.") : null,
         h("div.t2", { style: { fontSize: "13px", margin: "4px 0 12px" } }, "Crée un compte pour retrouver ton avancement (statistiques, série, thèmes, partie en cours) sur tous tes appareils."),
         bouton("Se connecter ou créer un compte", () => { o.cacher(); ouvrirCompte(apres); }, { variante: "secondaire", largeur: 300, hauteur: 44 }));
-  const o = superposition(h("div.col", {}, h("div.titre", { style: { fontSize: "28px" } }, "Ton pseudo"),
-    h("div.t2", { style: { margin: "4px 0 16px" } }, "Il s'affiche pour les autres joueurs en multijoueur."), ch,
-    h("div.ligne", { style: { justifyContent: "flex-end", gap: "10px", marginTop: "20px" } }, bouton("Annuler", () => o.cacher(), { variante: "discret", largeur: 130 }), bouton("Enregistrer", ok, { largeur: 160 })),
-    h("div", { style: { height: "1px", background: "var(--bordure)", margin: "22px 0 14px" } }), h("div.gras", { style: { fontSize: "17px" } }, "Compte"), zoneCompte), 460);
-  o.montrer(); ch.focus();
+  const o = superposition(h("div.col", {}, h("div.ligne", { style: { justifyContent: "space-between", alignItems: "center" } }, h("div.titre", { style: { fontSize: "28px" } }, "Ton pseudo"), icone("fermer", ok, false, "Fermer")),
+    h("div.t2", { style: { margin: "4px 0 16px" } }, "Il s'affiche pour les autres joueurs en multijoueur."), ch, enreg,
+    h("div", { style: { height: "1px", background: "var(--bordure)", margin: "16px 0 14px" } }), h("div.gras", { style: { fontSize: "17px" } }, "Compte"), zoneCompte), 460);
+  o.montrer();  // 9.4 : pas de focus automatique (le clavier du téléphone ne s'ouvre pas tout seul)
 }
 // connexion à un compte existant, création d'un compte (le joueur de cet appareil y est rattaché) ou mot de passe oublié
 function ouvrirCompte(apres) {
