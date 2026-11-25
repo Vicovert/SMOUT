@@ -43,14 +43,17 @@ def attendre(c, t=15):
         except Exception: pass
     return False
 app.geometry("1200x840+0+0"); pump(1); app.creer_menu_accueil(); pump(0.5)  # le classement sur le côté demande ≥ 1180 px
+def nb_lignes(p):  # 9.8 : lignes dans la zone qui défile
+    z = [w for w in p.corps.winfo_children() if isinstance(w, design.Defilant)]
+    return len(z[0].interieur.winfo_children()) if z else 0
 def pan(racine):  # panneaux de classement, à toute profondeur
     l = []
     for w in racine.winfo_children(): l += [w] if isinstance(w, classements.PanneauClassement) else pan(w)
     return l
 page = app.container.winfo_children()[0]
-ok("accueil : classement du mot du jour à droite", attendre(lambda: pan(page) and pan(page)[0].fait.is_set() and len(pan(page)[0].corps.winfo_children()) >= 2))
+ok("accueil : classement du mot du jour à droite", attendre(lambda: pan(page) and pan(page)[0].fait.is_set() and nb_lignes(pan(page)[0]) >= 2))
 app.ouvrir_menu_solo(); pump(0.5); ms = app.container.winfo_children()[0]
-ok("menu Solo : classement du marathon", attendre(lambda: pan(ms) and pan(ms)[0].fait.is_set() and len(pan(ms)[0].corps.winfo_children()) >= 2))
+ok("menu Solo : classement du marathon", attendre(lambda: pan(ms) and pan(ms)[0].fait.is_set() and nb_lignes(pan(ms)[0]) >= 2))
 app.ouvrir_marathon(); pump(1); ps = app.container.winfo_children()[0]
 ok("marathon : classement en direct", attendre(lambda: pan(ps) and pan(ps)[0].fait.is_set() and "dépasser" in pan(ps)[0].note.cget("text"), 15), pan(ps)[0].note.cget("text") if pan(ps) else "")
 f = classements.fiche_joueur(app, uz); pump(0.5)
