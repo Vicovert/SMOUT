@@ -406,6 +406,12 @@
             "maj": {
               ".validate": "newData.isNumber() && newData.val() <= now + 5000"
             },
+            "jour": {
+              ".validate": "newData.isString() && newData.val().length <= 10"
+            },
+            "essais": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 8"
+            },
             "$autre": {
               ".validate": false
             }

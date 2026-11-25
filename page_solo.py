@@ -165,7 +165,8 @@ class PageJeu(tk.Frame):
 
         stats = tk.Frame(self, bg=P["fond"]); stats.pack(pady=(10, 0))
         self.s_temps = Stat(stats, "Temps", "00:00"); self.s_temps.pack(side="left", padx=40)
-        self.s_score = Stat(stats, "Score", "0", P["mal"]); self.s_score.pack(side="left", padx=40)
+        self.s_score = Stat(stats, "Score", "0", P["mal"])
+        if mode != "mdj": self.s_score.pack(side="left", padx=40)  # 9.6 : pas de score au mot du jour
         self.s_essai = Stat(stats, "Essai", "1"); self.s_essai.pack(side="left", padx=40)
         self.s_essai.set("1", suffixe=f" / {self.nb_essais_partie}")
         if mode == "marathon":
@@ -251,6 +252,7 @@ class PageJeu(tk.Frame):
         if len(self.mot_tape) != len(self.mot) or self.fini_local: return
         tentative = "".join(self.mot_tape)
         if tentative not in self.controller.banque_verif and tentative != self.mot:
+            if self.controller.mode == "mdj": self.message("Mot inconnu"); return  # 9.6 : mot du jour sans points
             self.penalite_dict += 100
             self.message("Mot inconnu  ·  −100 points"); return
         if self.controller.difficile:
@@ -280,7 +282,7 @@ class PageJeu(tk.Frame):
         ctl = self.controller; mode = ctl.mode
         victoire = statut == "VICTOIRE"
         ecoule = int(time.time() - self.debut_temps)
-        score = self.score_actuel(ecoule) if victoire else 0
+        score = self.score_actuel(ecoule) if victoire and mode != "mdj" else 0  # 9.6 : pas de score au mot du jour
         self.timer_actif = False; self.fini_local = True
         essais_n = self.ligne_actuelle + 1
         etats = [[e for _, e in l] for l in self.historique_complet]
@@ -312,9 +314,10 @@ class PageJeu(tk.Frame):
         if mode == "mdj":
             t = f"Mot du jour {datetime.date.today().strftime('%d/%m')}"
             if ctl.difficile: t += " (difficile)"
-            partage = design.texte_partage(t, etats, essais_txt.replace(" ", ""), nombre(score), design.URL_WEB)
+            partage = design.texte_partage(t, etats, essais_txt.replace(" ", ""), None, design.URL_WEB)
         titre = ("Bravo, mot du jour trouvé !" if mode == "mdj" else "Bravo, mot trouvé !") if victoire else "Perdu…"
         self.overlay_fin.afficher(victoire, self.mot, self.historique_complet, titre,
+                                  [("Temps", mmss(ecoule), None), ("Essais", essais_txt, None)] if mode == "mdj" else
                                   [("Temps", mmss(ecoule), None), ("Score", nombre(score), P["mal"]), ("Essais", essais_txt, None)],
                                   rejouer=mode != "mdj", partage=partage)
 

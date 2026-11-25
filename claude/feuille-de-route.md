@@ -2,7 +2,14 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
-## 9.5
+## 9.6
+- Classement du mot du jour (maquette C validée par Victor) : deux colonnes, « série max » (pastille 🔥, ordre du classement) et « aujourd'hui » (pastille verte « 3 essais », rouge « raté », grise « pas joué ») ; « Ta série en cours » retirée (doublon). PC et web.
+  - Le résultat du jour vient des stats (historique) : aussi pour une partie jouée avant la mise à jour. Base : `classements/mdj/<uid>/jour` (date) et `essais` (0 = raté) ; **règles à republier**.
+- Mot du jour sans score (demande de Victor) : plus de score pendant la partie ni à la fin, « Mot inconnu » sans −100 points, partage sans « pts ». PC et web.
+- Retours de Victor : 🔥 en couleur sur PC (image `fichiers/flamme14.png`, Tk n'affiche les émojis qu'en noir et blanc) ; « Ton record » retiré sous le classement marathon (doublon).
+- Barre Temps / Score / Essai / Total (site) : ne passe plus sur 2 lignes, les chiffres rétrécissent si elle est trop large (`ajusterStats`).
+- Tests : règles 132/132, `classements_web.js` (11).
+
 - Version obsolète (demande de Victor : il fallait fermer et rouvrir le jeu) : au lancement et au retour sur l'appli, l'accueil affiche une fenêtre centrée « Version obsolète · la X.Y est disponible » avec « Plus tard » et « Mettre à jour » (une fois par lancement, jamais en pleine partie).
   - Site : lit `version.json` (généré par `export_web.py`, jamais en cache, ignoré par le service worker) ; « Mettre à jour » vide le cache hors ligne et recharge ; `index.html` appelle `smout.js`, `style.css` et `donnees.js` avec `?v=X.Y`.
   - PC (Windows seulement) : lit la dernière release GitHub ; « Mettre à jour » télécharge `SMOUT.X.Y.exe` à côté de l'actuel, le lance et se ferme (en cas d'échec : bouton vers la page des versions).

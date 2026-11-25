@@ -24,7 +24,8 @@ const db = async () => (await (await fetch(BASE + "/__admin.json")).json()) || {
     if (r.method() === "OPTIONS") return r.respond({ status: 204, headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "*", "Access-Control-Allow-Headers": "*" } });
     const x = await fetch(c, { method: r.method(), body: r.postData(), headers: { "Content-Type": r.headers()["content-type"] || "application/json" } });
     r.respond({ status: x.status, headers: { "Access-Control-Allow-Origin": "*" }, contentType: "application/json", body: await x.text() }); });
-  await p.evaluateOnNewDocument(() => { if (!sessionStorage.getItem("i")) { localStorage.setItem("smout_config", JSON.stringify({ pseudo: "ALICE", stats: { mdj: { parties: 9, victoires: 9, repartition: {}, serie: 0, meilleure_serie: 7, meilleur_score: 0 }, marathon: { parties: 3, record: 12, record_score: 0, mots: 30 } } })); sessionStorage.setItem("i", "1"); } });
+  await p.evaluateOnNewDocument(() => { if (!sessionStorage.getItem("i")) { const d = new Date(), auj = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    localStorage.setItem("smout_config", JSON.stringify({ pseudo: "ALICE", last_mdj: auj, stats: { historique: [{ d: auj, g: "mdj", m: "MAISON", v: true, e: 3, s: 0 }],  mdj: { parties: 9, victoires: 9, repartition: {}, serie: 0, meilleure_serie: 7, meilleur_score: 0 }, marathon: { parties: 3, record: 12, record_score: 0, mots: 30 } } })); sessionStorage.setItem("i", "1"); } });
   await p.goto(SITE, { waitUntil: "networkidle0" });
   const ev = (f, ...a) => p.evaluate(f, ...a);
   const attendre = async (f, t = 12000, ...a) => { const fin = Date.now() + t; while (Date.now() < fin) { try { if (await ev(f, ...a)) return true; } catch (e) {} await sleep(250); } return false; };
@@ -32,8 +33,9 @@ const db = async () => (await (await fetch(BASE + "/__admin.json")).json()) || {
   await ev(async m => { await FB.jeton(); await Compte.creer(m, "secret1"); }, `alice${t0}@test.fr`); await ev(() => accueil());
   ok("avec compte : ma ligne apparaît (meilleure série 7)", await attendre(() => [...document.querySelectorAll(".classement-mdj .cl-l.moi")].some(x => /Alice/.test(x.textContent) && /7/.test(x.textContent))));
   const uid = await ev(() => FB.uid), d = (await db()).v7.classements;
-  ok("envoyé à la base : mot du jour et marathon", d.mdj[uid].meilleure === 7 && d.marathon[uid].record === 12, JSON.stringify([d.mdj[uid], d.marathon[uid]]));
-  ok("classement trié (meilleure série la plus haute en premier)", await ev(() => { const v = [...document.querySelectorAll(".classement-mdj .cl-l .v")].map(x => +x.textContent); return v.every((x, i) => !i || v[i - 1] >= x); }));
+  ok("envoyé à la base : mot du jour (avec le résultat du jour) et marathon", d.mdj[uid].meilleure === 7 && d.mdj[uid].essais === 3 && d.marathon[uid].record === 12, JSON.stringify([d.mdj[uid], d.marathon[uid]]));
+  ok("classement trié (meilleure série la plus haute en premier)", await ev(() => { const v = [...document.querySelectorAll(".classement-mdj .cl-l .p-serie")].map(x => +x.textContent.replace(/\D/g, "")); return v.length >= 2 && v.every((x, i) => !i || v[i - 1] >= x); }));
+  ok("colonnes série max / aujourd'hui : « 3 essais » pour moi, « pas joué » pour les autres, plus de « série en cours »", await ev(() => { const c = document.querySelector(".classement-mdj"); return /série max/.test(c.textContent) && /3 essais/.test(c.querySelector(".cl-l.moi").textContent) && !!c.querySelector(".p-pas") && !/série en cours/.test(c.textContent); }));
   await ev(() => menuSolo());
   ok("menu Solo : classement du marathon", await attendre(() => document.querySelectorAll(".classement-marathon .cl-l").length >= 3));
   await ev(() => solo("marathon"));

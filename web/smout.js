@@ -378,12 +378,24 @@ function logo(taille = 88, ecart = 14) {
 function avatar(nom, taille = 44, index = 0, onclick = null) {
   return h("div.avatar", { onclick, style: { width: taille + "px", height: taille + "px", background: COULEURS_AVATAR[index % 6], cursor: onclick ? "pointer" : null, fontSize: Math.round(taille * 0.42) + "px" } }, (nom || "?").charAt(0).toUpperCase());
 }
+// 9.6 : la barre Temps / Score / Essai / Total tient toujours sur une ligne : les chiffres rétrécissent si elle est trop large
+function ajusterStats(barre) {
+  if (!barre || !barre.classList.contains("stats") || !barre.isConnected) return;
+  barre.style.setProperty("--k", "1"); barre.style.gap = "";
+  const dispo = Math.min(barre.parentElement.clientWidth || innerWidth, innerWidth) - 16;
+  if (barre.scrollWidth <= dispo) return;
+  barre.style.gap = "min(" + getComputedStyle(barre).columnGap + ", 4vw)";
+  if (barre.scrollWidth > dispo) barre.style.setProperty("--k", String(Math.max(0.5, Math.floor(dispo / barre.scrollWidth * 100) / 100)));
+}
+addEventListener("resize", () => document.querySelectorAll(".stats").forEach(ajusterStats));
 function stat(titre, valeur, couleur, taille = 44) {
   // taille réduite sur les petits écrans (sinon la ligne Temps / Score / Essai déborde sur téléphone)
-  const v = h("span.v", { style: { color: couleur || null, fontSize: `min(${taille}px, ${(taille / 5.2).toFixed(2)}vw)` } }, valeur);
-  const s = h("span.s", { style: { fontSize: `min(${Math.round(taille * 0.55)}px, ${(taille * 0.55 / 5.2).toFixed(2)}vw)` } });
-  const e = h("div.stat", {}, h("div.caps", {}, titre), h("div", {}, v, s));
-  e.set = (val, coul, suff) => { v.textContent = val; if (coul) v.style.color = coul; if (suff !== undefined) s.textContent = suff; };
+  const v = h("span.v", { style: { color: couleur || null, fontSize: `calc(min(${taille}px, ${(taille / 5.2).toFixed(2)}vw) * var(--k, 1))` } }, valeur);
+  const s = h("span.s", { style: { fontSize: `calc(min(${Math.round(taille * 0.55)}px, ${(taille * 0.55 / 5.2).toFixed(2)}vw) * var(--k, 1))` } });
+  const e = h("div.stat", {}, h("div.caps", {}, titre), h("div", { style: { whiteSpace: "nowrap" } }, v, s));
+  e.set = (val, coul, suff) => { const avant = v.textContent.length + s.textContent.length; v.textContent = val; if (coul) v.style.color = coul; if (suff !== undefined) s.textContent = suff;
+    if (v.textContent.length + s.textContent.length !== avant) ajusterStats(e.parentElement); };
+  setTimeout(() => ajusterStats(e.parentElement), 0);
   return e;
 }
 function chips(valeurs, valeur, onchange) {
@@ -674,7 +686,7 @@ async function solo(mode = "libre") {
   const zm = h("span.t2", { style: { fontSize: "13px", minWidth: "44px", textAlign: "center" } }, `${Math.round(lireZoom() * 100)} %`);
   const zoom = d => { const z = Math.round(Math.max(0.6, Math.min(1.6, lireZoom() + d)) * 100) / 100; majConfig({ user_zoom: z }); zm.textContent = `${Math.round(z * 100)} %`; g.cases.flat().forEach(t => t.taille(taille())); kb.zoom(z); };
   ecran(entete(titre, quitter, h("div.ligne", {}, icone("moins", () => zoom(-0.1), false, "Réduire"), zm, icone("plus", () => zoom(0.1), false, "Agrandir"), icone("aide", () => aide.montrer(), false, "Aide"))),
-    h("div.centre", { style: { gap: "0" } }, h("div.stats", { style: { marginTop: "10px" } }, sT, sS, sE, sTot), h("div", { style: { marginTop: "18px" } }, g), msg, kb, h("div", { style: { margin: "14px 0 20px" } }, abandon)));
+    h("div.centre", { style: { gap: "0" } }, h("div.stats", { style: { marginTop: "10px" } }, sT, mode === "mdj" ? null : sS, sE, sTot), h("div", { style: { marginTop: "18px" } }, g), msg, kb, h("div", { style: { margin: "14px 0 20px" } }, abandon)));
   enJeu = true;
   if (mode === "marathon") {  // 9.4 : classement en direct (colonne à gauche sur grand écran ; une ligne sous les stats sinon)
     const b = classementBloc("marathon", { valeur: marathon.mots });
@@ -705,7 +717,7 @@ async function solo(mode = "libre") {
   function valider() {
     if (S.tape.length !== mot.length || S.fini) return;
     const t = S.tape.join("");
-    if (!MOTS.banque.has(t) && t !== mot) { S.penalite += 100; return message("Mot inconnu  ·  −100 points"); }
+    if (!MOTS.banque.has(t) && t !== mot) { if (mode === "mdj") return message("Mot inconnu"); S.penalite += 100; return message("Mot inconnu  ·  −100 points"); }  // 9.6 : mot du jour sans points
     if (difficile) { const err = verifierDifficile(S.tape, S.lignes); if (err) return message(err, null, 2200); }
     const res = evaluer(S.tape, mot);
     majStatuts(S.statut, S.tape, res); for (const ch of ALPHABET) kb.setCouleur(ch, S.statut[ch]);
@@ -735,7 +747,7 @@ async function solo(mode = "libre") {
   function fin(victoire) {
     enJeu = false;
     S.fini = true; const ec = Math.floor((Date.now() - S.debut) / 1000);
-    const sc = victoire ? score(ec) : 0, nEssais = S.ligne + 1;
+    const sc = victoire && mode !== "mdj" ? score(ec) : 0, nEssais = S.ligne + 1;  // 9.6 : pas de score au mot du jour
     let titreFin, stats, rejouer = () => solo(mode), partage = null, note = null;
     if (mode === "marathon") {
       marathon.temps += ec;
@@ -756,10 +768,10 @@ async function solo(mode = "libre") {
       enregistrerPartie({ libre: "solo", mdj: "mdj" }[mode], victoire, nEssais, sc, mot);
       if (mode === "mdj") {
         const d = new Date(); const t = `Mot du jour ${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}` + (difficile ? " (difficile)" : "");
-        partage = textePartage(t, S.historique, essaisTxt.replace(/ /g, ""), nombre(sc), D.url_web);
+        partage = textePartage(t, S.historique, essaisTxt.replace(/ /g, ""), null, D.url_web);
       }
       titreFin = victoire ? (mode === "mdj" ? "Bravo, mot du jour trouvé !" : "Bravo, mot trouvé !") : "Perdu…";
-      stats = [["Temps", mmss(ec)], ["Score", nombre(sc), "var(--mal)"], ["Essais", essaisTxt]];
+      stats = mode === "mdj" ? [["Temps", mmss(ec)], ["Essais", essaisTxt]] : [["Temps", mmss(ec)], ["Score", nombre(sc), "var(--mal)"], ["Essais", essaisTxt]];
       if (mode === "mdj") rejouer = null;
     }
     const tt = Math.max(26, Math.min(56, Math.floor((Math.min(window.innerWidth, 700) - 30) / mot.length) - 8));
@@ -797,7 +809,7 @@ function verifierDifficile(tape, lignes) {
   return null;
 }
 const EMOJI = { bien: "🟥", mal: "🟡", absent: "🟦" };
-const textePartage = (titre, lignes, essais, score, lien = "") => [`SMOUT · ${titre} · ${essais} · ${score} pts`, ...lignes.map(l => l.map(e => EMOJI[e]).join("")), lien].filter(Boolean).join("\n");
+const textePartage = (titre, lignes, essais, score, lien = "") => [`SMOUT · ${titre} · ${essais}` + (score === null ? "" : ` · ${score} pts`), ...lignes.map(l => l.map(e => EMOJI[e]).join("")), lien].filter(Boolean).join("\n");
 const statsVides = () => ({ parties: 0, victoires: 0, repartition: {}, serie: 0, meilleure_serie: 0, meilleur_score: 0 });
 function lireStats() {
   const st = lireConfig().stats || {};
@@ -1379,13 +1391,16 @@ const Classements = {
   envoye: {},
   async lire(type) {
     const d = await FB.get(`classements/${type}`) || {};
-    return Object.entries(d).filter(([, v]) => v && typeof v === "object").map(([uid, v]) => ({ uid, pseudo: v.pseudo || "?", valeur: Number(type === "mdj" ? v.meilleure : v.record) || 0, actuelle: Number(v.actuelle) || 0 }))
+    return Object.entries(d).filter(([, v]) => v && typeof v === "object").map(([uid, v]) => ({ uid, pseudo: v.pseudo || "?", valeur: Number(type === "mdj" ? v.meilleure : v.record) || 0, actuelle: Number(v.actuelle) || 0,
+      jour: v.jour === aujourdhui() ? Math.max(0, Number(v.essais) || 0) : null }))  // 9.6 : essais du mot du jour d'aujourd'hui (0 = raté, null = pas joué)
       .filter(e => e.valeur > 0).sort((a, b) => b.valeur - a.valeur || String(a.pseudo).localeCompare(String(b.pseudo)));
   },
   async pousser() {  // nos valeurs (compte seulement), quand elles ont changé
     if (!Compte.email() || !FB.uid) return;
     const st = lireStats(), serie = serieMotDuJour()[0], m = Math.max(st.mdj.meilleure_serie || 0, serie);
-    const lignes = { mdj: m > 0 ? { pseudo: pseudo(), meilleure: m, actuelle: Math.min(serie, m), maj: SV } : null, marathon: st.marathon.record > 0 ? { pseudo: pseudo(), record: Math.min(500, st.marathon.record), maj: SV } : null };
+    const auj = aujourdhui(), dj = lireConfig().last_mdj === auj ? st.historique.find(x => x.g === "mdj" && x.d === auj) : null;  // 9.6 : résultat du jour (depuis les stats)
+    const jour = dj ? { jour: auj, essais: dj.v ? Math.min(8, Number(dj.e) || 1) : 0 } : {};
+    const lignes = { mdj: m > 0 || dj ? Object.assign({ pseudo: pseudo(), meilleure: m, actuelle: Math.min(serie, m), maj: SV }, jour) : null, marathon: st.marathon.record > 0 ? { pseudo: pseudo(), record: Math.min(500, st.marathon.record), maj: SV } : null };
     for (const [type, l] of Object.entries(lignes)) {
       if (!l) continue; const sig = JSON.stringify(Object.assign({}, l, { maj: 0 }));
       if (this.envoye[type] === sig) continue;
@@ -1402,9 +1417,13 @@ const Classements = {
 function classementBloc(type, live = null) {
   const titre = type === "mdj" ? "Mot du jour" : "Marathon", sous = live ? "en direct" : type === "mdj" ? "meilleure série" : "record de mots";
   const corps = h("div.cl-corps", {}, h("div.t2", { style: { fontSize: "13px", padding: "6px 8px" } }, "Chargement…")), note = h("div.cl-note");
-  const b = h("div.classement.classement-" + type, {}, h("div.tt", {}, h("span", { html: svg(type === "mdj" ? "stats" : "infini", 18) }), titre, h("span.s", {}, sous)), corps, note);
+  const tete = type === "mdj" && !live ? h("div.cl-tete", {}, h("span.n", {}), h("span.cl-c1", {}, "série max"), h("span.cl-c2", {}, "aujourd'hui")) : null;
+  const b = h("div.classement.classement-" + type, {}, h("div.tt", {}, h("span", { html: svg(type === "mdj" ? "stats" : "infini", 18) }), titre, tete ? null : h("span.s", {}, sous)), tete, corps, note);
+  const mdj = type === "mdj" && !live;  // 9.6 : deux colonnes, meilleure série (pastille 🔥) et résultat du jour (pastille de couleur)
+  const jourTxt = e => e.jour === null || e.jour === undefined ? ["pas joué", "pas"] : e.jour > 0 ? [`${e.jour} essai${e.jour > 1 ? "s" : ""}`, "ok"] : ["raté", "rate"];
   const ligne = (e, rang, moi) => h("div.cl-l" + (rang === 1 ? ".top1" : "") + (moi ? ".moi" : ""), { onclick: () => e.uid && ficheJoueur(e.uid) },
-    h("span.r", {}, String(rang)), avatar(e.pseudo, 24, rang - 1), h("span.n", {}, moi && live ? "Toi" : capitaliser(e.pseudo)), h("span.v", {}, String(e.valeur)));
+    h("span.r", {}, String(rang)), avatar(e.pseudo, 24, rang - 1), h("span.n", {}, moi && live ? "Toi" : capitaliser(e.pseudo)),
+    ...(mdj ? [h("span.cl-c1", {}, h("span.puce.p-serie", {}, "🔥 " + e.valeur)), h("span.cl-c2", {}, h("span.puce.p-" + jourTxt(e)[1], {}, jourTxt(e)[0]))] : [h("span.v", {}, String(e.valeur))]));
   (async () => {
     if (!(await FB.jeton())) { corps.replaceChildren(h("div.t2", { style: { fontSize: "13px", padding: "6px 8px" } }, "Hors ligne")); return; }
     await Classements.pousser();
@@ -1418,8 +1437,8 @@ function classementBloc(type, live = null) {
     if (live) { const devant = i > 0 ? l[i - 1] : null; note.textContent = devant ? `Encore ${devant.valeur - live.valeur + 1} mot${devant.valeur - live.valeur + 1 > 1 ? "s" : ""} pour dépasser ${capitaliser(devant.pseudo)}` : "Tu es en tête !";
       b.rang = i + 1; b.devant = devant; b.dispatchEvent(new Event("pret")); }
     else if (!Compte.email()) note.textContent = "Crée un compte pour apparaître dans le classement.";
-    else if (type === "mdj") { const sr = serieMotDuJour()[0]; note.textContent = sr ? `🔥 Ta série en cours : ${sr} jour${sr > 1 ? "s" : ""}` : ""; }
-    else { const r = lireStats().marathon.record; note.textContent = r ? `Ton record : ${r} mots` : ""; }
+    else if (type === "mdj") note.textContent = "";  // 9.6 : « Ta série en cours » retirée (doublon avec le tableau)
+    else note.textContent = "";  // 9.6 : « Ton record » retiré (doublon avec le tableau)
   })();
   return b;
 }
