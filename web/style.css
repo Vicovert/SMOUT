@@ -454,3 +454,12 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
   .cl-c1 { width: 50px; } .cl-cm { width: 50px; } .cl-c2 { width: 72px; }
   .classement-mdj .puce { padding: 3px 6px; font-size: 12px; }
 }
+/* 9.10 : classement du marathon sur 2 lignes (pseudo, puis réglages de la meilleure partie), colonnes mots et meilleur */
+.cl-l.cl-2l { height: auto; min-height: 44px; padding-top: 5px; padding-bottom: 5px; }
+.cl-l .nm { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.cl-l .nm .n { flex: none; }
+.cl-l .det { font-size: 11.5px; color: var(--texte2); font-weight: 600; }
+.cl-mots { width: 44px; text-align: right; flex: none; } .cl-meil { width: 74px; text-align: right; flex: none; }
+.cl-mots .puce, .cl-meil .puce { display: inline-block; }
+.p-neutre { background: var(--tuile); color: var(--texte); }
+.classement-marathon .cl-corps { max-height: calc(5 * 46px); }

@@ -11,7 +11,7 @@ def _appel_tk_sur(self, *args):
     return _appel_tk(self, *args)
 tk.CallWrapper.__call__ = _appel_tk_sur
 
-VERSION_APP = "9.9"
+VERSION_APP = "9.10"
 URL_WEB = "https://vicovert.github.io/SMOUT/"
 
 def mot_graine(liste_triee, graine, index=0):
@@ -596,12 +596,12 @@ def version_plus_recente(a, b):
 
 
 def nettoyer_pseudo(p):
-    """9.0 : pseudo en lettres (accents compris), chiffres et espaces uniquement, en majuscules, 15 caractères au plus (comme nettoyerPseudo du site)."""
+    """9.0 : pseudo en lettres (accents compris), chiffres et espaces uniquement, en majuscules, 10 caractères au plus (9.10 ; comme nettoyerPseudo du site)."""
     import unicodedata
     p = unicodedata.normalize("NFC", str(p or "").upper())
     p = "".join(c for c in p if c.isalpha() or c in "0123456789 ")
     while "  " in p: p = p.replace("  ", " ")
-    return p.lstrip()[:15]  # espaces simples, jamais au début (celui de la fin est retiré à l'enregistrement)
+    return p.lstrip()[:10]  # espaces simples, jamais au début (celui de la fin est retiré à l'enregistrement)
 
 
 class BoutonLobby(Bouton):
@@ -1093,12 +1093,12 @@ def score_mot(lettres, permis, utilises, difficile, secondes, inconnus):
     return int(v + 0.5)  # arrondi comme Math.round (pas l'arrondi bancaire de round)
 
 
-def enregistrer_marathon(nb_mots, score, dernier_mot=""):
+def enregistrer_marathon(nb_mots, score, dernier_mot="", reglages=None):
     st = lire_stats(); m = st["marathon"]
     m["parties"] += 1; m["mots"] += nb_mots
     if nb_mots > m["record"] or (nb_mots == m["record"] and score > m["record_score"]): m["record"], m["record_score"] = nb_mots, int(score)
     nouveau = int(score) > m.get("meilleur_points", 0)  # 9.7 : le record du marathon est en points (nouveau calcul, repart de zéro)
-    if nouveau: m["meilleur_points"] = int(score)
+    if nouveau: m["meilleur_points"] = int(score); m["meilleur_detail"] = dict({"mots": nb_mots}, **(reglages or {}))  # 9.10 : mots et réglages de cette partie
     st["historique"] = ([{"d": datetime.date.today().isoformat(), "g": "marathon", "m": dernier_mot, "v": nb_mots > 0, "e": nb_mots, "s": int(score), "x": ""}] + st["historique"])[:30]
     maj_config(stats=st); return nouveau
 

@@ -436,6 +436,21 @@
             "score": {
               ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000000"
             },
+            "mots": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 500"
+            },
+            "essais": {
+              ".validate": "newData.isNumber() && newData.val() >= 4 && newData.val() <= 8"
+            },
+            "lmin": {
+              ".validate": "newData.isNumber() && newData.val() >= 6 && newData.val() <= 10"
+            },
+            "lmax": {
+              ".validate": "newData.isNumber() && newData.val() >= 6 && newData.val() <= 10"
+            },
+            "difficile": {
+              ".validate": "newData.isBoolean()"
+            },
             "$autre": {
               ".validate": false
             }

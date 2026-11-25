@@ -2,7 +2,11 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
-## 9.9
+## 9.10
+- Classement du marathon (maquette validée par Victor sur pages complètes) : 2 lignes par joueur (pseudo, puis réglages de la meilleure partie : essais, longueur des mots, difficile), colonnes « mots » (de cette partie) et « meilleur » ; PC et web. Nouvelle stat `marathon.meilleur_detail` ; base `classements/marathon/<uid>` : `mots`, `essais`, `lmin`, `lmax`, `difficile` (règles publiées automatiquement). Records antérieurs : « – » et pas de réglages jusqu'à la prochaine meilleure partie.
+- Pseudos limités à 10 caractères partout (au lieu de 15) ; les plus longs sont coupés à 10.
+- Tests : règles 138/138, `classements_web.js` (14), `solo_web.js` (pseudo de 10 caractères).
+
 - Grand écran (site sur ordinateur et appli PC) : classements de l'accueil (mot du jour) et du menu Solo (marathon) centrés sous les cartes, 460 px de large (440 sur PC), comme sur téléphone (version « A moins large » validée par Victor). Le classement en direct du marathon en partie garde sa colonne à gauche.
 - Numéro de version en haut à gauche de l'accueil (« v9.9 »), à la place de la ligne du bas.
 

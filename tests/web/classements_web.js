@@ -25,7 +25,7 @@ const db = async () => (await (await fetch(BASE + "/__admin.json")).json()) || {
     const x = await fetch(c, { method: r.method(), body: r.postData(), headers: { "Content-Type": r.headers()["content-type"] || "application/json" } });
     r.respond({ status: x.status, headers: { "Access-Control-Allow-Origin": "*" }, contentType: "application/json", body: await x.text() }); });
   await p.evaluateOnNewDocument(() => { if (!sessionStorage.getItem("i")) { const d = new Date(), auj = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    localStorage.setItem("smout_config", JSON.stringify({ pseudo: "ALICE", last_mdj: auj, stats: { historique: [{ d: auj, g: "mdj", m: "MAISON", v: true, e: 3, s: 0 }],  mdj: { parties: 9, victoires: 9, repartition: { 3: 4, 4: 5 }, serie: 0, meilleure_serie: 7, meilleur_score: 0 }, marathon: { parties: 3, record: 12, record_score: 0, mots: 30, meilleur_points: 12345 } } })); sessionStorage.setItem("i", "1"); } });
+    localStorage.setItem("smout_config", JSON.stringify({ pseudo: "ALICE", last_mdj: auj, stats: { historique: [{ d: auj, g: "mdj", m: "MAISON", v: true, e: 3, s: 0 }],  mdj: { parties: 9, victoires: 9, repartition: { 3: 4, 4: 5 }, serie: 0, meilleure_serie: 7, meilleur_score: 0 }, marathon: { parties: 3, record: 12, record_score: 0, mots: 30, meilleur_points: 12345, meilleur_detail: { mots: 12, essais: 6, lmin: 6, lmax: 10, difficile: false } } } })); sessionStorage.setItem("i", "1"); } });
   await p.goto(SITE, { waitUntil: "networkidle0" });
   const ev = (f, ...a) => p.evaluate(f, ...a);
   const attendre = async (f, t = 12000, ...a) => { const fin = Date.now() + t; while (Date.now() < fin) { try { if (await ev(f, ...a)) return true; } catch (e) {} await sleep(250); } return false; };
@@ -33,13 +33,14 @@ const db = async () => (await (await fetch(BASE + "/__admin.json")).json()) || {
   await ev(async m => { await FB.jeton(); await Compte.creer(m, "secret1"); }, `alice${t0}@test.fr`); await ev(() => accueil());
   ok("avec compte : ma ligne apparaît (meilleure série 7)", await attendre(() => [...document.querySelectorAll(".classement-mdj .cl-l.moi")].some(x => /Alice/.test(x.textContent) && /7/.test(x.textContent))));
   const uid = await ev(() => FB.uid), d = (await db()).v7.classements;
-  ok("envoyé à la base : mot du jour (avec le résultat du jour) et marathon", d.mdj[uid].meilleure === 7 && d.mdj[uid].essais === 3 && d.mdj[uid].moyenne === 3.56 && d.marathon[uid].record === 12 && d.marathon[uid].score === 12345, JSON.stringify([d.mdj[uid], d.marathon[uid]]));
+  ok("envoyé à la base : mot du jour (avec le résultat du jour) et marathon", d.mdj[uid].meilleure === 7 && d.mdj[uid].essais === 3 && d.mdj[uid].moyenne === 3.56 && d.marathon[uid].record === 12 && d.marathon[uid].score === 12345 && d.marathon[uid].mots === 12 && d.marathon[uid].essais === 6, JSON.stringify([d.mdj[uid], d.marathon[uid]]));
   ok("classement trié (meilleure série la plus haute en premier)", await ev(() => { const v = [...document.querySelectorAll(".classement-mdj .cl-l .p-serie")].map(x => +x.textContent.replace(/\D/g, "")); return v.length >= 2 && v.every((x, i) => !i || v[i - 1] >= x); }));
   ok("même série : la meilleure moyenne passe devant (Walter 2,5 avant Alice 3,6)", await ev(() => { const n = [...document.querySelectorAll(".classement-mdj .cl-l .n")].map(x => x.textContent); return n.indexOf("Walter") >= 0 && n.indexOf("Walter") < n.indexOf("Alice"); }));
   ok("colonne « moy. essais » : 3,6 en jaune pour moi (vert jusqu'à 3,5), 2,5 en vert pour Walter", await ev(() => { const c = document.querySelector(".classement-mdj"); return /moy\. essais/.test(c.textContent) && c.querySelector(".cl-l.moi .cl-cm .p-moyen")?.textContent === "3,6" && [...c.querySelectorAll(".cl-cm .p-ok")].some(x => x.textContent === "2,5"); }));
   ok("colonnes série max / aujourd'hui : « 3 essais » pour moi, « pas joué » pour les autres, plus de « série en cours »", await ev(() => { const c = document.querySelector(".classement-mdj"); return /série max/.test(c.textContent) && /3 essais/.test(c.querySelector(".cl-l.moi").textContent) && !!c.querySelector(".p-pas") && !/série en cours/.test(c.textContent); }));
   await ev(() => menuSolo());
   ok("menu Solo : classement du marathon", await attendre(() => document.querySelectorAll(".classement-marathon .cl-l").length >= 3));
+  ok("marathon : mots et réglages de ma meilleure partie (9.10)", await ev(() => { const l = document.querySelector(".classement-marathon .cl-l.moi"); return !!l && l.querySelector(".cl-mots")?.textContent === "12" && /6 essais · 6–10 lettres/.test(l.textContent); }));
   await ev(() => solo("marathon"));
   ok("marathon en cours : ma place en direct", await attendre(() => /Classement : \d+/.test(document.querySelector(".cl-direct")?.textContent || "")));
   await ev(() => menuSolo()); await attendre(() => !!document.querySelector(".classement-marathon .cl-l"));

@@ -543,8 +543,8 @@ function chargerTheme() {
   appliquerTheme(themeActuel);
 }
 function changerTheme(nom, sauver = true) { themeActuel = nom; appliquerTheme(nom); if (sauver) majConfig({ theme: nom }); }
-// 9.0 : pseudo en lettres (accents compris), chiffres et espaces uniquement, en majuscules, 15 caractères au plus (comme nettoyer_pseudo de design.py)
-const nettoyerPseudo = p => String(p || "").toUpperCase().normalize("NFC").replace(/[^\p{L}0-9 ]/gu, "").replace(/ {2,}/g, " ").replace(/^ +/, "").slice(0, 15);
+// 9.0 : pseudo en lettres (accents compris), chiffres et espaces uniquement, en majuscules, 10 caractères au plus (9.10 ; comme nettoyer_pseudo de design.py)
+const nettoyerPseudo = p => String(p || "").toUpperCase().normalize("NFC").replace(/[^\p{L}0-9 ]/gu, "").replace(/ {2,}/g, " ").replace(/^ +/, "").slice(0, 10);
 const pseudo = () => nettoyerPseudo(lireConfig().pseudo).trim() || "ANONYME";
 
 function accueil() {
@@ -593,7 +593,7 @@ function placerClassement(b, cote, surLeCote = false) {
 }
 function changerPseudo(apres) {
   if (typeof apres !== "function") apres = accueil;  // appelée aussi comme gestionnaire de clic
-  const ch = h("input.champ.mono", { maxlength: 15, style: { width: "400px", maxWidth: "80vw" }, value: nettoyerPseudo(lireConfig().pseudo) });
+  const ch = h("input.champ.mono", { maxlength: 10, style: { width: "400px", maxWidth: "80vw" }, value: nettoyerPseudo(lireConfig().pseudo) });
   // 9.4 : enregistré tout seul à chaque modification (pas de bouton « Enregistrer ») ; la croix ou Entrée ferme
   const enreg = h("div.t2", { style: { fontSize: "13px", minHeight: "18px", marginTop: "6px" } });
   ch.addEventListener("input", () => { const v = nettoyerPseudo(ch.value); if (v !== ch.value) ch.value = v; const t = v.trim(); if (t) { majConfig({ pseudo: t }); enreg.textContent = "Enregistré ✓"; } });
@@ -755,7 +755,7 @@ async function solo(mode = "libre") {
         message(`Trouvé ! +${nombre(sc)} pts · mot suivant…`, "var(--succes)", 5000);
         setTimeout(() => { if (marathon && document.body.contains(msg)) solo("marathon"); }, 1300); return;
       }
-      const m = marathon, ancien = lireStats().marathon.meilleur_points || 0, record = enregistrerMarathon(m.mots, m.score, mot);
+      const m = marathon, ancien = lireStats().marathon.meilleur_points || 0, record = enregistrerMarathon(m.mots, m.score, mot, { essais: conf.nb_essais, lmin: conf.nb_lettres_min, lmax: conf.nb_lettres_max, difficile: !!difficile });
       note = record && m.score ? "Nouveau record !" : `Record : ${nombre(Math.max(ancien, m.score))} pts`;
       titreFin = "Marathon terminé"; stats = [["Mots trouvés", String(m.mots)], ["Score total", nombre(m.score), "var(--mal)"], ["Temps", mmss(m.temps)]];
       partage = `SMOUT · Marathon · ${m.mots} mot${m.mots > 1 ? "s" : ""} · ${nombre(m.score)} pts` + (difficile ? " · difficile" : "") + `\n${D.url_web}`;
@@ -831,12 +831,12 @@ function scoreMot(lettres, permis, utilises, difficile, secondes, inconnus) {
   const rapidite = Math.max(0.5, 1 - secondes / 600), malus = Math.max(0, 1 - 0.05 * inconnus);
   return Math.round(100 * lettres * essais * reglages * rapidite * malus);
 }
-function enregistrerMarathon(nb, score, dernier = "") {
+function enregistrerMarathon(nb, score, dernier = "", reglages = null) {
   const st = lireStats(), m = st.marathon;
   m.parties++; m.mots += nb;
   if (nb > m.record || (nb === m.record && score > m.record_score)) { m.record = nb; m.record_score = Math.trunc(score); }
   const nouveau = Math.trunc(score) > (m.meilleur_points || 0);  // 9.7 : le record du marathon est en points (nouveau calcul, repart de zéro)
-  if (nouveau) m.meilleur_points = Math.trunc(score);
+  if (nouveau) { m.meilleur_points = Math.trunc(score); m.meilleur_detail = Object.assign({ mots: nb }, reglages || {}); }  // 9.10 : mots et réglages de cette partie
   st.historique = [{ d: aujourdhui(), g: "marathon", m: dernier, v: nb > 0, e: nb, s: Math.trunc(score), x: "" }, ...st.historique].slice(0, 30);
   majConfig({ stats: st }); return nouveau;
 }
@@ -1400,12 +1400,20 @@ function moyenneMdj(s) {
   const rates = Math.max(0, (Number(s.parties) || 0) - (Number(s.victoires) || 0)), n = trouves + rates;  // parties connues seulement
   return n ? Math.round((total + rates * 8) / n * 100) / 100 : null;
 }
+// 9.10 : mots et réglages de la meilleure partie de marathon, tels qu'envoyés à la base (identique à detail_marathon de classements.py)
+function detailMarathon(d) {
+  if (!d || typeof d.mots !== "number") return {};
+  const n = (x, a, b) => Math.max(a, Math.min(b, Math.trunc(Number(x) || a)));
+  return { mots: n(d.mots, 0, 500), essais: n(d.essais, 4, 8), lmin: n(d.lmin, 6, 10), lmax: n(d.lmax, 6, 10), difficile: !!d.difficile };
+}
+const texteReglages = d => !d ? "" : `${d.essais} essais · ${d.lmin === d.lmax ? d.lmin : d.lmin + "–" + d.lmax} lettres` + (d.difficile ? " · difficile" : "");
 const Classements = {
   envoye: {},
   async lire(type) {
     const d = await FB.get(`classements/${type}`) || {};
     return Object.entries(d).filter(([, v]) => v && typeof v === "object").map(([uid, v]) => ({ uid, pseudo: v.pseudo || "?", valeur: Number(type === "mdj" ? v.meilleure : v.score) || 0, actuelle: Number(v.actuelle) || 0,
-      jour: v.jour === aujourdhui() ? Math.max(0, Number(v.essais) || 0) : null, moy: typeof v.moyenne === "number" && v.moyenne > 0 ? v.moyenne : null }))  // 9.6 : essais du mot du jour d'aujourd'hui (0 = raté, null = pas joué)
+      jour: v.jour === aujourdhui() ? Math.max(0, Number(v.essais) || 0) : null, moy: typeof v.moyenne === "number" && v.moyenne > 0 ? v.moyenne : null,
+      det: type === "marathon" && typeof v.mots === "number" ? { mots: v.mots, essais: v.essais, lmin: v.lmin, lmax: v.lmax, difficile: !!v.difficile } : null }))  // 9.10 : mots et réglages de la meilleure partie  // 9.6 : essais du mot du jour d'aujourd'hui (0 = raté, null = pas joué)
       .filter(e => e.valeur > 0).sort((a, b) => b.valeur - a.valeur || (a.moy ?? 9) - (b.moy ?? 9) || String(a.pseudo).localeCompare(String(b.pseudo)));  // 9.8 : égalité de série → moyenne d'essais la plus basse
   },
   async pousser() {  // nos valeurs (compte seulement), quand elles ont changé
@@ -1414,7 +1422,7 @@ const Classements = {
     const auj = aujourdhui(), dj = lireConfig().last_mdj === auj ? st.historique.find(x => x.g === "mdj" && x.d === auj) : null;  // 9.6 : résultat du jour (depuis les stats)
     const jour = dj ? { jour: auj, essais: dj.v ? Math.min(8, Number(dj.e) || 1) : 0 } : {};
     const moy = moyenneMdj(st.mdj); if (moy) jour.moyenne = moy;  // 9.8 : moyenne d'essais (raté = 8)
-    const lignes = { mdj: m > 0 || dj ? Object.assign({ pseudo: pseudo(), meilleure: m, actuelle: Math.min(serie, m), maj: SV }, jour) : null, marathon: st.marathon.meilleur_points > 0 ? { pseudo: pseudo(), record: Math.min(500, st.marathon.record), score: Math.min(10000000, st.marathon.meilleur_points), maj: SV } : null };
+    const lignes = { mdj: m > 0 || dj ? Object.assign({ pseudo: pseudo(), meilleure: m, actuelle: Math.min(serie, m), maj: SV }, jour) : null, marathon: st.marathon.meilleur_points > 0 ? Object.assign({ pseudo: pseudo(), record: Math.min(500, st.marathon.record), score: Math.min(10000000, st.marathon.meilleur_points), maj: SV }, detailMarathon(st.marathon.meilleur_detail)) : null };
     for (const [type, l] of Object.entries(lignes)) {
       if (!l) continue; const sig = JSON.stringify(Object.assign({}, l, { maj: 0 }));
       if (this.envoye[type] === sig) continue;
@@ -1431,12 +1439,16 @@ const Classements = {
 function classementBloc(type, live = null) {
   const titre = type === "mdj" ? "Mot du jour" : "Marathon", sous = live ? "en direct" : type === "mdj" ? "meilleure série" : "meilleur score";
   const corps = h("div.cl-corps", {}, h("div.t2", { style: { fontSize: "13px", padding: "6px 8px" } }, "Chargement…")), note = h("div.cl-note");
-  const tete = type === "mdj" && !live ? h("div.cl-tete", {}, h("span.n", {}), h("span.cl-c1", {}, "série max"), h("span.cl-cm", {}, "moy. essais"), h("span.cl-c2", {}, "aujourd'hui")) : null;
+  const tete = type === "mdj" && !live ? h("div.cl-tete", {}, h("span.n", {}), h("span.cl-c1", {}, "série max"), h("span.cl-cm", {}, "moy. essais"), h("span.cl-c2", {}, "aujourd'hui"))
+    : !live ? h("div.cl-tete", {}, h("span.n", {}), h("span.cl-mots", {}, "mots"), h("span.cl-meil", {}, "meilleur")) : null;  // 9.10 : marathon
   const moyTxt = m => m === null || m === undefined ? ["–", "pas"] : [m.toFixed(1).replace(".", ","), m <= 3.5 ? "ok" : m <= 4.5 ? "moyen" : "rate"];  // 9.8 : vert ≤ 3,5, jaune ≤ 4,5, rouge au-delà
   const b = h("div.classement.classement-" + type, {}, h("div.tt", {}, h("span", { html: svg(type === "mdj" ? "stats" : "infini", 18) }), titre, tete ? null : h("span.s", {}, sous)), tete, corps, note);
   const mdj = type === "mdj" && !live;  // 9.6 : deux colonnes, meilleure série (pastille 🔥) et résultat du jour (pastille de couleur)
   const jourTxt = e => e.jour === null || e.jour === undefined ? ["pas joué", "pas"] : e.jour > 0 ? [`${e.jour} essai${e.jour > 1 ? "s" : ""}`, "ok"] : ["raté", "rate"];
-  const ligne = (e, rang, moi) => h("div.cl-l" + (rang === 1 ? ".top1" : "") + (moi ? ".moi" : ""), { onclick: () => e.uid && ficheJoueur(e.uid) },
+  const ligneMarathon = (e, rang, moi) => h("div.cl-l.cl-2l" + (rang === 1 ? ".top1" : "") + (moi ? ".moi" : ""), { onclick: () => e.uid && ficheJoueur(e.uid) },  // 9.10 : 2 lignes, réglages sous le pseudo
+    h("span.r", {}, String(rang)), avatar(e.pseudo, 24, rang - 1), h("div.nm", {}, h("span.n", {}, capitaliser(e.pseudo)), h("span.det", {}, texteReglages(e.det))),
+    h("span.cl-mots", {}, h("span.puce.p-neutre", {}, e.det ? String(e.det.mots) : "–")), h("span.cl-meil", {}, h("span.puce.p-serie", {}, nombre(e.valeur))));
+  const ligne = (e, rang, moi) => type === "marathon" && !live ? ligneMarathon(e, rang, moi) : h("div.cl-l" + (rang === 1 ? ".top1" : "") + (moi ? ".moi" : ""), { onclick: () => e.uid && ficheJoueur(e.uid) },
     h("span.r", {}, String(rang)), avatar(e.pseudo, 24, rang - 1), h("span.n", {}, moi && live ? "Toi" : capitaliser(e.pseudo)),
     ...(mdj ? [h("span.cl-c1", {}, h("span.puce.p-serie", {}, "🔥 " + e.valeur)), h("span.cl-cm", {}, h("span.puce.p-" + moyTxt(e.moy)[1], {}, moyTxt(e.moy)[0])), h("span.cl-c2", {}, h("span.puce.p-" + jourTxt(e)[1], {}, jourTxt(e)[0]))] : [h("span.v", {}, nombre(e.valeur))]));
   (async () => {

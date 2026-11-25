@@ -18,12 +18,27 @@ def moyenne_mdj(s):
     return int((total + rates * 8) / n * 100 + 0.5) / 100 if n else None
 
 
+def detail_marathon(d):
+    """9.10 : mots et réglages de la meilleure partie de marathon, tels qu'envoyés à la base (identique à detailMarathon du site)."""
+    if not isinstance(d, dict) or not isinstance(d.get("mots"), (int, float)): return {}
+    n = lambda x, a, b: max(a, min(b, int(x or a)))
+    return {"mots": n(d["mots"], 0, 500), "essais": n(d.get("essais"), 4, 8), "lmin": n(d.get("lmin"), 6, 10), "lmax": n(d.get("lmax"), 6, 10), "difficile": bool(d.get("difficile"))}
+
+
+def texte_reglages(d):
+    if not d: return ""
+    lg = str(d["lmin"]) if d["lmin"] == d["lmax"] else f"{d['lmin']}–{d['lmax']}"
+    return f"{d['essais']} essais · {lg} lettres" + (" · difficile" if d.get("difficile") else "")
+
+
 def lire(type_):
     d = amis.lire(f"classements/{type_}") or {}
     auj = datetime.date.today().isoformat()
     l = [{"uid": u, "pseudo": v.get("pseudo") or "?", "valeur": int(v.get("meilleure" if type_ == "mdj" else "score") or 0), "actuelle": int(v.get("actuelle") or 0),
           "jour": max(0, int(v.get("essais") or 0)) if v.get("jour") == auj else None,
-          "moy": v["moyenne"] if isinstance(v.get("moyenne"), (int, float)) and v["moyenne"] > 0 else None}  # 9.6 : essais du mot du jour d'aujourd'hui (0 = raté, None = pas joué)
+          "moy": v["moyenne"] if isinstance(v.get("moyenne"), (int, float)) and v["moyenne"] > 0 else None,
+          "det": {"mots": v["mots"], "essais": v.get("essais"), "lmin": v.get("lmin"), "lmax": v.get("lmax"), "difficile": bool(v.get("difficile"))}
+                 if type_ == "marathon" and isinstance(v.get("mots"), (int, float)) else None}  # 9.10  # 9.6 : essais du mot du jour d'aujourd'hui (0 = raté, None = pas joué)
          for u, v in d.items() if isinstance(v, dict)]
     # 9.8 : égalité de série → moyenne d'essais la plus basse
     return sorted([e for e in l if e["valeur"] > 0], key=lambda e: (-e["valeur"], e["moy"] if e["moy"] is not None else 9, str(e["pseudo"]).lower()))
@@ -40,7 +55,8 @@ def pousser():
     moy = moyenne_mdj(st["mdj"])
     if moy: jour["moyenne"] = moy  # 9.8 : moyenne d'essais (raté = 8)
     lignes = {"mdj": dict({"pseudo": ps, "meilleure": m, "actuelle": min(serie, m), "maj": SV}, **jour) if (m > 0 or dj) else None,
-              "marathon": {"pseudo": ps, "record": min(500, st["marathon"].get("record", 0)), "score": min(10000000, st["marathon"].get("meilleur_points", 0)), "maj": SV}
+              "marathon": dict({"pseudo": ps, "record": min(500, st["marathon"].get("record", 0)), "score": min(10000000, st["marathon"].get("meilleur_points", 0)), "maj": SV},
+                               **detail_marathon(st["marathon"].get("meilleur_detail")))
                           if st["marathon"].get("meilleur_points", 0) > 0 else None}  # 9.7 : marathon en points (nouveau calcul, repart de zéro)
     for t, l in lignes.items():
         if not l: continue
@@ -70,6 +86,12 @@ class PanneauClassement(tk.Frame):
             etiquette(tt, "aujourd'hui", "texte", 11, P["texte2"], True, width=11, anchor="e").pack(side="right", padx=(0, 4))
             etiquette(tt, "moy. essais", "texte", 11, P["texte2"], True, width=11, anchor="e").pack(side="right")
             etiquette(tt, "série max", "texte", 11, P["texte2"], True, width=9, anchor="e").pack(side="right")
+        self.mar = type_ == "marathon" and live is None  # 9.10 : 2 lignes (pseudo puis réglages), colonnes « mots » et « meilleur »
+        if self.mar:
+            t.winfo_children()[-1].pack_forget()
+            tt = tk.Frame(self.p.interieur, bg=P["panneau"]); tt.pack(fill="x", pady=(4, 0))
+            etiquette(tt, "meilleur", "texte", 11, P["texte2"], True, width=9, anchor="e").pack(side="right", padx=(0, 4))
+            etiquette(tt, "mots", "texte", 11, P["texte2"], True, width=5, anchor="e").pack(side="right")
         self.corps = tk.Frame(self.p.interieur, bg=P["panneau"]); self.corps.pack(fill="x", pady=(6, 0))
         etiquette(self.corps, "Chargement…", "texte", 12, P["texte2"]).pack(anchor="w")
         self.note = etiquette(self.p.interieur, "", "texte", 11, P["texte2"], wraplength=largeur - 30, justify="left"); self.note.pack(anchor="w", pady=(6, 0))
@@ -104,7 +126,11 @@ class PanneauClassement(tk.Frame):
             f = tk.Frame(parent, bg=P["tuile"] if est_moi else P["panneau"], cursor="hand2")
             etiquette(f, str(rang(k)), "chiffres", 13, P["mal"] if rang(k) == 1 else P["texte2"]).pack(side="left", padx=(6, 8))
             Avatar(f, e["pseudo"], 22, index=k).pack(side="left")
-            etiquette(f, "Toi" if (est_moi and self.live is not None) else str(e["pseudo"]).capitalize(), "texte", 13, P["texte"], True).pack(side="left", padx=8)
+            if self.mar:
+                nm = tk.Frame(f, bg=f["bg"]); nm.pack(side="left", padx=8)
+                etiquette(nm, str(e["pseudo"]).capitalize(), "texte", 13, P["texte"], True).pack(anchor="w")
+                etiquette(nm, texte_reglages(e.get("det")), "texte", 10, P["texte2"], True).pack(anchor="w")
+            else: etiquette(f, "Toi" if (est_moi and self.live is not None) else str(e["pseudo"]).capitalize(), "texte", 13, P["texte"], True).pack(side="left", padx=8)
             if self.deux:
                 j = e.get("jour")
                 txt, coul = ("pas joué", P["texte2"]) if j is None else ((f"{j} essai" + ("s" if j > 1 else ""), P["succes"]) if j > 0 else ("raté", P["danger"]))
@@ -113,14 +139,17 @@ class PanneauClassement(tk.Frame):
                 mc = P["texte2"] if m is None else P["succes"] if m <= 3.5 else P["mal"] if m <= 4.5 else P["danger"]
                 puce(f, "–" if m is None else f"{m:.1f}".replace(".", ","), mc, 64, gras=m is not None).pack(side="right", padx=4)
                 puce(f, str(e["valeur"]), P["mal"], 64, flamme=True).pack(side="right", padx=4)
+            elif self.mar:
+                puce(f, design.nombre(e["valeur"]), P["mal"], 78).pack(side="right", padx=(4, 2))
+                puce(f, str(e["det"]["mots"]) if e.get("det") else "–", P["texte"], 48).pack(side="right", padx=4)
             else: etiquette(f, design.nombre(e["valeur"]), "chiffres", 13, P["mal"]).pack(side="right", padx=6)
             if e.get("uid") and self.on_fiche:
-                for w in [f] + f.winfo_children(): w.bind("<Button-1>", lambda ev, u=e["uid"]: self.on_fiche(u))
+                for w in [f] + f.winfo_children() + [x for c in f.winfo_children() for x in c.winfo_children()]: w.bind("<Button-1>", lambda ev, u=e["uid"]: self.on_fiche(u))
             return f
         if l:
             # 9.8 : tout le classement, 5 lignes visibles, le reste en faisant défiler ; ma ligne reste visible
             # (collée en bas si ma place est plus bas, en haut si on a défilé plus loin), comme position: sticky sur le site
-            HL = 28
+            HL = 42 if self.mar else 28
             zone = design.Defilant(self.corps, hauteur=min(5, len(l)) * HL); zone.pack(fill="x")
             lignes = []
             for k in range(len(l)):

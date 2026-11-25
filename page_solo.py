@@ -298,7 +298,8 @@ class PageJeu(tk.Frame):
                 return
             self.winfo_toplevel().unbind("<Key>")
             m = ctl.marathon; ancien = design.lire_stats()["marathon"].get("meilleur_points", 0)
-            record = design.enregistrer_marathon(m["mots"], m["score"], self.mot)
+            cf = ctl.config
+            record = design.enregistrer_marathon(m["mots"], m["score"], self.mot, {"essais": cf["nb_essais"], "lmin": cf["nb_lettres_min"], "lmax": cf["nb_lettres_max"], "difficile": bool(ctl.difficile)})
             note = "Nouveau record !" if record and m["score"] else f"Record : {nombre(max(ancien, m['score']))} pts"
             partage = f"SMOUT · Marathon · {m['mots']} mot{'s' if m['mots'] > 1 else ''} · {nombre(m['score'])} pts" + (" · difficile" if ctl.difficile else "") + f"\n{design.URL_WEB}"
             self.overlay_fin.afficher(False, self.mot, self.historique_complet, "Marathon terminé",
