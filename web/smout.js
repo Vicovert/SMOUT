@@ -1394,19 +1394,26 @@ const Amis = {
 /* ------------------------------------------------------------------ classements et fiche joueur (9.4)
    classements/mdj/<uid> = { pseudo, meilleure, actuelle, maj } ; classements/marathon/<uid> = { pseudo, record, maj }.
    Seuls les comptes y écrivent (leur ligne). Même logique que classements.py côté PC. */
+// 9.8 : moyenne d'essais au mot du jour (raté = 8), arrondie au centième ; null si aucune partie (identique à moyenne_mdj de classements.py)
+function moyenneMdj(s) {
+  let total = 0, trouves = 0; for (const [e, c] of Object.entries(s.repartition || {})) { total += Number(e) * Number(c); trouves += Number(c); }
+  const rates = Math.max(0, (Number(s.parties) || 0) - (Number(s.victoires) || 0)), n = trouves + rates;  // parties connues seulement
+  return n ? Math.round((total + rates * 8) / n * 100) / 100 : null;
+}
 const Classements = {
   envoye: {},
   async lire(type) {
     const d = await FB.get(`classements/${type}`) || {};
     return Object.entries(d).filter(([, v]) => v && typeof v === "object").map(([uid, v]) => ({ uid, pseudo: v.pseudo || "?", valeur: Number(type === "mdj" ? v.meilleure : v.score) || 0, actuelle: Number(v.actuelle) || 0,
-      jour: v.jour === aujourdhui() ? Math.max(0, Number(v.essais) || 0) : null }))  // 9.6 : essais du mot du jour d'aujourd'hui (0 = raté, null = pas joué)
-      .filter(e => e.valeur > 0).sort((a, b) => b.valeur - a.valeur || String(a.pseudo).localeCompare(String(b.pseudo)));
+      jour: v.jour === aujourdhui() ? Math.max(0, Number(v.essais) || 0) : null, moy: typeof v.moyenne === "number" && v.moyenne > 0 ? v.moyenne : null }))  // 9.6 : essais du mot du jour d'aujourd'hui (0 = raté, null = pas joué)
+      .filter(e => e.valeur > 0).sort((a, b) => b.valeur - a.valeur || (a.moy ?? 9) - (b.moy ?? 9) || String(a.pseudo).localeCompare(String(b.pseudo)));  // 9.8 : égalité de série → moyenne d'essais la plus basse
   },
   async pousser() {  // nos valeurs (compte seulement), quand elles ont changé
     if (!Compte.email() || !FB.uid) return;
     const st = lireStats(), serie = serieMotDuJour()[0], m = Math.max(st.mdj.meilleure_serie || 0, serie);
     const auj = aujourdhui(), dj = lireConfig().last_mdj === auj ? st.historique.find(x => x.g === "mdj" && x.d === auj) : null;  // 9.6 : résultat du jour (depuis les stats)
     const jour = dj ? { jour: auj, essais: dj.v ? Math.min(8, Number(dj.e) || 1) : 0 } : {};
+    const moy = moyenneMdj(st.mdj); if (moy) jour.moyenne = moy;  // 9.8 : moyenne d'essais (raté = 8)
     const lignes = { mdj: m > 0 || dj ? Object.assign({ pseudo: pseudo(), meilleure: m, actuelle: Math.min(serie, m), maj: SV }, jour) : null, marathon: st.marathon.meilleur_points > 0 ? { pseudo: pseudo(), record: Math.min(500, st.marathon.record), score: Math.min(10000000, st.marathon.meilleur_points), maj: SV } : null };
     for (const [type, l] of Object.entries(lignes)) {
       if (!l) continue; const sig = JSON.stringify(Object.assign({}, l, { maj: 0 }));
@@ -1424,22 +1431,22 @@ const Classements = {
 function classementBloc(type, live = null) {
   const titre = type === "mdj" ? "Mot du jour" : "Marathon", sous = live ? "en direct" : type === "mdj" ? "meilleure série" : "meilleur score";
   const corps = h("div.cl-corps", {}, h("div.t2", { style: { fontSize: "13px", padding: "6px 8px" } }, "Chargement…")), note = h("div.cl-note");
-  const tete = type === "mdj" && !live ? h("div.cl-tete", {}, h("span.n", {}), h("span.cl-c1", {}, "série max"), h("span.cl-c2", {}, "aujourd'hui")) : null;
+  const tete = type === "mdj" && !live ? h("div.cl-tete", {}, h("span.n", {}), h("span.cl-c1", {}, "série max"), h("span.cl-cm", {}, "moy. essais"), h("span.cl-c2", {}, "aujourd'hui")) : null;
+  const moyTxt = m => m === null || m === undefined ? ["–", "pas"] : [m.toFixed(1).replace(".", ","), m <= 3.5 ? "ok" : m <= 4.5 ? "moyen" : "rate"];  // 9.8 : vert ≤ 3,5, jaune ≤ 4,5, rouge au-delà
   const b = h("div.classement.classement-" + type, {}, h("div.tt", {}, h("span", { html: svg(type === "mdj" ? "stats" : "infini", 18) }), titre, tete ? null : h("span.s", {}, sous)), tete, corps, note);
   const mdj = type === "mdj" && !live;  // 9.6 : deux colonnes, meilleure série (pastille 🔥) et résultat du jour (pastille de couleur)
   const jourTxt = e => e.jour === null || e.jour === undefined ? ["pas joué", "pas"] : e.jour > 0 ? [`${e.jour} essai${e.jour > 1 ? "s" : ""}`, "ok"] : ["raté", "rate"];
   const ligne = (e, rang, moi) => h("div.cl-l" + (rang === 1 ? ".top1" : "") + (moi ? ".moi" : ""), { onclick: () => e.uid && ficheJoueur(e.uid) },
     h("span.r", {}, String(rang)), avatar(e.pseudo, 24, rang - 1), h("span.n", {}, moi && live ? "Toi" : capitaliser(e.pseudo)),
-    ...(mdj ? [h("span.cl-c1", {}, h("span.puce.p-serie", {}, "🔥 " + e.valeur)), h("span.cl-c2", {}, h("span.puce.p-" + jourTxt(e)[1], {}, jourTxt(e)[0]))] : [h("span.v", {}, nombre(e.valeur))]));
+    ...(mdj ? [h("span.cl-c1", {}, h("span.puce.p-serie", {}, "🔥 " + e.valeur)), h("span.cl-cm", {}, h("span.puce.p-" + moyTxt(e.moy)[1], {}, moyTxt(e.moy)[0])), h("span.cl-c2", {}, h("span.puce.p-" + jourTxt(e)[1], {}, jourTxt(e)[0]))] : [h("span.v", {}, nombre(e.valeur))]));
   (async () => {
     if (!(await FB.jeton())) { corps.replaceChildren(h("div.t2", { style: { fontSize: "13px", padding: "6px 8px" } }, "Hors ligne")); return; }
     await Classements.pousser();
     let l = await Classements.lire(type); const moiUid = Compte.email() ? FB.uid : null;
     if (live) { l = l.filter(e => e.uid !== moiUid); l.push({ uid: moiUid, pseudo: pseudo(), valeur: live.valeur, vivant: true }); l.sort((a, b) => b.valeur - a.valeur || (a.vivant ? -1 : 1)); }
-    const rangDe = i => 1 + l.findIndex(x => x.valeur === l[i].valeur);  // ex aequo : même rang
+    const rangDe = i => 1 + l.findIndex(x => x.valeur === l[i].valeur && (live || type !== "mdj" || (x.moy ?? 9) === (l[i].moy ?? 9)));  // ex aequo : même rang
     const i = l.findIndex(e => (live ? e.vivant : e.uid === moiUid) && (live || moiUid));
-    const lignes = l.slice(0, 5).map((e, k) => ligne(e, rangDe(k), k === i));
-    if (i >= 5) lignes.push(h("div.cl-sep", {}, "···"), ligne(l[i], rangDe(i), true));
+    const lignes = l.map((e, k) => ligne(e, rangDe(k), k === i));  // 9.8 : tout le classement (5 lignes visibles, on fait défiler ; ma ligne reste collée en haut ou en bas)
     corps.replaceChildren(...(lignes.length ? lignes : [h("div.t2", { style: { fontSize: "13px", padding: "6px 8px" } }, "Personne pour le moment.")]));
     if (live) { const devant = i > 0 ? l[i - 1] : null; note.textContent = devant ? `Encore ${nombre(devant.valeur - live.valeur + 1)} pts pour dépasser ${capitaliser(devant.pseudo)}` : "Tu es en tête !";
       b.rang = i + 1; b.devant = devant; b.dispatchEvent(new Event("pret")); }

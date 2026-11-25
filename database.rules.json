@@ -412,6 +412,9 @@
             "essais": {
               ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 8"
             },
+            "moyenne": {
+              ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 8"
+            },
             "$autre": {
               ".validate": false
             }

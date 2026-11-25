@@ -2,7 +2,12 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
-## 9.7
+## 9.8
+- Classement du mot du jour (style C validé par Victor) : colonnes « série max » · « moy. essais » · « aujourd'hui » ; tri par meilleure série puis, à égalité, par moyenne d'essais la plus basse (raté = 8, calculée depuis les stats, donc aussi pour les parties passées ; pas de minimum de parties). Pastille de moyenne verte ≤ 3,5, jaune ≤ 4,5, rouge au-delà. Base : `classements/mdj/<uid>/moyenne` (règles publiées automatiquement).
+- Tous les classements (mot du jour, marathon) : la liste entière, 5 lignes visibles, on fait défiler ; ma ligne reste collée en bas (ou en haut si on a défilé au-delà). Site : `position: sticky` ; PC : `Defilant` + ligne épinglée.
+- Accueil : tableau plus large (site 420 px, PC 380 px), cartes un peu moins larges à côté sur grand écran ; colonnes resserrées sur téléphone.
+- Tests : règles 136/136, `classements_web.js` (13).
+
 - Nouveau calcul du score en solo et en marathon (option A validée par Victor), même formule PC (`design.score_mot`) et web (`scoreMot`) :
   - points = 100 par lettre × (1 + essais restants / essais permis) × réglages (8 essais ×1, 6 ×1,3, 4 ×1,6 ; difficile ×1,25) × rapidité (−10 % par minute, au plus −50 %) × (−5 % par mot inconnu) ;
   - le score affiché pendant la partie = les points si le mot est trouvé à cet essai.
