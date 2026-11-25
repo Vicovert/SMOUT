@@ -42,7 +42,7 @@ def attendre(c, t=15):
             if c(): return True
         except Exception: pass
     return False
-pump(1); app.creer_menu_accueil(); pump(0.5)
+app.geometry("1200x840+0+0"); pump(1); app.creer_menu_accueil(); pump(0.5)  # le classement sur le côté demande ≥ 1180 px
 def pan(racine):  # panneaux de classement, à toute profondeur
     l = []
     for w in racine.winfo_children(): l += [w] if isinstance(w, classements.PanneauClassement) else pan(w)
