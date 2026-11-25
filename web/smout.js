@@ -571,11 +571,11 @@ function resumeReglages(c) {
   return `${c.nb_essais} essais · ${l}` + (c.difficile ? " · difficile" : "");
 }
 function menuSolo() {
-  const rec = lireStats().marathon.record, c = configSolo();
+  const rec = lireStats().marathon.meilleur_points || 0, c = configSolo();
   const carte = (cls, icone, t, sub, f) => h("button.carte-menu" + cls, { onclick: f }, h("span.ico", { html: svg(icone) }), h("div", {}, h("div.t", {}, t), h("div.s", {}, sub)));
   const taille = Math.min(60, Math.floor((window.innerWidth - 80) / 4.8));
   const titre = h("div.logo.titre-solo", {}, [..."SOLO"].map((ch, i) => { const t = tuile(taille); t.maj(ch, ["bien", "mal", "bien", "mal"][i]); t.style.boxShadow = "none"; return t; }));
-  const marathon = carte(".marathon", "infini", "Marathon", rec ? `Record ${rec}` : "Jusqu'à l'erreur", () => solo("marathon"));
+  const marathon = carte(".marathon", "infini", "Marathon", rec ? `Record ${nombre(rec)} pts` : "Jusqu'à l'erreur", () => solo("marathon"));
   marathon.style.setProperty("--mc", COULEUR_MARATHON);
   ecran(entete("", accueil),
     h("div.centre", { style: { flex: 1, justifyContent: "center", gap: "12px", padding: "0 0 40px" } },
@@ -668,9 +668,8 @@ async function solo(mode = "libre") {
     const f = MOTS.liste.filter(m => m.length >= conf.nb_lettres_min && m.length <= conf.nb_lettres_max);
     const l = f.length ? f : MOTS.liste; mot = l[Math.floor(Math.random() * l.length)]; essais = conf.nb_essais;
   }
-  const S = { mot, essais, ligne: 0, tape: [mot[0]], penalite: 0, historique: [], lignes: [], fini: false, statut: {}, debut: Date.now() };
-  const scoreInitial = mot.length * 100 * (13 - essais);
-  const score = ec => Math.max(0, scoreInitial - ec * 2 - S.penalite);
+  const S = { mot, essais, ligne: 0, tape: [mot[0]], penalite: 0, inconnus: 0, historique: [], lignes: [], fini: false, statut: {}, debut: Date.now() };
+  const score = ec => scoreMot(mot.length, essais, S.ligne + 1, difficile, ec, S.inconnus);  // 9.7 : points si le mot est trouvé à cet essai
   const kh = hauteurFenetre() >= 760 ? 50 : 40;
   const taille = () => Math.floor(Math.max(24, Math.min(80, Math.min(58, (hauteurFenetre() - 300 - 3 * (kh + 8)) / essais - 8, (Math.min(window.innerWidth, 640) - 40) / mot.length - 8) * lireZoom())));
   let aide = null;
@@ -689,11 +688,11 @@ async function solo(mode = "libre") {
     h("div.centre", { style: { gap: "0" } }, h("div.stats", { style: { marginTop: "10px" } }, sT, mode === "mdj" ? null : sS, sE, sTot), h("div", { style: { marginTop: "18px" } }, g), msg, kb, h("div", { style: { margin: "14px 0 20px" } }, abandon)));
   enJeu = true;
   if (mode === "marathon") {  // 9.4 : classement en direct (colonne à gauche sur grand écran ; une ligne sous les stats sinon)
-    const b = classementBloc("marathon", { valeur: marathon.mots });
+    const b = classementBloc("marathon", { valeur: marathon.score });
     if (window.innerWidth >= 1180) placerClassement(b, "gauche");
     else { const lg = h("div.cl-l.moi.cl-direct", { style: { justifyContent: "center", width: "fit-content", margin: "4px auto 0", padding: "0 12px", cursor: "default" } }, h("span", { html: svg("infini", 16) }), h("span.n", {}, "Classement : …"), h("span.t2", { style: { fontSize: "12px" } }));
       document.querySelector(".stats")?.after(lg);
-      b.addEventListener("pret", () => { lg.children[1].textContent = `Classement : ${b.rang}${b.rang === 1 ? "er" : "e"}`; lg.children[2].textContent = b.devant ? `· ${b.devant.valeur - marathon.mots + 1} mots pour dépasser ${capitaliser(b.devant.pseudo)}` : "· en tête !"; }); }
+      b.addEventListener("pret", () => { lg.children[1].textContent = `Classement : ${b.rang}${b.rang === 1 ? "er" : "e"}`; lg.children[2].textContent = b.devant ? `· ${nombre(b.devant.valeur - marathon.score + 1)} pts pour dépasser ${capitaliser(b.devant.pseudo)}` : "· en tête !"; }); }
   }
   aide = fenetreAide();  // après ecran() : sinon le nettoyage de l'écran la supprimerait
   const minuteur = setInterval(() => { if (S.fini) return; const ec = Math.floor((Date.now() - S.debut) / 1000); sT.set(mmss(ec)); sS.set(nombre(score(ec))); }, 1000);
@@ -717,7 +716,7 @@ async function solo(mode = "libre") {
   function valider() {
     if (S.tape.length !== mot.length || S.fini) return;
     const t = S.tape.join("");
-    if (!MOTS.banque.has(t) && t !== mot) { if (mode === "mdj") return message("Mot inconnu"); S.penalite += 100; return message("Mot inconnu  ·  −100 points"); }  // 9.6 : mot du jour sans points
+    if (!MOTS.banque.has(t) && t !== mot) { if (mode === "mdj") return message("Mot inconnu"); S.inconnus++; sS.set(nombre(score(Math.floor((Date.now() - S.debut) / 1000)))); return message("Mot inconnu  ·  −5 %"); }  // 9.6 : mot du jour sans points
     if (difficile) { const err = verifierDifficile(S.tape, S.lignes); if (err) return message(err, null, 2200); }
     const res = evaluer(S.tape, mot);
     majStatuts(S.statut, S.tape, res); for (const ch of ALPHABET) kb.setCouleur(ch, S.statut[ch]);
@@ -725,7 +724,7 @@ async function solo(mode = "libre") {
     g.cases[S.ligne].forEach((c, i) => c.maj(S.tape[i], res[i], false));
     if (t === mot) fin(true);
     else if (S.ligne + 1 >= essais) fin(false);
-    else { S.ligne++; S.tape = [mot[0]]; sE.set(String(S.ligne + 1)); maj(); if (mode === "mdj") sauverMdj(); }
+    else { S.ligne++; S.tape = [mot[0]]; sE.set(String(S.ligne + 1)); if (mode !== "mdj") sS.set(nombre(score(Math.floor((Date.now() - S.debut) / 1000)))); maj(); if (mode === "mdj") sauverMdj(); }
   }
   // Mot du jour en cours : essais validés, pénalités et temps écoulé (relus par reprendreMdj)
   function sauverMdj() { majConfig({ mdj_en_cours: { date: auj, lignes: S.lignes.map(([t]) => t), penalite: S.penalite, ecoule: Math.floor((Date.now() - S.debut) / 1000) } }); }
@@ -756,9 +755,8 @@ async function solo(mode = "libre") {
         message(`Trouvé ! +${nombre(sc)} pts · mot suivant…`, "var(--succes)", 5000);
         setTimeout(() => { if (marathon && document.body.contains(msg)) solo("marathon"); }, 1300); return;
       }
-      const m = marathon, ancien = lireStats().marathon.record, record = enregistrerMarathon(m.mots, m.score, mot);
-      const r = Math.max(ancien, m.mots);
-      note = record && m.mots ? "Nouveau record !" : `Record : ${r} mot${r > 1 ? "s" : ""}`;
+      const m = marathon, ancien = lireStats().marathon.meilleur_points || 0, record = enregistrerMarathon(m.mots, m.score, mot);
+      note = record && m.score ? "Nouveau record !" : `Record : ${nombre(Math.max(ancien, m.score))} pts`;
       titreFin = "Marathon terminé"; stats = [["Mots trouvés", String(m.mots)], ["Score total", nombre(m.score), "var(--mal)"], ["Temps", mmss(m.temps)]];
       partage = `SMOUT · Marathon · ${m.mots} mot${m.mots > 1 ? "s" : ""} · ${nombre(m.score)} pts` + (difficile ? " · difficile" : "") + `\n${D.url_web}`;
       rejouer = () => { marathon = null; solo("marathon"); }; marathon = null;
@@ -814,7 +812,7 @@ const statsVides = () => ({ parties: 0, victoires: 0, repartition: {}, serie: 0,
 function lireStats() {
   const st = lireConfig().stats || {};
   for (const k of ["solo", "mdj"]) st[k] = Object.assign(statsVides(), st[k] || {});
-  st.marathon = Object.assign({ parties: 0, record: 0, record_score: 0, mots: 0 }, st.marathon || {});
+  st.marathon = Object.assign({ parties: 0, record: 0, record_score: 0, mots: 0, meilleur_points: 0 }, st.marathon || {});
   st.historique = st.historique || []; return st;
 }
 function enregistrerPartie(genre, victoire, essais = 0, score = 0, mot = "", detail = "") {
@@ -825,11 +823,20 @@ function enregistrerPartie(genre, victoire, essais = 0, score = 0, mot = "", det
   st.historique = [{ d: aujourdhui(), g: genre, m: mot, v: !!victoire, e: essais, s: Math.trunc(score), x: detail }, ...st.historique].slice(0, 30);
   majConfig({ stats: st }); return st;
 }
+/* 9.7 : score d'un mot (solo et marathon ; identique à score_mot de design.py)
+   Base 100 par lettre × (1 + essais restants / essais permis) × réglages (8 essais ×1, 6 ×1,3, 4 ×1,6 ; difficile ×1,25)
+   × rapidité (−10 % par minute, au plus −50 %) × (−5 % par mot inconnu) */
+function scoreMot(lettres, permis, utilises, difficile, secondes, inconnus) {
+  const essais = 1 + Math.max(0, permis - utilises) / permis, reglages = (1 + (8 - permis) * 0.15) * (difficile ? 1.25 : 1);
+  const rapidite = Math.max(0.5, 1 - secondes / 600), malus = Math.max(0, 1 - 0.05 * inconnus);
+  return Math.round(100 * lettres * essais * reglages * rapidite * malus);
+}
 function enregistrerMarathon(nb, score, dernier = "") {
   const st = lireStats(), m = st.marathon;
   m.parties++; m.mots += nb;
-  const nouveau = nb > m.record || (nb === m.record && score > m.record_score);
-  if (nouveau) { m.record = nb; m.record_score = Math.trunc(score); }
+  if (nb > m.record || (nb === m.record && score > m.record_score)) { m.record = nb; m.record_score = Math.trunc(score); }
+  const nouveau = Math.trunc(score) > (m.meilleur_points || 0);  // 9.7 : le record du marathon est en points (nouveau calcul, repart de zéro)
+  if (nouveau) m.meilleur_points = Math.trunc(score);
   st.historique = [{ d: aujourdhui(), g: "marathon", m: dernier, v: nb > 0, e: nb, s: Math.trunc(score), x: "" }, ...st.historique].slice(0, 30);
   majConfig({ stats: st }); return nouveau;
 }
@@ -854,7 +861,7 @@ function statistiques() {
     h("div.ligne", { style: { gap: "16px", flexWrap: "wrap", alignItems: "stretch" } }, carte("Solo", st.solo), carte("Mot du jour", st.mdj)),
     h("div.ligne", { style: { gap: "16px", flexWrap: "wrap", alignItems: "flex-start", marginTop: "16px" } },
       h("div.panneau", { style: { padding: "20px", flex: "1 1 280px" } }, h("div.gras", { style: { fontSize: "18px" } }, "Marathon"),
-        h("div.ligne", { style: { gap: "14px", marginTop: "8px" } }, stat("Record", String(m.record), null, 22), stat("Meilleur score", nombre(m.record_score), null, 22), stat("Parties", String(m.parties), null, 22))),
+        h("div.ligne", { style: { gap: "14px", marginTop: "8px" } }, stat("Record", nombre(m.meilleur_points) + " pts", null, 22), stat("Plus de mots", String(m.record), null, 22), stat("Parties", String(m.parties), null, 22))),
       h("div.panneau", { style: { padding: "20px", flex: "2 1 400px" } }, h("div.gras", { style: { fontSize: "18px", marginBottom: "8px" } }, "Dernières parties"),
         hist.length ? h("div.historique", {}, ...hist) : h("div.t2", {}, "Aucune partie pour le moment.")))));
 }
@@ -1391,7 +1398,7 @@ const Classements = {
   envoye: {},
   async lire(type) {
     const d = await FB.get(`classements/${type}`) || {};
-    return Object.entries(d).filter(([, v]) => v && typeof v === "object").map(([uid, v]) => ({ uid, pseudo: v.pseudo || "?", valeur: Number(type === "mdj" ? v.meilleure : v.record) || 0, actuelle: Number(v.actuelle) || 0,
+    return Object.entries(d).filter(([, v]) => v && typeof v === "object").map(([uid, v]) => ({ uid, pseudo: v.pseudo || "?", valeur: Number(type === "mdj" ? v.meilleure : v.score) || 0, actuelle: Number(v.actuelle) || 0,
       jour: v.jour === aujourdhui() ? Math.max(0, Number(v.essais) || 0) : null }))  // 9.6 : essais du mot du jour d'aujourd'hui (0 = raté, null = pas joué)
       .filter(e => e.valeur > 0).sort((a, b) => b.valeur - a.valeur || String(a.pseudo).localeCompare(String(b.pseudo)));
   },
@@ -1400,7 +1407,7 @@ const Classements = {
     const st = lireStats(), serie = serieMotDuJour()[0], m = Math.max(st.mdj.meilleure_serie || 0, serie);
     const auj = aujourdhui(), dj = lireConfig().last_mdj === auj ? st.historique.find(x => x.g === "mdj" && x.d === auj) : null;  // 9.6 : résultat du jour (depuis les stats)
     const jour = dj ? { jour: auj, essais: dj.v ? Math.min(8, Number(dj.e) || 1) : 0 } : {};
-    const lignes = { mdj: m > 0 || dj ? Object.assign({ pseudo: pseudo(), meilleure: m, actuelle: Math.min(serie, m), maj: SV }, jour) : null, marathon: st.marathon.record > 0 ? { pseudo: pseudo(), record: Math.min(500, st.marathon.record), maj: SV } : null };
+    const lignes = { mdj: m > 0 || dj ? Object.assign({ pseudo: pseudo(), meilleure: m, actuelle: Math.min(serie, m), maj: SV }, jour) : null, marathon: st.marathon.meilleur_points > 0 ? { pseudo: pseudo(), record: Math.min(500, st.marathon.record), score: Math.min(10000000, st.marathon.meilleur_points), maj: SV } : null };
     for (const [type, l] of Object.entries(lignes)) {
       if (!l) continue; const sig = JSON.stringify(Object.assign({}, l, { maj: 0 }));
       if (this.envoye[type] === sig) continue;
@@ -1415,7 +1422,7 @@ const Classements = {
 };
 // bloc « Top 5 + ma place » ; toucher une ligne ouvre la fiche du joueur. live (marathon en cours) : { valeur } = mon score actuel
 function classementBloc(type, live = null) {
-  const titre = type === "mdj" ? "Mot du jour" : "Marathon", sous = live ? "en direct" : type === "mdj" ? "meilleure série" : "record de mots";
+  const titre = type === "mdj" ? "Mot du jour" : "Marathon", sous = live ? "en direct" : type === "mdj" ? "meilleure série" : "meilleur score";
   const corps = h("div.cl-corps", {}, h("div.t2", { style: { fontSize: "13px", padding: "6px 8px" } }, "Chargement…")), note = h("div.cl-note");
   const tete = type === "mdj" && !live ? h("div.cl-tete", {}, h("span.n", {}), h("span.cl-c1", {}, "série max"), h("span.cl-c2", {}, "aujourd'hui")) : null;
   const b = h("div.classement.classement-" + type, {}, h("div.tt", {}, h("span", { html: svg(type === "mdj" ? "stats" : "infini", 18) }), titre, tete ? null : h("span.s", {}, sous)), tete, corps, note);
@@ -1423,7 +1430,7 @@ function classementBloc(type, live = null) {
   const jourTxt = e => e.jour === null || e.jour === undefined ? ["pas joué", "pas"] : e.jour > 0 ? [`${e.jour} essai${e.jour > 1 ? "s" : ""}`, "ok"] : ["raté", "rate"];
   const ligne = (e, rang, moi) => h("div.cl-l" + (rang === 1 ? ".top1" : "") + (moi ? ".moi" : ""), { onclick: () => e.uid && ficheJoueur(e.uid) },
     h("span.r", {}, String(rang)), avatar(e.pseudo, 24, rang - 1), h("span.n", {}, moi && live ? "Toi" : capitaliser(e.pseudo)),
-    ...(mdj ? [h("span.cl-c1", {}, h("span.puce.p-serie", {}, "🔥 " + e.valeur)), h("span.cl-c2", {}, h("span.puce.p-" + jourTxt(e)[1], {}, jourTxt(e)[0]))] : [h("span.v", {}, String(e.valeur))]));
+    ...(mdj ? [h("span.cl-c1", {}, h("span.puce.p-serie", {}, "🔥 " + e.valeur)), h("span.cl-c2", {}, h("span.puce.p-" + jourTxt(e)[1], {}, jourTxt(e)[0]))] : [h("span.v", {}, nombre(e.valeur))]));
   (async () => {
     if (!(await FB.jeton())) { corps.replaceChildren(h("div.t2", { style: { fontSize: "13px", padding: "6px 8px" } }, "Hors ligne")); return; }
     await Classements.pousser();
@@ -1434,7 +1441,7 @@ function classementBloc(type, live = null) {
     const lignes = l.slice(0, 5).map((e, k) => ligne(e, rangDe(k), k === i));
     if (i >= 5) lignes.push(h("div.cl-sep", {}, "···"), ligne(l[i], rangDe(i), true));
     corps.replaceChildren(...(lignes.length ? lignes : [h("div.t2", { style: { fontSize: "13px", padding: "6px 8px" } }, "Personne pour le moment.")]));
-    if (live) { const devant = i > 0 ? l[i - 1] : null; note.textContent = devant ? `Encore ${devant.valeur - live.valeur + 1} mot${devant.valeur - live.valeur + 1 > 1 ? "s" : ""} pour dépasser ${capitaliser(devant.pseudo)}` : "Tu es en tête !";
+    if (live) { const devant = i > 0 ? l[i - 1] : null; note.textContent = devant ? `Encore ${nombre(devant.valeur - live.valeur + 1)} pts pour dépasser ${capitaliser(devant.pseudo)}` : "Tu es en tête !";
       b.rang = i + 1; b.devant = devant; b.dispatchEvent(new Event("pret")); }
     else if (!Compte.email()) note.textContent = "Crée un compte pour apparaître dans le classement.";
     else if (type === "mdj") note.textContent = "";  // 9.6 : « Ta série en cours » retirée (doublon avec le tableau)
@@ -1452,7 +1459,7 @@ async function ficheJoueur(uid) {
   const btns = [bouton("Fermer", () => o.remove(), { variante: "discret", largeur: 120 })];
   if (!moi && Compte.email() && !ami) btns.push(bouton("Ajouter en ami", async () => { msg.textContent = (await FB.ok("PUT", `amis_demandes/${uid}/${FB.uid}`, { pseudo: pseudo(), t: SV })) ? "Demande envoyée ✓" : PAS_DE_RESEAU; }, { largeur: 180 }));
   o = superposition(h("div.fiche", {}, avatar(nom, 64, 3), h("div.titre", { style: { fontSize: "26px" } }, nom), h("div.t2", {}, depuis ? `Joueur depuis ${depuis}` : "Ancienneté inconnue"),
-    h("div.stats2", {}, stat("Meilleure série", String((cm || {}).meilleure || 0), "var(--mal)", 28), stat("Record marathon", String((cr || {}).record || 0), "var(--mal)", 28)), msg,
+    h("div.stats2", {}, stat("Meilleure série", String((cm || {}).meilleure || 0), "var(--mal)", 28), stat("Record marathon", nombre((cr || {}).score || 0), "var(--mal)", 28)), msg,
     h("div.ligne", { style: { gap: "10px", justifyContent: "center" } }, btns)), 420);
   o.classList.add("fiche-joueur"); o.montrer();
 }

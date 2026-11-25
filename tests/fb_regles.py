@@ -201,10 +201,11 @@ def valider(N, cible):
     if len(cible) >= 4 and cible[1] == "classements":  # 9.4
         n, d = lire(N, cible[:4]), lire(D := DATA, cible[:4])
         if existe(n):
-            cles = {"mdj": ({"pseudo", "meilleure", "maj"}, {"actuelle", "jour", "essais"}), "marathon": ({"pseudo", "record", "maj"}, set())}.get(cible[2])
+            cles = {"mdj": ({"pseudo", "meilleure", "maj"}, {"actuelle", "jour", "essais"}), "marathon": ({"pseudo", "record", "maj"}, {"score"})}.get(cible[2])
             if not cles or not isinstance(n, dict) or not cles[0] <= set(n) or set(n) - cles[0] - cles[1]: return False
             if not isinstance(n["pseudo"], str) or len(n["pseudo"]) > 30 or not isinstance(n["maj"], (int, float)) or n["maj"] > maintenant() + 5000: return False
             if cible[2] == "marathon" and not (isinstance(n["record"], (int, float)) and 0 <= n["record"] <= 500): return False
+            if cible[2] == "marathon" and "score" in n and not (isinstance(n["score"], (int, float)) and 0 <= n["score"] <= 10000000): return False  # 9.7
             if cible[2] == "mdj":
                 m = n["meilleure"]
                 if not isinstance(m, (int, float)) or m < 0: return False

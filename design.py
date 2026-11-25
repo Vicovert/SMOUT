@@ -11,7 +11,7 @@ def _appel_tk_sur(self, *args):
     return _appel_tk(self, *args)
 tk.CallWrapper.__call__ = _appel_tk_sur
 
-VERSION_APP = "9.6"
+VERSION_APP = "9.7"
 URL_WEB = "https://vicovert.github.io/SMOUT/"
 
 def mot_graine(liste_triee, graine, index=0):
@@ -1060,7 +1060,7 @@ def stats_vides():
 def lire_stats():
     st = lire_config().get("stats") or {}
     for k in ("solo", "mdj"): st[k] = dict(stats_vides(), **(st.get(k) or {}))
-    st["marathon"] = dict({"parties": 0, "record": 0, "record_score": 0, "mots": 0}, **(st.get("marathon") or {}))
+    st["marathon"] = dict({"parties": 0, "record": 0, "record_score": 0, "mots": 0, "meilleur_points": 0}, **(st.get("marathon") or {}))
     st.setdefault("historique", [])
     return st
 
@@ -1077,11 +1077,28 @@ def enregistrer_partie(genre, victoire, essais=0, score=0, mot="", detail=""):
     st["historique"] = ([{"d": datetime.date.today().isoformat(), "g": genre, "m": mot, "v": bool(victoire), "e": essais, "s": int(score), "x": detail}] + st["historique"])[:30]
     maj_config(stats=st); return st
 
+def nombre(n):
+    """2450 -> « 2 450 » (comme nombre de page_solo.py et du site)."""
+    return f"{int(n):,}".replace(",", "\u202f")
+
+
+def score_mot(lettres, permis, utilises, difficile, secondes, inconnus):
+    """9.7 : score d'un mot (solo et marathon ; identique à scoreMot de smout.js).
+    Base 100 par lettre × (1 + essais restants / essais permis) × réglages (8 essais ×1, 6 ×1,3, 4 ×1,6 ; difficile ×1,25)
+    × rapidité (−10 % par minute, au plus −50 %) × (−5 % par mot inconnu)."""
+    essais = 1 + max(0, permis - utilises) / permis
+    reglages = (1 + (8 - permis) * 0.15) * (1.25 if difficile else 1)
+    rapidite = max(0.5, 1 - secondes / 600); malus = max(0, 1 - 0.05 * inconnus)
+    v = 100 * lettres * essais * reglages * rapidite * malus
+    return int(v + 0.5)  # arrondi comme Math.round (pas l'arrondi bancaire de round)
+
+
 def enregistrer_marathon(nb_mots, score, dernier_mot=""):
     st = lire_stats(); m = st["marathon"]
     m["parties"] += 1; m["mots"] += nb_mots
-    nouveau = nb_mots > m["record"] or (nb_mots == m["record"] and score > m["record_score"])
-    if nouveau: m["record"], m["record_score"] = nb_mots, int(score)
+    if nb_mots > m["record"] or (nb_mots == m["record"] and score > m["record_score"]): m["record"], m["record_score"] = nb_mots, int(score)
+    nouveau = int(score) > m.get("meilleur_points", 0)  # 9.7 : le record du marathon est en points (nouveau calcul, repart de zéro)
+    if nouveau: m["meilleur_points"] = int(score)
     st["historique"] = ([{"d": datetime.date.today().isoformat(), "g": "marathon", "m": dernier_mot, "v": nb_mots > 0, "e": nb_mots, "s": int(score), "x": ""}] + st["historique"])[:30]
     maj_config(stats=st); return nouveau
 
