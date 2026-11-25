@@ -2,6 +2,16 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
+## 9.4
+- Classements (maquettes validées par Victor ; top 5 + ma place, toucher une ligne ouvre la fiche), PC et web :
+  - mot du jour (meilleure série, série en cours en note) sur l'accueil : colonne à droite sur grand écran, sous les cartes sinon ;
+  - marathon (record de mots) dans le menu Solo (colonne à gauche sur grand écran) et en partie (« Classement : 4e · 15 mots pour dépasser X ») ;
+  - seuls les comptes y apparaissent (« Crée un compte pour apparaître dans le classement ») ; le pseudo suit les changements.
+- Fiche joueur : pseudo, « Joueur depuis <mois année> », meilleure série, record marathon, « Ajouter en ami » ; depuis les classements et la liste d'amis.
+- Mot piégé sur téléphone : les lettres tapées s'affichent DANS les mini-grilles (lettres visibles dès 9 px, police plus grande) et les grilles des autres ont un peu plus de place (demande de Victor).
+- Règles Firebase (**à republier**) : `classements/mdj/<uid>` (meilleure série : +1 par jour écoulé au plus, 365 au plus à la création) et `classements/marathon/<uid>` (record ≤ 500) ; chacun n'écrit que sa ligne.
+- Tests : règles 130/130, `tests/web/classements_web.js` (10), `tests/test_classements_pc.py` (7).
+
 ## 9.3
 - Retour de Victor (téléphone) : une fois son mot trouvé, on ne voyait pas ce que les autres tapent et valident. Corrigé :
   - frappe en direct dans tous les modes (sauf Rush/Chaîne, chacun son mot, et Coopératif, grille commune), visible seulement une fois SA manche finie (pas de triche) ; PC et web ;

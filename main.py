@@ -1,6 +1,6 @@
 import tkinter as tk
 import os, sys, json, colorsys, threading, traceback
-import design, compte, amis
+import design, compte, amis, classements
 from design import P, police, etiquette, Bouton, Panneau, Icone, Avatar, Logo, CarteMenu, Defilant, Champ, Superposition, arrondi, calculer_palette, melanger, contraste
 design.charger_polices()  # avant la création de la fenêtre
 from page_solo import PageSolo, PageMenuSolo, PageParametres, PageStats, apply_theme_solo
@@ -505,7 +505,10 @@ class MenuPrincipal(tk.Tk):
         Icone(haut, "stats", self.ouvrir_stats).pack(side="right", padx=8)
         Icone(haut, "palette", self.show_skins).pack(side="right", padx=8)
         self.bouton_amis(haut).pack(side="right", padx=8)
-        centre = tk.Frame(page, bg=P["fond"]); centre.place(relx=0.5, rely=0.5, anchor="center")
+        centre = tk.Frame(page, bg=P["fond"])
+        large = (self.winfo_width() if self.winfo_width() > 200 else 1200) >= 1180
+        centre.place(relx=0.5, rely=0.5, anchor="center", x=-170 if large else 0)  # 9.4 : place pour le classement à droite
+        if large: classements.PanneauClassement(page, "mdj", on_fiche=self.fiche_joueur).place(relx=1.0, x=-24, y=86, anchor="ne")
         Logo(centre, 88, 14).pack()
         etiquette(centre, "Trouvez le mot caché.", "texte", 19, P["texte2"]).pack(pady=(12, 30))
         h = 84 if self.winfo_height() < 200 or self.winfo_height() >= 820 else 72
@@ -609,6 +612,8 @@ class MenuPrincipal(tk.Tk):
         return self._multi
 
     # --- amis (9.2 ; même logique que l'objet Amis du site) ---
+    def fiche_joueur(self, uid): return classements.fiche_joueur(self, uid)
+
     def bouton_amis(self, parent):
         """Icône Amis avec pastille du nombre de demandes reçues."""
         f = tk.Frame(parent, bg=P["fond"])
@@ -631,7 +636,9 @@ class MenuPrincipal(tk.Tk):
         """Toutes les 10 s : signe de vie, demandes et invitations (dans un fil), puis bandeau."""
         salon, fini = self.salon_actuel(), threading.Event()
         def fil():
-            try: amis.tic(salon)
+            try:
+                amis.tic(salon)
+                if compte.email() and amis.E["n"] % 3 == 1: classements.pousser()  # 9.4 : seulement si les valeurs ont changé
             except Exception: traceback.print_exc()
             fini.set()
         def attendre_fin():  # le bandeau se met à jour dans le fil de l'interface
@@ -725,8 +732,9 @@ class MenuPrincipal(tk.Tk):
         Bouton(la, "Ajouter", ajouter, largeur=120, hauteur=48).pack(side="left", padx=(10, 0)); self.champ_ami.bind_entree(ajouter)
         self.zone_dem, self.zone_liste = tk.Frame(c, bg=P["fond"]), tk.Frame(c, bg=P["fond"])
         self.zone_dem.pack(anchor="w", fill="x"); self.zone_liste.pack(anchor="w", fill="x")
-        def ligne(parent, nom, i, st, etat, actions):
+        def ligne(parent, nom, i, st, etat, actions, uid=None):
             p = Panneau(parent, padding=10, rayon=12, couleur=P["tuile"], largeur=640); p.pack(pady=3, anchor="w")
+            if uid: p.interieur.bind("<Button-1>", lambda e, u=uid: self.fiche_joueur(u)); p.interieur.config(cursor="hand2")
             Avatar(p.interieur, nom, 36, index=i).pack(side="left")
             t = tk.Frame(p.interieur, bg=P["tuile"]); t.pack(side="left", padx=12)
             etiquette(t, str(nom).capitalize(), "texte", 16, P["texte"], True).pack(anchor="w")
@@ -760,7 +768,7 @@ class MenuPrincipal(tk.Tk):
                     def retirer(u=u, n=p.get("pseudo", "?")):
                         if design.confirmer(self, "Retirer cet ami ?", f"{str(n).capitalize()} ne sera plus dans ta liste (et toi plus dans la sienne).", "Retirer"): amis.retirer(u); dessiner()
                     act = [("Retirer", retirer, "discret")]
-                ligne(self.zone_liste, p.get("pseudo", "?"), k, st, etat, act)
+                ligne(self.zone_liste, p.get("pseudo", "?"), k, st, etat, act, uid=u)
         self.dessiner_amis = dessiner
         dessiner()
         def rafraichir():

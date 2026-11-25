@@ -151,4 +151,16 @@ t("invitation : l'invité entre en spectateur pendant la partie", req("PUT", f"v
 t("invitation : l'invité l'efface", req("DELETE", f"v7/invitations/{ug}/5678", G), 200)
 t("ami : chacun peut retirer l'autre", (req("DELETE", f"v7/amis/{uh}/{ug}", G), req("DELETE", f"v7/amis/{ug}/{uh}", G)), (200, 200))
 
+# ---- 9.4 : classements (mot du jour : meilleure série ; marathon : record)
+t("classement : écrire sa ligne (mot du jour)", req("PUT", f"v7/classements/mdj/{ug}", G, {"pseudo": "GAEL", "meilleure": 12, "actuelle": 4, "maj": SV}), 200)
+t("classement : lisible par tous", req("GET", "v7/classements/mdj", Hh), 200)
+t("classement : écrire la ligne d'un autre refusé", req("PUT", f"v7/classements/mdj/{ug}", Hh, {"pseudo": "X", "meilleure": 1, "maj": SV}), 401)
+t("classement : meilleure série qui saute de +10 refusée", req("PATCH", f"v7/classements/mdj/{ug}", G, {"meilleure": 22, "maj": SV}), 401)
+t("classement : +1 accepté", req("PATCH", f"v7/classements/mdj/{ug}", G, {"meilleure": 13, "actuelle": 5, "maj": SV}), 200)
+t("classement : série en cours > meilleure refusée", req("PATCH", f"v7/classements/mdj/{ug}", G, {"actuelle": 40}), 401)
+t("classement : création au-delà de 365 refusée", req("PUT", f"v7/classements/mdj/{uh}", Hh, {"pseudo": "H", "meilleure": 900, "maj": SV}), 401)
+t("classement : record marathon", req("PUT", f"v7/classements/marathon/{ug}", G, {"pseudo": "GAEL", "record": 31, "maj": SV}), 200)
+t("classement : record marathon absurde refusé", req("PATCH", f"v7/classements/marathon/{ug}", G, {"record": 9999}), 401)
+t("classement : champ inconnu refusé", req("PATCH", f"v7/classements/marathon/{ug}", G, {"pirate": 1}), 401)
+
 print(f"{sum(ok)}/{len(ok)} conformes")

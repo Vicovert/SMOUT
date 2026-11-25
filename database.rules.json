@@ -387,6 +387,48 @@
             }
           }
         }
+      },
+      "classements": {
+        ".read": "auth != null",
+        "mdj": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid",
+            ".validate": "newData.hasChildren(['pseudo', 'meilleure', 'maj'])",
+            "pseudo": {
+              ".validate": "newData.isString() && newData.val().length <= 30"
+            },
+            "meilleure": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && (data.exists() ? newData.val() <= data.val() + 1 + (now - data.parent().child('maj').val()) / 86400000 : newData.val() <= 365)"
+            },
+            "actuelle": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= newData.parent().child('meilleure').val()"
+            },
+            "maj": {
+              ".validate": "newData.isNumber() && newData.val() <= now + 5000"
+            },
+            "$autre": {
+              ".validate": false
+            }
+          }
+        },
+        "marathon": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid",
+            ".validate": "newData.hasChildren(['pseudo', 'record', 'maj'])",
+            "pseudo": {
+              ".validate": "newData.isString() && newData.val().length <= 30"
+            },
+            "record": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 500"
+            },
+            "maj": {
+              ".validate": "newData.isNumber() && newData.val() <= now + 5000"
+            },
+            "$autre": {
+              ".validate": false
+            }
+          }
+        }
       }
     }
   }

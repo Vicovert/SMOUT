@@ -190,6 +190,9 @@ class PageJeu(tk.Frame):
         self.debut_temps, self.timer_actif = time.time(), True; self.update_loop(self.timer_gen)
         self.winfo_toplevel().bind("<Key>", self.clavier_physique); self.maj_affichage()
         if mode == "mdj": self.reprendre_mdj()
+        if mode == "marathon" and (ctl.winfo_width() if ctl.winfo_width() > 200 else 1200) >= 1180:  # 9.4 : classement en direct, à gauche
+            import classements
+            classements.PanneauClassement(self, "marathon", live=ctl.marathon["mots"], largeur=260, on_fiche=lambda u: classements.fiche_joueur(ctl, u)).place(x=24, y=110, anchor="nw")
 
     def reprendre_mdj(self):
         """Mot du jour quitté avant d'avoir vu le mot : on retrouve ses essais, son score et son temps (jamais une grille vierge avec les indices en poche)."""
@@ -360,7 +363,12 @@ class PageMenuSolo(tk.Frame):
         super().__init__(parent, bg=P["fond"]); self.controller = controller
         entete(self, "", controller.creer_menu_accueil)
         rec = design.lire_stats()["marathon"]["record"]
-        centre = tk.Frame(self, bg=P["fond"]); centre.place(relx=0.5, rely=0.46, anchor="center")
+        centre = tk.Frame(self, bg=P["fond"])
+        large = (controller.winfo_width() if controller.winfo_width() > 200 else 1200) >= 1180
+        centre.place(relx=0.5, rely=0.46, anchor="center", x=170 if large else 0)  # 9.4 : place pour le classement à gauche
+        if large:
+            import classements
+            classements.PanneauClassement(self, "marathon", on_fiche=lambda u: classements.fiche_joueur(controller, u)).place(x=24, y=86, anchor="nw")
         titre = tk.Frame(centre, bg=P["fond"]); titre.pack(pady=(0, 4))
         for ch, e in zip("SOLO", ("bien", "mal", "bien", "mal")):
             t = Tuile(titre, 60); t.config(text=ch, bg=P[e]); t.pack(side="left", padx=4)
