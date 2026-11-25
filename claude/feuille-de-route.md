@@ -2,7 +2,10 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
-## 9.8
+## 9.9
+- Grand écran (site sur ordinateur et appli PC) : classements de l'accueil (mot du jour) et du menu Solo (marathon) centrés sous les cartes, 460 px de large (440 sur PC), comme sur téléphone (version « A moins large » validée par Victor). Le classement en direct du marathon en partie garde sa colonne à gauche.
+- Numéro de version en haut à gauche de l'accueil (« v9.9 »), à la place de la ligne du bas.
+
 - Classement du mot du jour (style C validé par Victor) : colonnes « série max » · « moy. essais » · « aujourd'hui » ; tri par meilleure série puis, à égalité, par moyenne d'essais la plus basse (raté = 8, calculée depuis les stats, donc aussi pour les parties passées ; pas de minimum de parties). Pastille de moyenne verte ≤ 3,5, jaune ≤ 4,5, rouge au-delà. Base : `classements/mdj/<uid>/moyenne` (règles publiées automatiquement).
 - Tous les classements (mot du jour, marathon) : la liste entière, 5 lignes visibles, on fait défiler ; ma ligne reste collée en bas (ou en haut si on a défilé au-delà). Site : `position: sticky` ; PC : `Defilant` + ligne épinglée.
 - Accueil : tableau plus large (site 420 px, PC 380 px), cartes un peu moins larges à côté sur grand écran ; colonnes resserrées sur téléphone.
