@@ -369,11 +369,7 @@ class PageMenuSolo(tk.Frame):
         entete(self, "", controller.creer_menu_accueil)
         rec = design.lire_stats()["marathon"].get("meilleur_points", 0)
         centre = tk.Frame(self, bg=P["fond"])
-        large = (controller.winfo_width() if controller.winfo_width() > 200 else 1200) >= 1180
-        centre.place(relx=0.5, rely=0.46, anchor="center", x=170 if large else 0)  # 9.4 : place pour le classement à gauche
-        if large:
-            import classements
-            classements.PanneauClassement(self, "marathon", on_fiche=lambda u: classements.fiche_joueur(controller, u)).place(x=24, y=86, anchor="nw")
+        centre.place(relx=0.5, rely=0.5, anchor="center")
         titre = tk.Frame(centre, bg=P["fond"]); titre.pack(pady=(0, 4))
         for ch, e in zip("SOLO", ("bien", "mal", "bien", "mal")):
             t = Tuile(titre, 60); t.config(text=ch, bg=P[e]); t.pack(side="left", padx=4)
@@ -385,6 +381,8 @@ class PageMenuSolo(tk.Frame):
                   couleur=COULEUR_MARATHON, texte="#14182A", icone="infini").pack(side="left", padx=(0, 16))
         CarteMenu(ligne, "Paramètres", resume_reglages(charger_config_solo()), controller.ouvrir_parametres, largeur=390, hauteur=96,
                   couleur=COULEUR_PARAMETRES, texte="#14182A", icone="engrenage").pack(side="left")
+        import classements  # 9.9 : classement du marathon sous les cartes, centré
+        classements.PanneauClassement(centre, "marathon", largeur=440, on_fiche=lambda u: classements.fiche_joueur(controller, u)).pack(pady=(22, 0))
 
 
 class PageStats(tk.Frame):

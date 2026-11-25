@@ -553,14 +553,14 @@ function accueil() {
   const carte = (t, s, f, b, cls = "") => h("button.carte-menu" + cls, { onclick: f }, h("div", {}, h("div.t", {}, t), h("div.s", {}, s)), b ? h("div.d", {}, b) : h("span.chevron", { html: svg("chevron", 22) }));
   ecran(
     h("div.ligne", { style: { justifyContent: "flex-end", gap: "16px", padding: "22px 28px 0" } },
+      h("div.t2.version", { style: { marginRight: "auto", fontSize: "14px" } }, `v${VERSION_APP}`),  // 9.9 : numéro de version en haut à gauche
       boutonAmis(accueil), icone("palette", () => themes(), true, "Thèmes"), icone("stats", () => statistiques(), true, "Statistiques"), avatar(pseudo(), 46, 0, () => changerPseudo())),
-    h("div.centre", { style: { flex: 1, justifyContent: "center", gap: "12px", padding: "16px 0" } },
+    h("div.centre", { style: { flex: 1, justifyContent: "safe center", gap: "12px", padding: "16px 0 28px" } },
       logo(Math.min(88, Math.floor((window.innerWidth - 80) / 5.8)), 14),
       h("div.t2", { style: { fontSize: "19px", margin: "0 0 22px" } }, "Trouvez le mot caché."),
       // Solo et Multijoueur côte à côte, chacun de sa couleur ; le Mot du jour, à part, dessous, d'une troisième couleur
       h("div.menu-ligne", {}, carte("Solo", "Normal, marathon, réglages", menuSolo, null, ".solo"), carte("Multijoueur", "Salons publics ou entre amis", multiAccueil, null, ".multi")),
-      h("div.menu-ligne.mdj", {}, carte("Mot du jour", "Un mot, une partie par jour", () => solo("mdj"), badge, ".mdj")), h("div.cl-place")),
-    h("div.t2", { style: { textAlign: "center", padding: "0 0 22px", fontSize: "14px" } }, `SMOUT v${VERSION_APP} · version en ligne`));
+      h("div.menu-ligne.mdj", {}, carte("Mot du jour", "Un mot, une partie par jour", () => solo("mdj"), badge, ".mdj")), h("div.cl-place")));
   enAccueil = true; setTimeout(() => MiseAJour.proposer(), 300);
   placerClassement(classementBloc("mdj"), "droite");  // 9.4
 }
@@ -578,17 +578,17 @@ function menuSolo() {
   const marathon = carte(".marathon", "infini", "Marathon", rec ? `Record ${nombre(rec)} pts` : "Jusqu'à l'erreur", () => solo("marathon"));
   marathon.style.setProperty("--mc", COULEUR_MARATHON);
   ecran(entete("", accueil),
-    h("div.centre", { style: { flex: 1, justifyContent: "center", gap: "12px", padding: "0 0 40px" } },
+    h("div.centre", { style: { flex: 1, justifyContent: "safe center", gap: "12px", padding: "0 0 40px" } },
       titre,
       h("div.t2", { style: { fontSize: "18px", margin: "6px 0 14px", textAlign: "center" } }, "À votre rythme"),
       h("div.menu-ligne", {}, carte(".hero", "jouer", "Jouer", "Partie normale · un mot, à votre rythme", () => solo("libre"))),
       h("div.menu-ligne.petites", {}, marathon, carte(".params", "engrenage", "Paramètres", resumeReglages(c), parametres)), h("div.cl-place")));
   placerClassement(classementBloc("marathon"), "gauche");  // 9.4
 }
-// grand écran : le classement dans une colonne sur le côté (sans chevaucher) ; sinon sous les cartes
-function placerClassement(b, cote) {
+// 9.9 : menus (accueil, Solo) : le classement sous les cartes, centré ; en partie (marathon), colonne sur le côté sur grand écran
+function placerClassement(b, cote, surLeCote = false) {
   const page = document.querySelector(".page"), place = page && page.querySelector(".cl-place");
-  if (window.innerWidth >= 1180 && page) { b.classList.add("cl-cote", "cl-" + cote); page.classList.add("avec-cl", "cl-a-" + cote); page.append(b); }
+  if (surLeCote && window.innerWidth >= 1180 && page) { b.classList.add("cl-cote", "cl-" + cote); page.classList.add("avec-cl", "cl-a-" + cote); page.append(b); }
   else if (place) { b.classList.add("cl-dessous"); place.replaceWith(b); }
 }
 function changerPseudo(apres) {
@@ -689,7 +689,7 @@ async function solo(mode = "libre") {
   enJeu = true;
   if (mode === "marathon") {  // 9.4 : classement en direct (colonne à gauche sur grand écran ; une ligne sous les stats sinon)
     const b = classementBloc("marathon", { valeur: marathon.score });
-    if (window.innerWidth >= 1180) placerClassement(b, "gauche");
+    if (window.innerWidth >= 1180) placerClassement(b, "gauche", true);
     else { const lg = h("div.cl-l.moi.cl-direct", { style: { justifyContent: "center", width: "fit-content", margin: "4px auto 0", padding: "0 12px", cursor: "default" } }, h("span", { html: svg("infini", 16) }), h("span.n", {}, "Classement : …"), h("span.t2", { style: { fontSize: "12px" } }));
       document.querySelector(".stats")?.after(lg);
       b.addEventListener("pret", () => { lg.children[1].textContent = `Classement : ${b.rang}${b.rang === 1 ? "er" : "e"}`; lg.children[2].textContent = b.devant ? `· ${nombre(b.devant.valeur - marathon.score + 1)} pts pour dépasser ${capitaliser(b.devant.pseudo)}` : "· en tête !"; }); }

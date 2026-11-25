@@ -501,15 +501,14 @@ class MenuPrincipal(tk.Tk):
         self.vider(); self.container.configure(bg=P["fond"]); self.page_courante = "accueil"
         page = tk.Frame(self.container, bg=P["fond"]); page.pack(fill="both", expand=True)
         haut = tk.Frame(page, bg=P["fond"]); haut.pack(fill="x", padx=28, pady=(22, 0))
+        etiquette(haut, f"v{design.VERSION_APP}", "texte", 14, P["texte2"]).pack(side="left")  # 9.9 : numéro de version en haut à gauche
         self.avatar = Avatar(haut, self.pseudo(), 46, self.changer_pseudo); self.avatar.pack(side="right", padx=(10, 0))
         Icone(haut, "stats", self.ouvrir_stats).pack(side="right", padx=8)
         Icone(haut, "palette", self.show_skins).pack(side="right", padx=8)
         self.bouton_amis(haut).pack(side="right", padx=8)
         centre = tk.Frame(page, bg=P["fond"])
-        large = (self.winfo_width() if self.winfo_width() > 200 else 1200) >= 1180
-        centre.place(relx=0.5, rely=0.5, anchor="center", x=-205 if large else 0)  # 9.4 : place pour le classement à droite (9.8 : plus large)
-        if large: classements.PanneauClassement(page, "mdj", largeur=380, on_fiche=self.fiche_joueur).place(relx=1.0, x=-20, y=86, anchor="ne")
-        lc = 340 if large else 390  # 9.8 : cartes un peu moins larges quand le classement est à côté
+        centre.place(relx=0.5, rely=0.53, anchor="center")
+        lc = 390
         Logo(centre, 88, 14).pack()
         etiquette(centre, "Trouvez le mot caché.", "texte", 19, P["texte2"]).pack(pady=(12, 30))
         h = 84 if self.winfo_height() < 200 or self.winfo_height() >= 820 else 72
@@ -521,7 +520,7 @@ class MenuPrincipal(tk.Tk):
         badge = (f"Série {serie}" if serie else "") + (" · Joué ✓" if joue else "") if (serie or joue) else None
         CarteMenu(centre, "Mot du jour", "Un mot, une partie par jour", lambda: self.ouvrir_solo(True), largeur=2 * lc + 16, hauteur=h, badge=badge.strip(" ·") if badge else None,
                   couleur="#4CC9F0", texte="#14182A").pack(pady=(26, 0))  # couleur propre au Mot du jour (comme .carte-menu.mdj du web)
-        etiquette(page, f"SMOUT v{design.VERSION_APP}", "texte", 14, P["texte2"]).pack(side="bottom", pady=22)
+        classements.PanneauClassement(centre, "mdj", largeur=440, on_fiche=self.fiche_joueur).pack(pady=(22, 0))  # 9.9 : sous les cartes, centré
         if not getattr(self, "maj_lancee", False): self.maj_lancee = True; self.verifier_maj()
         self.after(300, self.proposer_maj)
 
