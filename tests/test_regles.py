@@ -159,6 +159,8 @@ t("classement : meilleure série qui saute de +10 refusée", req("PATCH", f"v7/c
 t("classement : +1 accepté", req("PATCH", f"v7/classements/mdj/{ug}", G, {"meilleure": 13, "actuelle": 5, "maj": SV}), 200)
 t("classement : série en cours > meilleure refusée", req("PATCH", f"v7/classements/mdj/{ug}", G, {"actuelle": 40}), 401)
 t("classement : création au-delà de 365 refusée", req("PUT", f"v7/classements/mdj/{uh}", Hh, {"pseudo": "H", "meilleure": 900, "maj": SV}), 401)
+t("classement : résultat du jour (9.6)", req("PATCH", f"v7/classements/mdj/{ug}", G, {"jour": "2026-11-25", "essais": 3, "maj": SV}), 200)
+t("classement : essais absurdes refusés", req("PATCH", f"v7/classements/mdj/{ug}", G, {"essais": 50}), 401)
 t("classement : record marathon", req("PUT", f"v7/classements/marathon/{ug}", G, {"pseudo": "GAEL", "record": 31, "maj": SV}), 200)
 t("classement : record marathon absurde refusé", req("PATCH", f"v7/classements/marathon/{ug}", G, {"record": 9999}), 401)
 t("classement : champ inconnu refusé", req("PATCH", f"v7/classements/marathon/{ug}", G, {"pirate": 1}), 401)

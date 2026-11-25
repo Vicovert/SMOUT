@@ -11,7 +11,7 @@ def _appel_tk_sur(self, *args):
     return _appel_tk(self, *args)
 tk.CallWrapper.__call__ = _appel_tk_sur
 
-VERSION_APP = "9.5"
+VERSION_APP = "9.6"
 URL_WEB = "https://vicovert.github.io/SMOUT/"
 
 def mot_graine(liste_triee, graine, index=0):
@@ -1049,7 +1049,7 @@ def evaluer(tape, mot):
 
 EMOJI = {"bien": "🟥", "mal": "🟡", "absent": "🟦"}
 def texte_partage(titre, etats_lignes, essais_txt, score_txt, lien=""):
-    lignes = [f"SMOUT · {titre} · {essais_txt} · {score_txt} pts"] + ["".join(EMOJI[e] for e in l) for l in etats_lignes]
+    lignes = [f"SMOUT · {titre} · {essais_txt}" + ("" if score_txt is None else f" · {score_txt} pts")] + ["".join(EMOJI[e] for e in l) for l in etats_lignes]
     if lien: lignes.append(lien)
     return "\n".join(lignes)
 

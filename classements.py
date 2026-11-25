@@ -3,7 +3,8 @@ classements/mdj/<uid> = {pseudo, meilleure, actuelle, maj} ; classements/maratho
 Seuls les comptes y écrivent (leur ligne) ; tout le monde lit."""
 import threading, tkinter as tk
 import design, compte, amis
-from design import P, police, etiquette, Panneau, Avatar
+import datetime
+from design import P, police, etiquette, Panneau, Avatar, arrondi, melanger
 
 SV = {".sv": "timestamp"}
 ENVOYE = {}
@@ -11,7 +12,9 @@ ENVOYE = {}
 
 def lire(type_):
     d = amis.lire(f"classements/{type_}") or {}
-    l = [{"uid": u, "pseudo": v.get("pseudo") or "?", "valeur": int(v.get("meilleure" if type_ == "mdj" else "record") or 0), "actuelle": int(v.get("actuelle") or 0)}
+    auj = datetime.date.today().isoformat()
+    l = [{"uid": u, "pseudo": v.get("pseudo") or "?", "valeur": int(v.get("meilleure" if type_ == "mdj" else "record") or 0), "actuelle": int(v.get("actuelle") or 0),
+          "jour": max(0, int(v.get("essais") or 0)) if v.get("jour") == auj else None}  # 9.6 : essais du mot du jour d'aujourd'hui (0 = raté, None = pas joué)
          for u, v in d.items() if isinstance(v, dict)]
     return sorted([e for e in l if e["valeur"] > 0], key=lambda e: (-e["valeur"], str(e["pseudo"])))
 
@@ -21,7 +24,10 @@ def pousser():
     if not compte.email() or not compte.auth().jeton(): return
     st = design.lire_stats(); serie = design.serie_mot_du_jour()[0]; m = max(st["mdj"].get("meilleure_serie", 0), serie)
     ps = amis.pseudo(); u = amis.uid()
-    lignes = {"mdj": {"pseudo": ps, "meilleure": m, "actuelle": min(serie, m), "maj": SV} if m > 0 else None,
+    auj = datetime.date.today().isoformat()  # 9.6 : résultat du jour (depuis les stats)
+    dj = next((x for x in st["historique"] if x.get("g") == "mdj" and x.get("d") == auj), None) if design.lire_config().get("last_mdj") == auj else None
+    jour = {"jour": auj, "essais": min(8, int(dj.get("e") or 1)) if dj.get("v") else 0} if dj else {}
+    lignes = {"mdj": dict({"pseudo": ps, "meilleure": m, "actuelle": min(serie, m), "maj": SV}, **jour) if (m > 0 or dj) else None,
               "marathon": {"pseudo": ps, "record": min(500, st["marathon"].get("record", 0)), "maj": SV} if st["marathon"].get("record", 0) > 0 else None}
     for t, l in lignes.items():
         if not l: continue
@@ -44,6 +50,12 @@ class PanneauClassement(tk.Frame):
         t = tk.Frame(self.p.interieur, bg=P["panneau"]); t.pack(fill="x")
         etiquette(t, "Mot du jour" if type_ == "mdj" else "Marathon", "texte", 15, P["texte"], True).pack(side="left")
         etiquette(t, "en direct" if live is not None else ("meilleure série" if type_ == "mdj" else "record de mots"), "texte", 11, P["texte2"], True).pack(side="right")
+        self.deux = type_ == "mdj" and live is None  # 9.6 : colonnes « série max » (pastille 🔥) et « aujourd'hui » (pastille de couleur)
+        if self.deux:
+            etiq = t.winfo_children()[-1]; etiq.pack_forget()
+            tt = tk.Frame(self.p.interieur, bg=P["panneau"]); tt.pack(fill="x", pady=(4, 0))
+            etiquette(tt, "aujourd'hui", "texte", 11, P["texte2"], True, width=11, anchor="e").pack(side="right", padx=(0, 4))
+            etiquette(tt, "série max", "texte", 11, P["texte2"], True, width=9, anchor="e").pack(side="right")
         self.corps = tk.Frame(self.p.interieur, bg=P["panneau"]); self.corps.pack(fill="x", pady=(6, 0))
         etiquette(self.corps, "Chargement…", "texte", 12, P["texte2"]).pack(anchor="w")
         self.note = etiquette(self.p.interieur, "", "texte", 11, P["texte2"], wraplength=largeur - 30, justify="left"); self.note.pack(anchor="w", pady=(6, 0))
@@ -82,17 +94,32 @@ class PanneauClassement(tk.Frame):
             etiquette(f, str(rang(k)), "chiffres", 13, P["mal"] if rang(k) == 1 else P["texte2"]).pack(side="left", padx=(6, 8))
             Avatar(f, e["pseudo"], 22, index=k).pack(side="left")
             etiquette(f, "Toi" if (est_moi and self.live is not None) else str(e["pseudo"]).capitalize(), "texte", 13, P["texte"], True).pack(side="left", padx=8)
-            etiquette(f, str(e["valeur"]), "chiffres", 13, P["mal"]).pack(side="right", padx=6)
+            if self.deux:
+                j = e.get("jour")
+                txt, coul = ("pas joué", P["texte2"]) if j is None else ((f"{j} essai" + ("s" if j > 1 else ""), P["succes"]) if j > 0 else ("raté", P["danger"]))
+                puce(f, txt, coul, 92, gras=j is not None).pack(side="right", padx=(4, 2))
+                puce(f, f"🔥 {e['valeur']}", P["mal"], 64).pack(side="right", padx=4)
+            else: etiquette(f, str(e["valeur"]), "chiffres", 13, P["mal"]).pack(side="right", padx=6)
             if e.get("uid") and self.on_fiche:
                 for w in [f] + f.winfo_children(): w.bind("<Button-1>", lambda ev, u=e["uid"]: self.on_fiche(u))
         if self.live is not None:
             devant = l[i - 1] if i > 0 else None
             self.note.config(text=f"Encore {devant['valeur'] - self.live + 1} mots pour dépasser {str(devant['pseudo']).capitalize()}" if devant else "Tu es en tête !")
         elif not compte.email(): self.note.config(text="Crée un compte pour apparaître dans le classement.")
-        elif self.type == "mdj":
-            s = design.serie_mot_du_jour()[0]; self.note.config(text=f"🔥 Ta série en cours : {s} jour{'s' if s > 1 else ''}" if s else "")
+        elif self.type == "mdj": self.note.config(text="")  # 9.6 : « Ta série en cours » retirée (doublon avec le tableau)
         else:
             r = design.lire_stats()["marathon"].get("record", 0); self.note.config(text=f"Ton record : {r} mots" if r else "")
+
+
+def puce(parent, texte, couleur, largeur, gras=True):
+    """9.6 : pastille arrondie (fond teinté de la couleur, texte de la couleur), calée à droite dans une colonne de largeur fixe."""
+    import tkinter.font as tkfont
+    fond = parent["bg"]; f = police("chiffres", 12, gras); h = 24
+    c = tk.Canvas(parent, width=largeur, height=h, bg=fond, highlightthickness=0, bd=0)
+    tw = tkfont.Font(font=f).measure(texte) + 18; x2 = largeur - 1; x1 = max(0, x2 - tw)
+    arrondi(c, x1, 1, x2, h - 1, 11, fill=melanger(fond, couleur, 0.18), outline="")
+    c.create_text((x1 + x2) / 2, h / 2, text=texte, font=f, fill=couleur)
+    return c
 
 
 def fiche_joueur(fenetre, uid):

@@ -433,6 +433,12 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 .cl-l.top1 .r { color: var(--mal); }
 .cl-l svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; display: block; }
 .cl-sep { text-align: center; color: var(--texte2); font-size: 12px; line-height: 10px; }
+.classement-mdj { width: 340px; }  /* 9.6 : colonnes série max / aujourd'hui */
+.cl-tete { display: flex; gap: 10px; padding: 0 8px 4px; font-size: 11px; color: var(--texte2); font-weight: 600; white-space: nowrap; } .cl-tete .n { flex: 1; }
+.cl-c1 { width: 62px; text-align: right; flex: none; } .cl-c2 { width: 84px; text-align: right; flex: none; }
+.puce { display: inline-block; font-family: var(--f-chiffres); font-weight: 700; font-size: 13px; border-radius: 999px; padding: 3px 9px; text-align: center; white-space: nowrap; }
+.p-serie { background: color-mix(in srgb, var(--mal) 16%, transparent); color: var(--mal); }
+.p-ok { background: color-mix(in srgb, var(--succes) 18%, transparent); color: var(--succes); } .p-rate { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); } .p-pas { background: var(--tuile); color: var(--texte2); font-weight: 400; }
 .cl-note { font-size: 12px; color: var(--texte2); margin-top: 8px; min-height: 14px; }
 .page.avec-cl { position: relative; }
 .cl-cote { position: absolute; top: 90px; } .cl-droite { right: 28px; } .cl-gauche { left: 28px; }
@@ -440,4 +446,4 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 .fiche { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
 .fiche .stats2 { display: flex; gap: 26px; margin: 8px 0 6px; }
 .tuile.mini { font-size: calc(var(--t) * 0.72); font-weight: 700; }
-.page.cl-a-droite > .centre { padding-right: 340px !important; } .page.cl-a-gauche > .centre { padding-left: 340px !important; }
+.page.cl-a-droite > .centre { padding-right: 380px !important; } .page.cl-a-gauche > .centre { padding-left: 340px !important; }
