@@ -10,13 +10,23 @@ SV = {".sv": "timestamp"}
 ENVOYE = {}
 
 
+def moyenne_mdj(s):
+    """9.8 : moyenne d'essais au mot du jour (raté = 8), arrondie au centième ; None si aucune partie (identique à moyenneMdj du site)."""
+    total = trouves = 0
+    for e, c in (s.get("repartition") or {}).items(): total += int(e) * int(c); trouves += int(c)
+    rates = max(0, int(s.get("parties") or 0) - int(s.get("victoires") or 0)); n = trouves + rates  # parties connues seulement
+    return int((total + rates * 8) / n * 100 + 0.5) / 100 if n else None
+
+
 def lire(type_):
     d = amis.lire(f"classements/{type_}") or {}
     auj = datetime.date.today().isoformat()
     l = [{"uid": u, "pseudo": v.get("pseudo") or "?", "valeur": int(v.get("meilleure" if type_ == "mdj" else "score") or 0), "actuelle": int(v.get("actuelle") or 0),
-          "jour": max(0, int(v.get("essais") or 0)) if v.get("jour") == auj else None}  # 9.6 : essais du mot du jour d'aujourd'hui (0 = raté, None = pas joué)
+          "jour": max(0, int(v.get("essais") or 0)) if v.get("jour") == auj else None,
+          "moy": v["moyenne"] if isinstance(v.get("moyenne"), (int, float)) and v["moyenne"] > 0 else None}  # 9.6 : essais du mot du jour d'aujourd'hui (0 = raté, None = pas joué)
          for u, v in d.items() if isinstance(v, dict)]
-    return sorted([e for e in l if e["valeur"] > 0], key=lambda e: (-e["valeur"], str(e["pseudo"])))
+    # 9.8 : égalité de série → moyenne d'essais la plus basse
+    return sorted([e for e in l if e["valeur"] > 0], key=lambda e: (-e["valeur"], e["moy"] if e["moy"] is not None else 9, str(e["pseudo"]).lower()))
 
 
 def pousser():
@@ -27,6 +37,8 @@ def pousser():
     auj = datetime.date.today().isoformat()  # 9.6 : résultat du jour (depuis les stats)
     dj = next((x for x in st["historique"] if x.get("g") == "mdj" and x.get("d") == auj), None) if design.lire_config().get("last_mdj") == auj else None
     jour = {"jour": auj, "essais": min(8, int(dj.get("e") or 1)) if dj.get("v") else 0} if dj else {}
+    moy = moyenne_mdj(st["mdj"])
+    if moy: jour["moyenne"] = moy  # 9.8 : moyenne d'essais (raté = 8)
     lignes = {"mdj": dict({"pseudo": ps, "meilleure": m, "actuelle": min(serie, m), "maj": SV}, **jour) if (m > 0 or dj) else None,
               "marathon": {"pseudo": ps, "record": min(500, st["marathon"].get("record", 0)), "score": min(10000000, st["marathon"].get("meilleur_points", 0)), "maj": SV}
                           if st["marathon"].get("meilleur_points", 0) > 0 else None}  # 9.7 : marathon en points (nouveau calcul, repart de zéro)
@@ -56,6 +68,7 @@ class PanneauClassement(tk.Frame):
             etiq = t.winfo_children()[-1]; etiq.pack_forget()
             tt = tk.Frame(self.p.interieur, bg=P["panneau"]); tt.pack(fill="x", pady=(4, 0))
             etiquette(tt, "aujourd'hui", "texte", 11, P["texte2"], True, width=11, anchor="e").pack(side="right", padx=(0, 4))
+            etiquette(tt, "moy. essais", "texte", 11, P["texte2"], True, width=11, anchor="e").pack(side="right")
             etiquette(tt, "série max", "texte", 11, P["texte2"], True, width=9, anchor="e").pack(side="right")
         self.corps = tk.Frame(self.p.interieur, bg=P["panneau"]); self.corps.pack(fill="x", pady=(6, 0))
         etiquette(self.corps, "Chargement…", "texte", 12, P["texte2"]).pack(anchor="w")
@@ -83,15 +96,12 @@ class PanneauClassement(tk.Frame):
         if self.live is not None:
             l = [e for e in l if e["uid"] != moi] + [{"uid": moi, "pseudo": amis.pseudo(), "valeur": self.live, "vivant": True}]
             l.sort(key=lambda e: (-e["valeur"], 0 if e.get("vivant") else 1))
-        rang = lambda i: 1 + next(k for k, e in enumerate(l) if e["valeur"] == l[i]["valeur"])  # ex aequo : même rang
+        rang = lambda i: 1 + next(k for k, e in enumerate(l) if e["valeur"] == l[i]["valeur"] and (not self.deux or e.get("moy") == l[i].get("moy")))  # ex aequo : même rang
         i = next((k for k, e in enumerate(l) if (e.get("vivant") if self.live is not None else (moi and e["uid"] == moi))), -1)
-        a_montrer = list(range(min(5, len(l))))
-        if i >= 5: a_montrer.append(-1); a_montrer.append(i)
         if not l: etiquette(self.corps, "Personne pour le moment.", "texte", 12, P["texte2"]).pack(anchor="w")
-        for k in a_montrer:
-            if k == -1: etiquette(self.corps, "···", "texte", 11, P["texte2"]).pack(); continue
+        def ligne(parent, k):
             e, est_moi = l[k], k == i
-            f = tk.Frame(self.corps, bg=P["tuile"] if est_moi else P["panneau"], cursor="hand2"); f.pack(fill="x", pady=1)
+            f = tk.Frame(parent, bg=P["tuile"] if est_moi else P["panneau"], cursor="hand2")
             etiquette(f, str(rang(k)), "chiffres", 13, P["mal"] if rang(k) == 1 else P["texte2"]).pack(side="left", padx=(6, 8))
             Avatar(f, e["pseudo"], 22, index=k).pack(side="left")
             etiquette(f, "Toi" if (est_moi and self.live is not None) else str(e["pseudo"]).capitalize(), "texte", 13, P["texte"], True).pack(side="left", padx=8)
@@ -99,10 +109,35 @@ class PanneauClassement(tk.Frame):
                 j = e.get("jour")
                 txt, coul = ("pas joué", P["texte2"]) if j is None else ((f"{j} essai" + ("s" if j > 1 else ""), P["succes"]) if j > 0 else ("raté", P["danger"]))
                 puce(f, txt, coul, 92, gras=j is not None).pack(side="right", padx=(4, 2))
+                m = e.get("moy")  # 9.8 : vert ≤ 3,5, jaune ≤ 4,5, rouge au-delà
+                mc = P["texte2"] if m is None else P["succes"] if m <= 3.5 else P["mal"] if m <= 4.5 else P["danger"]
+                puce(f, "–" if m is None else f"{m:.1f}".replace(".", ","), mc, 64, gras=m is not None).pack(side="right", padx=4)
                 puce(f, str(e["valeur"]), P["mal"], 64, flamme=True).pack(side="right", padx=4)
             else: etiquette(f, design.nombre(e["valeur"]), "chiffres", 13, P["mal"]).pack(side="right", padx=6)
             if e.get("uid") and self.on_fiche:
                 for w in [f] + f.winfo_children(): w.bind("<Button-1>", lambda ev, u=e["uid"]: self.on_fiche(u))
+            return f
+        if l:
+            # 9.8 : tout le classement, 5 lignes visibles, le reste en faisant défiler ; ma ligne reste visible
+            # (collée en bas si ma place est plus bas, en haut si on a défilé plus loin), comme position: sticky sur le site
+            HL = 28
+            zone = design.Defilant(self.corps, hauteur=min(5, len(l)) * HL); zone.pack(fill="x")
+            lignes = []
+            for k in range(len(l)):
+                f = ligne(zone.interieur, k); f.configure(height=HL - 2); f.pack_propagate(False); f.pack(fill="x", pady=1); lignes.append(f)
+            if i >= 0 and len(l) > 5:
+                epingle = ligne(zone, i); epingle.configure(height=HL - 2); epingle.pack_propagate(False)
+                cv = zone.canvas
+                def suivre(premier, dernier):
+                    try:
+                        haut = float(premier) * zone.interieur.winfo_height(); vue = cv.winfo_height()
+                        y = lignes[i].winfo_y()
+                        if y < haut: epingle.place(x=0, y=0, relwidth=1)
+                        elif y + HL - 2 > haut + vue: epingle.place(x=0, rely=1, y=-(HL - 2), relwidth=1)
+                        else: epingle.place_forget()
+                    except tk.TclError: pass
+                cv.configure(yscrollcommand=suivre)
+                self.after(50, lambda: suivre(*cv.yview()))
         if self.live is not None:
             devant = l[i - 1] if i > 0 else None
             self.note.config(text=f"Encore {design.nombre(devant['valeur'] - self.live + 1)} pts pour dépasser {str(devant['pseudo']).capitalize()}" if devant else "Tu es en tête !")

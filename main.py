@@ -507,18 +507,19 @@ class MenuPrincipal(tk.Tk):
         self.bouton_amis(haut).pack(side="right", padx=8)
         centre = tk.Frame(page, bg=P["fond"])
         large = (self.winfo_width() if self.winfo_width() > 200 else 1200) >= 1180
-        centre.place(relx=0.5, rely=0.5, anchor="center", x=-170 if large else 0)  # 9.4 : place pour le classement à droite
-        if large: classements.PanneauClassement(page, "mdj", on_fiche=self.fiche_joueur).place(relx=1.0, x=-24, y=86, anchor="ne")
+        centre.place(relx=0.5, rely=0.5, anchor="center", x=-205 if large else 0)  # 9.4 : place pour le classement à droite (9.8 : plus large)
+        if large: classements.PanneauClassement(page, "mdj", largeur=380, on_fiche=self.fiche_joueur).place(relx=1.0, x=-20, y=86, anchor="ne")
+        lc = 340 if large else 390  # 9.8 : cartes un peu moins larges quand le classement est à côté
         Logo(centre, 88, 14).pack()
         etiquette(centre, "Trouvez le mot caché.", "texte", 19, P["texte2"]).pack(pady=(12, 30))
         h = 84 if self.winfo_height() < 200 or self.winfo_height() >= 820 else 72
         # Solo et Multijoueur côte à côte, chacun de sa couleur ; le Mot du jour, à part, dessous, d'une troisième couleur
         ligne = tk.Frame(centre, bg=P["fond"]); ligne.pack()
-        CarteMenu(ligne, "Solo", "Normal, marathon, réglages", self.ouvrir_menu_solo, largeur=390, hauteur=h + 30, couleur=P["bien"], texte=P["sur_bien"]).pack(side="left", padx=(0, 16))
-        CarteMenu(ligne, "Multijoueur", "Salons publics ou entre amis", self.ouvrir_multi, largeur=390, hauteur=h + 30, couleur=P["mal"], texte=P["sur_mal"]).pack(side="left")
+        CarteMenu(ligne, "Solo", "Normal, marathon, réglages", self.ouvrir_menu_solo, largeur=lc, hauteur=h + 30, couleur=P["bien"], texte=P["sur_bien"]).pack(side="left", padx=(0, 16))
+        CarteMenu(ligne, "Multijoueur", "Salons publics ou entre amis", self.ouvrir_multi, largeur=lc, hauteur=h + 30, couleur=P["mal"], texte=P["sur_mal"]).pack(side="left")
         serie, joue = design.serie_mot_du_jour()
         badge = (f"Série {serie}" if serie else "") + (" · Joué ✓" if joue else "") if (serie or joue) else None
-        CarteMenu(centre, "Mot du jour", "Un mot, une partie par jour", lambda: self.ouvrir_solo(True), largeur=796, hauteur=h, badge=badge.strip(" ·") if badge else None,
+        CarteMenu(centre, "Mot du jour", "Un mot, une partie par jour", lambda: self.ouvrir_solo(True), largeur=2 * lc + 16, hauteur=h, badge=badge.strip(" ·") if badge else None,
                   couleur="#4CC9F0", texte="#14182A").pack(pady=(26, 0))  # couleur propre au Mot du jour (comme .carte-menu.mdj du web)
         etiquette(page, f"SMOUT v{design.VERSION_APP}", "texte", 14, P["texte2"]).pack(side="bottom", pady=22)
         if not getattr(self, "maj_lancee", False): self.maj_lancee = True; self.verifier_maj()
