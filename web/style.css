@@ -418,3 +418,26 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 .bandeau-inv { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); width: min(560px, calc(100vw - 20px)); z-index: 60; background: var(--panneau); border: 1.5px solid var(--mal); border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.4); padding: 12px 14px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .bandeau-inv .txt { flex: 1; min-width: 160px; font-size: 15px; } .bandeau-inv .btn { height: 38px; font-size: 14px; }
 .tiroir-inviter { gap: 6px; }
+
+/* 9.4 : classements, fiche joueur, lettres dans les mini-grilles */
+.classement { background: var(--panneau); border: 1px solid var(--bordure); border-radius: 16px; padding: 14px 14px 12px; width: 300px; text-align: left; }
+.classement .tt { display: flex; align-items: center; gap: 8px; font: 700 16px var(--f-texte); margin-bottom: 8px; color: var(--texte); }
+.classement .tt span svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; display: block; }
+.classement .tt .s { margin-left: auto; font-size: 12px; color: var(--texte2); font-weight: 600; }
+.cl-l { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 8px; border-radius: 8px; font-size: 14px; cursor: pointer; color: var(--texte); }
+.cl-l:hover { background: var(--tuile); }
+.cl-l .r { width: 22px; font-family: var(--f-chiffres); color: var(--texte2); text-align: right; flex: none; }
+.cl-l .n { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-l .v { font-family: var(--f-chiffres); font-weight: 700; color: var(--mal); }
+.cl-l.moi { background: var(--tuile); box-shadow: inset 3px 0 0 var(--mal); }
+.cl-l.top1 .r { color: var(--mal); }
+.cl-l svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; display: block; }
+.cl-sep { text-align: center; color: var(--texte2); font-size: 12px; line-height: 10px; }
+.cl-note { font-size: 12px; color: var(--texte2); margin-top: 8px; min-height: 14px; }
+.page.avec-cl { position: relative; }
+.cl-cote { position: absolute; top: 90px; } .cl-droite { right: 28px; } .cl-gauche { left: 28px; }
+.cl-dessous { width: min(800px, 100%); margin-top: 14px; }
+.fiche { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
+.fiche .stats2 { display: flex; gap: 26px; margin: 8px 0 6px; }
+.tuile.mini { font-size: calc(var(--t) * 0.72); font-weight: 700; }
+.page.cl-a-droite > .centre { padding-right: 340px !important; } .page.cl-a-gauche > .centre { padding-left: 340px !important; }

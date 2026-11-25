@@ -192,9 +192,9 @@ function dispositionAdv(nb, essais, longueur, larg, haut, plafondMax = 0) {  // 
 }
 
 // Téléphone (8.18) : les mini-grilles des adversaires en haut de l'écran, jusqu'à 4 par ligne, dans larg × haut.
-function dispositionAdvTel(nb, essais, longueur, larg, haut) {
+function dispositionAdvTel(nb, essais, longueur, larg, haut, plafondMax = 0) {  // plafondMax : Mot piégé (9.4), cases plus grandes pour lire les lettres
   if (nb <= 0) return [1, 8, true];
-  const cols = nb <= 3 ? nb : 4, rangs = Math.ceil(nb / cols), plafond = { 1: 12, 2: 11, 3: 10 }[nb] || 8;
+  const cols = nb <= 3 ? nb : 4, rangs = Math.ceil(nb / cols), plafond = plafondMax || { 1: 12, 2: 11, 3: 10 }[nb] || 8;
   const parLarg = Math.floor(((larg - (cols - 1) * 8) / cols - 10) / longueur) - 3;   // case + écart (3 px) ; 10 = marge du cadre
   const parHaut = Math.floor((haut - rangs * 30 - (rangs - 1) * 6) / rangs / essais) - 3;  // 30 = nom + score, marges
   return [cols, Math.max(4, Math.min(plafond, parLarg, parHaut)), true];
@@ -357,12 +357,12 @@ function tuile(taille, mini = false) {
   const t = h("div.tuile" + (mini ? ".mini" : ""), { style: { "--t": taille + "px" } });
   t.etat = ""; t.lettre = "";
   t.maj = (lettre, etat, curseur = false) => {
-    if (lettre !== undefined && lettre !== t.lettre) { t.lettre = lettre; t.textContent = mini && taille < 14 ? "" : lettre; }  // (taille : la taille actuelle, voir t.taille)
+    if (lettre !== undefined && lettre !== t.lettre) { t.lettre = lettre; t.textContent = mini && taille < 9 ? "" : lettre; }  // (taille : la taille actuelle, voir t.taille)
     if (etat !== undefined) { t.etat = etat; }
     const cls = "tuile" + (mini ? " mini" : "") + (t.etat ? " " + t.etat : (t.lettre ? " saisie" : "")) + (curseur ? " curseur" : "");
     if (t.className !== cls) t.className = cls;
   };
-  t.taille = n => { t.style.setProperty("--t", n + "px"); const avant = taille; taille = n; if ((avant < 14) !== (n < 14) && mini) t.textContent = taille < 14 ? "" : t.lettre; };  // 9.3 : agrandie → lettre affichée
+  t.taille = n => { t.style.setProperty("--t", n + "px"); const avant = taille; taille = n; if ((avant < 9) !== (n < 9) && mini) t.textContent = taille < 9 ? "" : t.lettre; };  // 9.3 : agrandie → lettre affichée
   return t;
 }
 function grille(lignes, colonnes, taille, mini = false) {
@@ -547,9 +547,10 @@ function accueil() {
       h("div.t2", { style: { fontSize: "19px", margin: "0 0 22px" } }, "Trouvez le mot caché."),
       // Solo et Multijoueur côte à côte, chacun de sa couleur ; le Mot du jour, à part, dessous, d'une troisième couleur
       h("div.menu-ligne", {}, carte("Solo", "Normal, marathon, réglages", menuSolo, null, ".solo"), carte("Multijoueur", "Salons publics ou entre amis", multiAccueil, null, ".multi")),
-      h("div.menu-ligne.mdj", {}, carte("Mot du jour", "Un mot, une partie par jour", () => solo("mdj"), badge, ".mdj"))),
+      h("div.menu-ligne.mdj", {}, carte("Mot du jour", "Un mot, une partie par jour", () => solo("mdj"), badge, ".mdj")), h("div.cl-place")),
     h("div.t2", { style: { textAlign: "center", padding: "0 0 22px", fontSize: "14px" } }, `SMOUT v${VERSION_APP} · version en ligne`));
   enAccueil = true;
+  placerClassement(classementBloc("mdj"), "droite");  // 9.4
 }
 /* page intermédiaire du solo : titre en tuiles, grand bouton « Jouer », puis Marathon et Paramètres (chacun avec son icône) */
 const COULEUR_MARATHON = "#A78BFA";  // couleur propre au Marathon (même que COULEUR_MARATHON de page_solo.py)
@@ -569,13 +570,22 @@ function menuSolo() {
       titre,
       h("div.t2", { style: { fontSize: "18px", margin: "6px 0 14px", textAlign: "center" } }, "À votre rythme"),
       h("div.menu-ligne", {}, carte(".hero", "jouer", "Jouer", "Partie normale · un mot, à votre rythme", () => solo("libre"))),
-      h("div.menu-ligne.petites", {}, marathon, carte(".params", "engrenage", "Paramètres", resumeReglages(c), parametres))));
+      h("div.menu-ligne.petites", {}, marathon, carte(".params", "engrenage", "Paramètres", resumeReglages(c), parametres)), h("div.cl-place")));
+  placerClassement(classementBloc("marathon"), "gauche");  // 9.4
+}
+// grand écran : le classement dans une colonne sur le côté (sans chevaucher) ; sinon sous les cartes
+function placerClassement(b, cote) {
+  const page = document.querySelector(".page"), place = page && page.querySelector(".cl-place");
+  if (window.innerWidth >= 1180 && page) { b.classList.add("cl-cote", "cl-" + cote); page.classList.add("avec-cl", "cl-a-" + cote); page.append(b); }
+  else if (place) { b.classList.add("cl-dessous"); place.replaceWith(b); }
 }
 function changerPseudo(apres) {
   if (typeof apres !== "function") apres = accueil;  // appelée aussi comme gestionnaire de clic
   const ch = h("input.champ.mono", { maxlength: 15, style: { width: "400px", maxWidth: "80vw" }, value: nettoyerPseudo(lireConfig().pseudo) });
-  ch.addEventListener("input", () => { const v = nettoyerPseudo(ch.value); if (v !== ch.value) ch.value = v; });
-  const ok = () => { const v = ch.value.trim(); if (v) { majConfig({ pseudo: v }); apres(); } else o.cacher(); };
+  // 9.4 : enregistré tout seul à chaque modification (pas de bouton « Enregistrer ») ; la croix ou Entrée ferme
+  const enreg = h("div.t2", { style: { fontSize: "13px", minHeight: "18px", marginTop: "6px" } });
+  ch.addEventListener("input", () => { const v = nettoyerPseudo(ch.value); if (v !== ch.value) ch.value = v; const t = v.trim(); if (t) { majConfig({ pseudo: t }); enreg.textContent = "Enregistré ✓"; } });
+  const ok = () => { o.cacher(); apres(); };
   ch.addEventListener("keydown", e => e.key === "Enter" && ok());
   // compte : retrouver son avancement sur tous ses appareils
   const cfg = lireConfig(), em = cfg.compte_email;
@@ -586,11 +596,10 @@ function changerPseudo(apres) {
     : h("div.col", {}, cfg.compte_expire ? h("div.gras", { style: { color: "var(--danger)", marginTop: "4px" } }, "Ta session a expiré : reconnecte-toi.") : null,
         h("div.t2", { style: { fontSize: "13px", margin: "4px 0 12px" } }, "Crée un compte pour retrouver ton avancement (statistiques, série, thèmes, partie en cours) sur tous tes appareils."),
         bouton("Se connecter ou créer un compte", () => { o.cacher(); ouvrirCompte(apres); }, { variante: "secondaire", largeur: 300, hauteur: 44 }));
-  const o = superposition(h("div.col", {}, h("div.titre", { style: { fontSize: "28px" } }, "Ton pseudo"),
-    h("div.t2", { style: { margin: "4px 0 16px" } }, "Il s'affiche pour les autres joueurs en multijoueur."), ch,
-    h("div.ligne", { style: { justifyContent: "flex-end", gap: "10px", marginTop: "20px" } }, bouton("Annuler", () => o.cacher(), { variante: "discret", largeur: 130 }), bouton("Enregistrer", ok, { largeur: 160 })),
-    h("div", { style: { height: "1px", background: "var(--bordure)", margin: "22px 0 14px" } }), h("div.gras", { style: { fontSize: "17px" } }, "Compte"), zoneCompte), 460);
-  o.montrer(); ch.focus();
+  const o = superposition(h("div.col", {}, h("div.ligne", { style: { justifyContent: "space-between", alignItems: "center" } }, h("div.titre", { style: { fontSize: "28px" } }, "Ton pseudo"), icone("fermer", ok, false, "Fermer")),
+    h("div.t2", { style: { margin: "4px 0 16px" } }, "Il s'affiche pour les autres joueurs en multijoueur."), ch, enreg,
+    h("div", { style: { height: "1px", background: "var(--bordure)", margin: "16px 0 14px" } }), h("div.gras", { style: { fontSize: "17px" } }, "Compte"), zoneCompte), 460);
+  o.montrer();  // 9.4 : pas de focus automatique (le clavier du téléphone ne s'ouvre pas tout seul)
 }
 // connexion à un compte existant, création d'un compte (le joueur de cet appareil y est rattaché) ou mot de passe oublié
 function ouvrirCompte(apres) {
@@ -667,6 +676,13 @@ async function solo(mode = "libre") {
   ecran(entete(titre, quitter, h("div.ligne", {}, icone("moins", () => zoom(-0.1), false, "Réduire"), zm, icone("plus", () => zoom(0.1), false, "Agrandir"), icone("aide", () => aide.montrer(), false, "Aide"))),
     h("div.centre", { style: { gap: "0" } }, h("div.stats", { style: { marginTop: "10px" } }, sT, sS, sE, sTot), h("div", { style: { marginTop: "18px" } }, g), msg, kb, h("div", { style: { margin: "14px 0 20px" } }, abandon)));
   enJeu = true;
+  if (mode === "marathon") {  // 9.4 : classement en direct (colonne à gauche sur grand écran ; une ligne sous les stats sinon)
+    const b = classementBloc("marathon", { valeur: marathon.mots });
+    if (window.innerWidth >= 1180) placerClassement(b, "gauche");
+    else { const lg = h("div.cl-l.moi.cl-direct", { style: { justifyContent: "center", width: "fit-content", margin: "4px auto 0", padding: "0 12px", cursor: "default" } }, h("span", { html: svg("infini", 16) }), h("span.n", {}, "Classement : …"), h("span.t2", { style: { fontSize: "12px" } }));
+      document.querySelector(".stats")?.after(lg);
+      b.addEventListener("pret", () => { lg.children[1].textContent = `Classement : ${b.rang}${b.rang === 1 ? "er" : "e"}`; lg.children[2].textContent = b.devant ? `· ${b.devant.valeur - marathon.mots + 1} mots pour dépasser ${capitaliser(b.devant.pseudo)}` : "· en tête !"; }); }
+  }
   aide = fenetreAide();  // après ecran() : sinon le nettoyage de l'écran la supprimerait
   const minuteur = setInterval(() => { if (S.fini) return; const ec = Math.floor((Date.now() - S.debut) / 1000); sT.set(mmss(ec)); sS.set(nombre(score(ec))); }, 1000);
   nettoyageEcran.push(() => clearInterval(minuteur));
@@ -1306,6 +1322,7 @@ const Amis = {
     if (!FB.uid && !(await FB.jeton())) return;
     if (!this.code || this.uidCode !== FB.uid) { this.uidCode = FB.uid; await this.assurerProfil(); }  // (autre compte : autre code)
     else if (this.n++ % 3 === 0) FB.patch(`profils/${FB.uid}`, { pseudo: pseudo(), vu: SV, salon: M.lobby || "" });
+    if (this.n % 3 === 1) Classements.pousser();  // 9.4 : classements (seulement si les valeurs ont changé)
     this.demandes = await FB.get(`amis_demandes/${FB.uid}`) || {};
     const inv = await FB.get(`invitations/${FB.uid}`) || {}, now = FB.maintenant() * 1000;
     this.invitations = Object.fromEntries(Object.entries(inv).filter(([, v]) => v && now - (v.t || 0) < 10 * 60000));
@@ -1355,6 +1372,71 @@ const Amis = {
     b.querySelector(".btn").classList.add("inv-oui"); document.body.append(b);
   },
 };
+/* ------------------------------------------------------------------ classements et fiche joueur (9.4)
+   classements/mdj/<uid> = { pseudo, meilleure, actuelle, maj } ; classements/marathon/<uid> = { pseudo, record, maj }.
+   Seuls les comptes y écrivent (leur ligne). Même logique que classements.py côté PC. */
+const Classements = {
+  envoye: {},
+  async lire(type) {
+    const d = await FB.get(`classements/${type}`) || {};
+    return Object.entries(d).filter(([, v]) => v && typeof v === "object").map(([uid, v]) => ({ uid, pseudo: v.pseudo || "?", valeur: Number(type === "mdj" ? v.meilleure : v.record) || 0, actuelle: Number(v.actuelle) || 0 }))
+      .filter(e => e.valeur > 0).sort((a, b) => b.valeur - a.valeur || String(a.pseudo).localeCompare(String(b.pseudo)));
+  },
+  async pousser() {  // nos valeurs (compte seulement), quand elles ont changé
+    if (!Compte.email() || !FB.uid) return;
+    const st = lireStats(), serie = serieMotDuJour()[0], m = Math.max(st.mdj.meilleure_serie || 0, serie);
+    const lignes = { mdj: m > 0 ? { pseudo: pseudo(), meilleure: m, actuelle: Math.min(serie, m), maj: SV } : null, marathon: st.marathon.record > 0 ? { pseudo: pseudo(), record: Math.min(500, st.marathon.record), maj: SV } : null };
+    for (const [type, l] of Object.entries(lignes)) {
+      if (!l) continue; const sig = JSON.stringify(Object.assign({}, l, { maj: 0 }));
+      if (this.envoye[type] === sig) continue;
+      if (await FB.ok("PUT", `classements/${type}/${FB.uid}`, l)) { this.envoye[type] = sig; continue; }
+      if (type === "mdj") {  // série montée trop vite pour la base (autre appareil) : on envoie le maximum permis
+        const srv = await FB.get(`classements/mdj/${FB.uid}`) || {}, jours = Math.floor((FB.maintenant() * 1000 - (srv.maj || 0)) / 86400000);
+        l.meilleure = Math.min(l.meilleure, (srv.meilleure || 0) + 1 + jours); l.actuelle = Math.min(l.actuelle, l.meilleure);
+        if (await FB.ok("PUT", `classements/mdj/${FB.uid}`, l)) this.envoye[type] = sig;
+      }
+    }
+  },
+};
+// bloc « Top 5 + ma place » ; toucher une ligne ouvre la fiche du joueur. live (marathon en cours) : { valeur } = mon score actuel
+function classementBloc(type, live = null) {
+  const titre = type === "mdj" ? "Mot du jour" : "Marathon", sous = live ? "en direct" : type === "mdj" ? "meilleure série" : "record de mots";
+  const corps = h("div.cl-corps", {}, h("div.t2", { style: { fontSize: "13px", padding: "6px 8px" } }, "Chargement…")), note = h("div.cl-note");
+  const b = h("div.classement.classement-" + type, {}, h("div.tt", {}, h("span", { html: svg(type === "mdj" ? "stats" : "infini", 18) }), titre, h("span.s", {}, sous)), corps, note);
+  const ligne = (e, rang, moi) => h("div.cl-l" + (rang === 1 ? ".top1" : "") + (moi ? ".moi" : ""), { onclick: () => e.uid && ficheJoueur(e.uid) },
+    h("span.r", {}, String(rang)), avatar(e.pseudo, 24, rang - 1), h("span.n", {}, moi && live ? "Toi" : capitaliser(e.pseudo)), h("span.v", {}, String(e.valeur)));
+  (async () => {
+    if (!(await FB.jeton())) { corps.replaceChildren(h("div.t2", { style: { fontSize: "13px", padding: "6px 8px" } }, "Hors ligne")); return; }
+    await Classements.pousser();
+    let l = await Classements.lire(type); const moiUid = Compte.email() ? FB.uid : null;
+    if (live) { l = l.filter(e => e.uid !== moiUid); l.push({ uid: moiUid, pseudo: pseudo(), valeur: live.valeur, vivant: true }); l.sort((a, b) => b.valeur - a.valeur || (a.vivant ? -1 : 1)); }
+    const rangDe = i => 1 + l.findIndex(x => x.valeur === l[i].valeur);  // ex aequo : même rang
+    const i = l.findIndex(e => (live ? e.vivant : e.uid === moiUid) && (live || moiUid));
+    const lignes = l.slice(0, 5).map((e, k) => ligne(e, rangDe(k), k === i));
+    if (i >= 5) lignes.push(h("div.cl-sep", {}, "···"), ligne(l[i], rangDe(i), true));
+    corps.replaceChildren(...(lignes.length ? lignes : [h("div.t2", { style: { fontSize: "13px", padding: "6px 8px" } }, "Personne pour le moment.")]));
+    if (live) { const devant = i > 0 ? l[i - 1] : null; note.textContent = devant ? `Encore ${devant.valeur - live.valeur + 1} mot${devant.valeur - live.valeur + 1 > 1 ? "s" : ""} pour dépasser ${capitaliser(devant.pseudo)}` : "Tu es en tête !";
+      b.rang = i + 1; b.devant = devant; b.dispatchEvent(new Event("pret")); }
+    else if (!Compte.email()) note.textContent = "Crée un compte pour apparaître dans le classement.";
+    else if (type === "mdj") { const sr = serieMotDuJour()[0]; note.textContent = sr ? `🔥 Ta série en cours : ${sr} jour${sr > 1 ? "s" : ""}` : ""; }
+    else { const r = lireStats().marathon.record; note.textContent = r ? `Ton record : ${r} mots` : ""; }
+  })();
+  return b;
+}
+// fiche joueur : ancienneté, meilleure série, record marathon ; « Ajouter en ami »
+async function ficheJoueur(uid) {
+  const [pr, cm, cr] = await Promise.all([FB.get(`profils/${uid}`), FB.get(`classements/mdj/${uid}`), FB.get(`classements/marathon/${uid}`)]);
+  const p = pr || {}, nom = capitaliser(p.pseudo || (cm || {}).pseudo || (cr || {}).pseudo || "?");
+  const depuis = p.cree ? new Date(p.cree).toLocaleDateString("fr-FR", { month: "long", year: "numeric" }) : null;
+  const moi = uid === FB.uid, ami = !!(Amis.liste || {})[uid], msg = h("div.gras", { style: { fontSize: "14px", minHeight: "18px", color: "var(--succes)" } });
+  let o;
+  const btns = [bouton("Fermer", () => o.remove(), { variante: "discret", largeur: 120 })];
+  if (!moi && Compte.email() && !ami) btns.push(bouton("Ajouter en ami", async () => { msg.textContent = (await FB.ok("PUT", `amis_demandes/${uid}/${FB.uid}`, { pseudo: pseudo(), t: SV })) ? "Demande envoyée ✓" : PAS_DE_RESEAU; }, { largeur: 180 }));
+  o = superposition(h("div.fiche", {}, avatar(nom, 64, 3), h("div.titre", { style: { fontSize: "26px" } }, nom), h("div.t2", {}, depuis ? `Joueur depuis ${depuis}` : "Ancienneté inconnue"),
+    h("div.stats2", {}, stat("Meilleure série", String((cm || {}).meilleure || 0), "var(--mal)", 28), stat("Record marathon", String((cr || {}).record || 0), "var(--mal)", 28)), msg,
+    h("div.ligne", { style: { gap: "10px", justifyContent: "center" } }, btns)), 420);
+  o.classList.add("fiche-joueur"); o.montrer();
+}
 function majPastilleAmis() {
   const n = Object.keys(Amis.demandes).length;
   document.querySelectorAll(".bouton-amis .badge").forEach(e => { e.textContent = String(n); e.classList.toggle("cache", !n); });
@@ -1425,7 +1507,7 @@ async function ecranAmis(retour = accueil) {
       const act = cls === "jeu" ? bouton("Rejoindre", () => rejoindreSalonAmi(p.salon), { variante: "discret", largeur: 110 })
         : M.lobby && cls === "on" ? bouton("Inviter", () => Amis.inviter(u), { largeur: 100 })
         : h("button.lien.retirer-ami", { style: { color: "var(--texte2)", fontSize: "14px" }, onclick: async () => { if (await confirmer("Retirer cet ami ?", `${capitaliser(p.pseudo || "?")} ne sera plus dans ta liste (et toi plus dans la sienne).`, "Retirer")) { await Amis.retirer(u); dessiner(); } } }, "Retirer");
-      return ligne(p.pseudo || "?", i, st, cls, act); }) : [h("div.t2", { style: { fontSize: "14px" } }, "Pas encore d'amis : donne ton code ou entre le leur.")]));
+      const l = ligne(p.pseudo || "?", i, st, cls, act); l.style.cursor = "pointer"; l.addEventListener("click", e => { if (!e.target.closest("button")) ficheJoueur(u); }); return l; }) : [h("div.t2", { style: { fontSize: "14px" } }, "Pas encore d'amis : donne ton code ou entre le leur.")]));
   }
   await dessiner();
   const t = setInterval(() => { if (gen === M.gen) dessiner(); }, 8000); nettoyageEcran.push(() => clearInterval(t));
@@ -1741,7 +1823,7 @@ async function partie() {
   const opp = Object.entries((dm || {}).players || {}).filter(([pid]) => pid !== FB.uid);
   const [colsAdv, tAdv, denseAdv] = spect ? dispositionAdv(opp.length, conf.essais || 6, Math.max(G.mot.length, conf.max || 7), Math.min(window.innerWidth - 32, 1500), hauteurFenetre() - 200, 44)
     : large ? dispositionAdv(opp.length, conf.essais || 6, Math.max(G.mot.length, conf.max || 7), Math.max(300, window.innerWidth - 640), hauteurFenetre() - 140)  // adaptée au nombre de joueurs
-    : dispositionAdvTel(opp.length, conf.essais || 6, Math.max(G.mot.length, conf.max || 7), Math.min(window.innerWidth, 640) - 24, hauteurFenetre() * (opp.length > 4 ? 0.25 : 0.2) * (hauteurFenetre() < 700 ? 0.8 : 1));
+    : dispositionAdvTel(opp.length, conf.essais || 6, Math.max(G.mot.length, conf.max || 7), Math.min(window.innerWidth, 640) - 24, hauteurFenetre() * (piege ? (opp.length > 4 ? 0.34 : 0.3) : opp.length > 4 ? 0.25 : 0.2) * (hauteurFenetre() < 700 ? 0.8 : 1), piege ? 16 : 0);
   if (large) { advZone.style.gridTemplateColumns = `repeat(${colsAdv}, auto)`; advZone.style.rowGap = opp.length > 2 ? "14px" : "26px"; }
   else advZone.style.gridTemplateColumns = `repeat(${colsAdv}, minmax(0, 1fr))`;
   function construireAdv(pid, nom, longueur) {
