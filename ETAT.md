@@ -5,7 +5,7 @@ _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travai
 **Dernière mise à jour : 25/11/2026**
 
 ## En ligne
-- Version : **9.5** (release Windows seule `SMOUT.9.5.exe`, 25/11/2026 ; site https://vicovert.github.io/SMOUT/ à jour). Fenêtre « Version obsolète » avec « Mettre à jour » (site : rechargement ; PC : téléchargement et lancement du nouvel exe). 9.4 : classements, fiche joueur, profil ; 9.3 : frappe en direct ; 9.2 : amis ; 9.1 : spectateurs.
+- Version : **9.7** (release Windows seule `SMOUT.9.7.exe`, 25/11/2026 ; site https://vicovert.github.io/SMOUT/ à jour). Nouveau score (essais restants, réglages, rapidité) et classement du marathon en points. 9.6 : classement du mot du jour (série max / aujourd'hui), mot du jour sans score, barre des stats sur une ligne ; 9.5 : fenêtre « Version obsolète » ; 9.4 : classements.
 - Protocole multi : `VERSION_JEU` 9.1, données sous `/v7` (spectateurs, demandes)
 
 ## À faire par Victor
@@ -14,6 +14,8 @@ _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travai
 - [x] Idées 9.1 à 9.3 décrites et décisions prises : voir `claude/passations/2026-11-24-plan-9.1-9.3.md`.
 - [x] Règles 9.1 (spectateurs, demandes) et 9.2 (amis) republiées par Victor.
 - [x] Règles 9.4 (classements) republiées par Victor (25/11/2026).
+- [x] Règles 9.6 publiées à la main par Victor (25/11/2026).
+- [ ] **Ajouter le secret GitHub `FIREBASE_SA`** (clé du compte de service Firebase) : ensuite Claude publie les règles lui-même (workflow « Règles Firebase »), dont celles de la 9.7 (score du marathon).
 - [ ] Copine de Victor (PC) : installer une fois `SMOUT.9.5.exe` à la main, connectée à son compte, puis vérifier qu'elle apparaît dans le classement du mot du jour.
 - [ ] À la 9.6 : vérifier que la fenêtre « Version obsolète » apparaît (téléphone et PC) et que « Mettre à jour » charge la nouvelle version (le lancement du nouvel exe n'a pas pu être testé sous Windows).
 - [ ] Tester à plusieurs : spectateurs et demandes (9.1), amis et invitations (9.2, avec deux comptes), classements et profil sur téléphone (9.4).
