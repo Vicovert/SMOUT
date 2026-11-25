@@ -2,25 +2,25 @@
 
 _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travail »). Historique détaillé des versions : `claude/feuille-de-route.md`._
 
-**Dernière mise à jour : 24/11/2026**
+**Dernière mise à jour : 25/11/2026**
 
 ## En ligne
-- Version : **9.3** (release Windows seule `SMOUT.9.3.exe`, 24/11/2026 ; site https://vicovert.github.io/SMOUT/ à jour). Frappe en direct visible une fois sa manche finie (tous les modes), téléphone : grilles des autres agrandies. 9.2 : amis ; 9.1 : spectateurs.
+- Version : **9.4** (release Windows seule `SMOUT.9.4.exe`, 25/11/2026 ; site https://vicovert.github.io/SMOUT/ à jour). Classements mot du jour et marathon, fiche joueur, lettres dans les mini-grilles sur téléphone, profil (croix, enregistrement automatique, pas de clavier à l'ouverture). 9.3 : frappe en direct ; 9.2 : amis ; 9.1 : spectateurs.
 - Protocole multi : `VERSION_JEU` 9.1, données sous `/v7` (spectateurs, demandes)
 
 ## À faire par Victor
 - [x] E-mail/Mot de passe activé et règles Firebase republiées (fait par Victor le 24/11/2026).
 - [x] 8.19 testée par Victor (comptes, téléphone).
 - [x] Idées 9.1 à 9.3 décrites et décisions prises : voir `claude/passations/2026-11-24-plan-9.1-9.3.md`.
-- [ ] **Republier `database.rules.json`** (9.1 spectateurs et demandes, 9.2 amis) : sans cela, ces fonctions échouent en ligne.
-- [ ] Tester à plusieurs : spectateurs et demandes (9.1), amis et invitations (9.2, avec deux comptes).
+- [x] Règles 9.1 (spectateurs, demandes) et 9.2 (amis) republiées par Victor.
+- [ ] **Republier `database.rules.json`** (9.4 classements) : sans cela, les classements restent vides en ligne.
+- [ ] Tester à plusieurs : spectateurs et demandes (9.1), amis et invitations (9.2, avec deux comptes), classements et profil sur téléphone (9.4).
 - [x] Branches inutiles supprimées (24/11/2026).
 
 ## En cours
 - Configuration de l'espace de travail : terminée (PR #1), Claude fusionne désormais lui-même les PR.
 
 ## Prochaines pistes (non commencées)
-- 9.4 : classements mot du jour et marathon + fiche joueur (ancienneté). Détails : `claude/passations/2026-11-24-plan-9.1-9.3.md`.
 - Corriger `tests/README.md` (dit encore que les tests tournent sur `main`).
 - Test automatique d'équivalence PC ↔ web des constantes (`REGLES_MODES`, `RUSHS`, `COULEURS_MODES`).
 - Règles Firebase : empêcher l'hôte d'écrire n'importe quel score.
