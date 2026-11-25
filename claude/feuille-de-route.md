@@ -6,6 +6,8 @@ Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la pro
 - Classement du mot du jour (maquette C validée par Victor) : deux colonnes, « série max » (pastille 🔥, ordre du classement) et « aujourd'hui » (pastille verte « 3 essais », rouge « raté », grise « pas joué ») ; « Ta série en cours » retirée (doublon). PC et web.
   - Le résultat du jour vient des stats (historique) : aussi pour une partie jouée avant la mise à jour. Base : `classements/mdj/<uid>/jour` (date) et `essais` (0 = raté) ; **règles à republier**.
 - Mot du jour sans score (demande de Victor) : plus de score pendant la partie ni à la fin, « Mot inconnu » sans −100 points, partage sans « pts ». PC et web.
+- Retours de Victor : 🔥 en couleur sur PC (image `fichiers/flamme14.png`, Tk n'affiche les émojis qu'en noir et blanc) ; « Ton record » retiré sous le classement marathon (doublon).
+- Barre Temps / Score / Essai / Total (site) : ne passe plus sur 2 lignes, les chiffres rétrécissent si elle est trop large (`ajusterStats`).
 - Tests : règles 132/132, `classements_web.js` (11).
 
 - Version obsolète (demande de Victor : il fallait fermer et rouvrir le jeu) : au lancement et au retour sur l'appli, l'accueil affiche une fenêtre centrée « Version obsolète · la X.Y est disponible » avec « Plus tard » et « Mettre à jour » (une fois par lancement, jamais en pleine partie).

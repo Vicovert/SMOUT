@@ -378,12 +378,24 @@ function logo(taille = 88, ecart = 14) {
 function avatar(nom, taille = 44, index = 0, onclick = null) {
   return h("div.avatar", { onclick, style: { width: taille + "px", height: taille + "px", background: COULEURS_AVATAR[index % 6], cursor: onclick ? "pointer" : null, fontSize: Math.round(taille * 0.42) + "px" } }, (nom || "?").charAt(0).toUpperCase());
 }
+// 9.6 : la barre Temps / Score / Essai / Total tient toujours sur une ligne : les chiffres rétrécissent si elle est trop large
+function ajusterStats(barre) {
+  if (!barre || !barre.classList.contains("stats") || !barre.isConnected) return;
+  barre.style.setProperty("--k", "1"); barre.style.gap = "";
+  const dispo = Math.min(barre.parentElement.clientWidth || innerWidth, innerWidth) - 16;
+  if (barre.scrollWidth <= dispo) return;
+  barre.style.gap = "min(" + getComputedStyle(barre).columnGap + ", 4vw)";
+  if (barre.scrollWidth > dispo) barre.style.setProperty("--k", String(Math.max(0.5, Math.floor(dispo / barre.scrollWidth * 100) / 100)));
+}
+addEventListener("resize", () => document.querySelectorAll(".stats").forEach(ajusterStats));
 function stat(titre, valeur, couleur, taille = 44) {
   // taille réduite sur les petits écrans (sinon la ligne Temps / Score / Essai déborde sur téléphone)
-  const v = h("span.v", { style: { color: couleur || null, fontSize: `min(${taille}px, ${(taille / 5.2).toFixed(2)}vw)` } }, valeur);
-  const s = h("span.s", { style: { fontSize: `min(${Math.round(taille * 0.55)}px, ${(taille * 0.55 / 5.2).toFixed(2)}vw)` } });
-  const e = h("div.stat", {}, h("div.caps", {}, titre), h("div", {}, v, s));
-  e.set = (val, coul, suff) => { v.textContent = val; if (coul) v.style.color = coul; if (suff !== undefined) s.textContent = suff; };
+  const v = h("span.v", { style: { color: couleur || null, fontSize: `calc(min(${taille}px, ${(taille / 5.2).toFixed(2)}vw) * var(--k, 1))` } }, valeur);
+  const s = h("span.s", { style: { fontSize: `calc(min(${Math.round(taille * 0.55)}px, ${(taille * 0.55 / 5.2).toFixed(2)}vw) * var(--k, 1))` } });
+  const e = h("div.stat", {}, h("div.caps", {}, titre), h("div", { style: { whiteSpace: "nowrap" } }, v, s));
+  e.set = (val, coul, suff) => { const avant = v.textContent.length + s.textContent.length; v.textContent = val; if (coul) v.style.color = coul; if (suff !== undefined) s.textContent = suff;
+    if (v.textContent.length + s.textContent.length !== avant) ajusterStats(e.parentElement); };
+  setTimeout(() => ajusterStats(e.parentElement), 0);
   return e;
 }
 function chips(valeurs, valeur, onchange) {
@@ -1426,7 +1438,7 @@ function classementBloc(type, live = null) {
       b.rang = i + 1; b.devant = devant; b.dispatchEvent(new Event("pret")); }
     else if (!Compte.email()) note.textContent = "Crée un compte pour apparaître dans le classement.";
     else if (type === "mdj") note.textContent = "";  // 9.6 : « Ta série en cours » retirée (doublon avec le tableau)
-    else { const r = lireStats().marathon.record; note.textContent = r ? `Ton record : ${r} mots` : ""; }
+    else note.textContent = "";  // 9.6 : « Ton record » retiré (doublon avec le tableau)
   })();
   return b;
 }

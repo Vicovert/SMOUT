@@ -100,7 +100,7 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 .logo { display: flex; gap: 14px; }
 
 /* Stats */
-.stats { display: flex; gap: 80px; justify-content: center; }
+.stats { display: flex; gap: 80px; justify-content: center; flex-wrap: nowrap; max-width: 100%; }
 .stat { text-align: center; }
 .stat .v { font-family: var(--f-chiffres); font-weight: 700; font-size: 44px; line-height: 1.1; }
 .stat .s { font-family: var(--f-chiffres); font-weight: 700; font-size: 24px; color: var(--texte2); }
@@ -342,8 +342,8 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 /* page de jeu multijoueur sur téléphone (8.18) : adversaires en haut, ma grille au milieu, clavier en bas, sans défiler */
 .jeu-tel { display: flex; flex-direction: column; align-items: center; }
 .jeu-tel .stats { margin-top: 0; }
-.jeu-tel .stat .v { font-size: 26px !important; }
-.jeu-tel .stat .s { font-size: 15px !important; }
+.jeu-tel .stat .v { font-size: calc(26px * var(--k, 1)) !important; }
+.jeu-tel .stat .s { font-size: calc(15px * var(--k, 1)) !important; }
 .jeu-tel .stat .caps { font-size: 11px; }
 .jeu-tel .grille:not(.mini) { gap: 5px; }
 .adv-tel { display: grid; gap: 6px 8px; width: min(100%, 640px); padding: 6px 12px 0; }

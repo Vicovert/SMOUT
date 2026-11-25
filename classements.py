@@ -1,7 +1,7 @@
 """Classements (9.4) côté PC : même logique que l'objet Classements de web/smout.js.
 classements/mdj/<uid> = {pseudo, meilleure, actuelle, maj} ; classements/marathon/<uid> = {pseudo, record, maj}.
 Seuls les comptes y écrivent (leur ligne) ; tout le monde lit."""
-import threading, tkinter as tk
+import os, threading, tkinter as tk
 import design, compte, amis
 import datetime
 from design import P, police, etiquette, Panneau, Avatar, arrondi, melanger
@@ -98,7 +98,7 @@ class PanneauClassement(tk.Frame):
                 j = e.get("jour")
                 txt, coul = ("pas joué", P["texte2"]) if j is None else ((f"{j} essai" + ("s" if j > 1 else ""), P["succes"]) if j > 0 else ("raté", P["danger"]))
                 puce(f, txt, coul, 92, gras=j is not None).pack(side="right", padx=(4, 2))
-                puce(f, f"🔥 {e['valeur']}", P["mal"], 64).pack(side="right", padx=4)
+                puce(f, str(e["valeur"]), P["mal"], 64, flamme=True).pack(side="right", padx=4)
             else: etiquette(f, str(e["valeur"]), "chiffres", 13, P["mal"]).pack(side="right", padx=6)
             if e.get("uid") and self.on_fiche:
                 for w in [f] + f.winfo_children(): w.bind("<Button-1>", lambda ev, u=e["uid"]: self.on_fiche(u))
@@ -107,18 +107,31 @@ class PanneauClassement(tk.Frame):
             self.note.config(text=f"Encore {devant['valeur'] - self.live + 1} mots pour dépasser {str(devant['pseudo']).capitalize()}" if devant else "Tu es en tête !")
         elif not compte.email(): self.note.config(text="Crée un compte pour apparaître dans le classement.")
         elif self.type == "mdj": self.note.config(text="")  # 9.6 : « Ta série en cours » retirée (doublon avec le tableau)
-        else:
-            r = design.lire_stats()["marathon"].get("record", 0); self.note.config(text=f"Ton record : {r} mots" if r else "")
+        else: self.note.config(text="")  # 9.6 : « Ton record » retiré (doublon avec le tableau)
 
 
-def puce(parent, texte, couleur, largeur, gras=True):
+_FLAMME = {}
+
+
+def image_flamme():
+    """9.6 : le 🔥 en couleur (Tk n'affiche les émojis qu'en noir et blanc)."""
+    if "img" not in _FLAMME:
+        try: _FLAMME["img"] = tk.PhotoImage(file=design.resource_path(os.path.join("fichiers", "flamme14.png")))
+        except Exception: _FLAMME["img"] = None
+    return _FLAMME["img"]
+
+
+def puce(parent, texte, couleur, largeur, gras=True, flamme=False):
     """9.6 : pastille arrondie (fond teinté de la couleur, texte de la couleur), calée à droite dans une colonne de largeur fixe."""
     import tkinter.font as tkfont
     fond = parent["bg"]; f = police("chiffres", 12, gras); h = 24
     c = tk.Canvas(parent, width=largeur, height=h, bg=fond, highlightthickness=0, bd=0)
-    tw = tkfont.Font(font=f).measure(texte) + 18; x2 = largeur - 1; x1 = max(0, x2 - tw)
+    img = image_flamme() if flamme else None
+    if flamme and not img: texte = "🔥 " + texte
+    tw = tkfont.Font(font=f).measure(texte) + 18 + (18 if img else 0); x2 = largeur - 1; x1 = max(0, x2 - tw)
     arrondi(c, x1, 1, x2, h - 1, 11, fill=melanger(fond, couleur, 0.18), outline="")
-    c.create_text((x1 + x2) / 2, h / 2, text=texte, font=f, fill=couleur)
+    if img: c.create_image(x1 + 9, h / 2, image=img, anchor="w"); c.create_text(x1 + 9 + 18, h / 2, text=texte, font=f, fill=couleur, anchor="w")
+    else: c.create_text((x1 + x2) / 2, h / 2, text=texte, font=f, fill=couleur)
     return c
 
 
