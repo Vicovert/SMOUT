@@ -5,7 +5,7 @@ _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travai
 **Dernière mise à jour : 25/11/2026**
 
 ## En ligne
-- Version : **9.7** (release Windows seule `SMOUT.9.7.exe`, 25/11/2026 ; site https://vicovert.github.io/SMOUT/ à jour). Nouveau score (essais restants, réglages, rapidité) et classement du marathon en points. 9.6 : classement du mot du jour (série max / aujourd'hui), mot du jour sans score, barre des stats sur une ligne ; 9.5 : fenêtre « Version obsolète » ; 9.4 : classements.
+- Version : **9.8** (release Windows seule `SMOUT.9.8.exe`, 25/11/2026 ; site https://vicovert.github.io/SMOUT/ à jour). Classement du mot du jour : série max, moyenne d'essais (départage), aujourd'hui ; classements défilants avec ma ligne épinglée. 9.7 : nouveau score, marathon en points ; 9.6 : mot du jour sans score ; 9.5 : « Version obsolète ».
 - Protocole multi : `VERSION_JEU` 9.1, données sous `/v7` (spectateurs, demandes)
 
 ## À faire par Victor
@@ -18,6 +18,7 @@ _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travai
 - [x] Secret GitHub `FIREBASE_SA` ajouté par Victor (25/11/2026) : les règles sont publiées automatiquement ; règles 9.7 publiées et vérifiées par le workflow « Règles Firebase ».
 - [x] Copine de Victor (PC) : 9.5 installée, classement du mot du jour vérifié par Victor.
 - [x] Fenêtre « Version obsolète » et « Mettre à jour » vérifiées par Victor (9.7, 25/11/2026) ; classement marathon en points vérifié.
+- [ ] 9.8 : vérifier sur téléphone le défilement des classements au doigt et la ligne épinglée.
 - [ ] Tester à plusieurs : spectateurs et demandes (9.1), amis et invitations (9.2, avec deux comptes), classements et profil sur téléphone (9.4).
 - [x] Branches inutiles supprimées (24/11/2026).
 
