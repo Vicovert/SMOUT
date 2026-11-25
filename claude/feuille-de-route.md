@@ -9,6 +9,7 @@ Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la pro
   - seuls les comptes y apparaissent (« Crée un compte pour apparaître dans le classement ») ; le pseudo suit les changements.
 - Fiche joueur : pseudo, « Joueur depuis <mois année> », meilleure série, record marathon, « Ajouter en ami » ; depuis les classements et la liste d'amis.
 - Mot piégé sur téléphone : les lettres tapées s'affichent DANS les mini-grilles (lettres visibles dès 9 px, police plus grande) et les grilles des autres ont un peu plus de place (demande de Victor).
+- Profil « Ton pseudo » (demande de Victor) : une croix pour fermer au lieu d'« Annuler », plus de bouton « Enregistrer » (enregistré à chaque frappe, « Enregistré ✓ »), pas de focus automatique (le clavier du téléphone ne s'ouvre plus tout seul) ; PC et web.
 - Règles Firebase (**à republier**) : `classements/mdj/<uid>` (meilleure série : +1 par jour écoulé au plus, 365 au plus à la création) et `classements/marathon/<uid>` (record ≤ 500) ; chacun n'écrit que sa ligne.
 - Tests : règles 130/130, `tests/web/classements_web.js` (10), `tests/test_classements_pc.py` (7).
 
