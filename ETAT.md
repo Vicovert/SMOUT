@@ -5,7 +5,7 @@ _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travai
 **Dernière mise à jour : 25/11/2026**
 
 ## En ligne
-- Version : **9.4** (release Windows seule `SMOUT.9.4.exe`, 25/11/2026 ; site https://vicovert.github.io/SMOUT/ à jour). Classements mot du jour et marathon, fiche joueur, lettres dans les mini-grilles sur téléphone, profil (croix, enregistrement automatique, pas de clavier à l'ouverture). 9.3 : frappe en direct ; 9.2 : amis ; 9.1 : spectateurs.
+- Version : **9.5** (release Windows seule `SMOUT.9.5.exe`, 25/11/2026 ; site https://vicovert.github.io/SMOUT/ à jour). Fenêtre « Version obsolète » avec « Mettre à jour » (site : rechargement ; PC : téléchargement et lancement du nouvel exe). 9.4 : classements, fiche joueur, profil ; 9.3 : frappe en direct ; 9.2 : amis ; 9.1 : spectateurs.
 - Protocole multi : `VERSION_JEU` 9.1, données sous `/v7` (spectateurs, demandes)
 
 ## À faire par Victor
@@ -13,7 +13,9 @@ _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travai
 - [x] 8.19 testée par Victor (comptes, téléphone).
 - [x] Idées 9.1 à 9.3 décrites et décisions prises : voir `claude/passations/2026-11-24-plan-9.1-9.3.md`.
 - [x] Règles 9.1 (spectateurs, demandes) et 9.2 (amis) republiées par Victor.
-- [ ] **Republier `database.rules.json`** (9.4 classements) : sans cela, les classements restent vides en ligne.
+- [x] Règles 9.4 (classements) republiées par Victor (25/11/2026).
+- [ ] Copine de Victor (PC) : installer une fois `SMOUT.9.5.exe` à la main, connectée à son compte, puis vérifier qu'elle apparaît dans le classement du mot du jour.
+- [ ] À la 9.6 : vérifier que la fenêtre « Version obsolète » apparaît (téléphone et PC) et que « Mettre à jour » charge la nouvelle version (le lancement du nouvel exe n'a pas pu être testé sous Windows).
 - [ ] Tester à plusieurs : spectateurs et demandes (9.1), amis et invitations (9.2, avec deux comptes), classements et profil sur téléphone (9.4).
 - [x] Branches inutiles supprimées (24/11/2026).
 
