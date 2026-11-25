@@ -549,7 +549,7 @@ function accueil() {
       h("div.menu-ligne", {}, carte("Solo", "Normal, marathon, réglages", menuSolo, null, ".solo"), carte("Multijoueur", "Salons publics ou entre amis", multiAccueil, null, ".multi")),
       h("div.menu-ligne.mdj", {}, carte("Mot du jour", "Un mot, une partie par jour", () => solo("mdj"), badge, ".mdj")), h("div.cl-place")),
     h("div.t2", { style: { textAlign: "center", padding: "0 0 22px", fontSize: "14px" } }, `SMOUT v${VERSION_APP} · version en ligne`));
-  enAccueil = true;
+  enAccueil = true; setTimeout(() => MiseAJour.proposer(), 300);
   placerClassement(classementBloc("mdj"), "droite");  // 9.4
 }
 /* page intermédiaire du solo : titre en tuiles, grand bouton « Jouer », puis Marathon et Paramètres (chacun avec son icône) */
@@ -2528,10 +2528,36 @@ async function resultats() {
   for (const g of ["gesturestart", "gesturechange", "dblclick"]) document.addEventListener(g, e => e.preventDefault(), { passive: false });
 }
 
+/* ------------------------------------------------------------------ 9.5 : version obsolète */
+// version.json (jamais en cache) donne la dernière version publiée ; si elle est plus récente, l'accueil propose de recharger
+const versionPlusRecente = (a, b) => { const x = String(a).split(".").map(Number), y = String(b).split(".").map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
+const MiseAJour = {
+  derniere: null, montree: false,
+  async verifier() {
+    try {
+      const r = await fetch("version.json?t=" + Date.now(), { cache: "no-store" }); if (!r.ok) return;
+      const v = (await r.json()).version; if (v && versionPlusRecente(v, VERSION_APP)) { this.derniere = v; this.proposer(); }
+    } catch (e) {}
+  },
+  async proposer() {  // seulement sur l'accueil (jamais en pleine partie), une fois par lancement
+    if (!this.derniere || this.montree || !enAccueil || document.querySelector(".voile:not(.cache)")) return;
+    this.montree = true;
+    if (await dialogue("Version obsolète", `La version ${this.derniere} est disponible (tu as la ${VERSION_APP}).`, [["Plus tard", false, "discret"], ["Mettre à jour", true]])) this.charger();
+  },
+  async charger() {  // vide le cache du jeu hors ligne puis recharge : la nouvelle version est téléchargée
+    try { const r = await navigator.serviceWorker?.getRegistration(); if (r) await r.unregister(); } catch (e) {}
+    try { for (const k of await caches.keys()) await caches.delete(k); } catch (e) {}
+    sessionStorage.setItem("sw_recharge", "1"); location.replace(location.pathname + "?maj=" + Date.now());
+  },
+};
+document.addEventListener("visibilitychange", () => { if (!document.hidden) MiseAJour.verifier(); });  // appli restée ouverte en arrière-plan
+
 /* ------------------------------------------------------------------ démarrage */
 chargerTheme();
 {
   accueil();
   Compte.demarrer();  // compte : relit l'avancement plus récent enregistré depuis un autre appareil
   Amis.demarrer();  // 9.2 : amis (comptes seulement) : signe de vie, demandes, invitations
+  if (/[?&]maj=/.test(location.search)) history.replaceState(null, "", location.pathname);  // adresse propre après une mise à jour
+  MiseAJour.verifier();  // 9.5 : version obsolète → proposer de charger la nouvelle
 }

@@ -11,7 +11,7 @@ def _appel_tk_sur(self, *args):
     return _appel_tk(self, *args)
 tk.CallWrapper.__call__ = _appel_tk_sur
 
-VERSION_APP = "9.4"
+VERSION_APP = "9.5"
 URL_WEB = "https://vicovert.github.io/SMOUT/"
 
 def mot_graine(liste_triee, graine, index=0):
@@ -584,6 +584,15 @@ class Curseur(tk.Canvas):
             self.create_oval(x - 11, y - 11, x + 11, y + 11, fill=coul, outline=fond_parent(self), width=3)
         txt = (f"{self.v[0]} à {self.v[1]}" if self.v[0] != self.v[1] else str(self.v[0])) if self.plage else self.fmt(self.v[0])
         self.create_text(self.l - 4, y, text=txt, anchor="e", fill=P["texte"] if self.actif else P["texte2"], font=police("chiffres", 15, True))
+
+
+def version_plus_recente(a, b):
+    """9.5 : True si la version a (ex. « 9.10 ») est plus récente que b (comme versionPlusRecente du site)."""
+    def n(v):
+        try: return [int(x) for x in str(v).strip().lstrip("vV").split(".")]
+        except ValueError: return [0]
+    x, y = n(a), n(b); k = max(len(x), len(y))
+    return x + [0] * (k - len(x)) > y + [0] * (k - len(y))
 
 
 def nettoyer_pseudo(p):
