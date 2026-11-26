@@ -57,6 +57,7 @@ ok("menu Solo : classement du marathon", attendre(lambda: pan(ms) and pan(ms)[0]
 app.ouvrir_marathon(); pump(1); ps = app.container.winfo_children()[0]
 ok("marathon : classement en direct", attendre(lambda: pan(ps) and pan(ps)[0].fait.is_set() and "dépasser" in pan(ps)[0].note.cget("text"), 15), pan(ps)[0].note.cget("text") if pan(ps) else "")
 f = classements.fiche_joueur(app, uz); pump(0.5)
-txt = " ".join(w.cget("text") for w in f.interieur.winfo_children() if isinstance(w, tk.Label))
+def tous(w): return [w] + [x for c in w.winfo_children() for x in tous(c)]
+txt = " ".join(w.cget("text") for w in tous(f.interieur) if isinstance(w, tk.Label))  # (9.12 : le pseudo est dans une ligne avec la pastille 🔥)
 ok("fiche joueur : pseudo et ancienneté", "Zebulon" in txt and "Joueur depuis" in txt, txt)
 print(f"{sum(res)}/{len(res)} conformes"); app.destroy()

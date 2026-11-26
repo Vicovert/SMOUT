@@ -1483,7 +1483,7 @@ async function ficheJoueur(uid) {
   let o;
   const btns = [bouton("Fermer", () => o.remove(), { variante: "discret", largeur: 120 })];
   if (!moi && Compte.email() && !ami) btns.push(bouton("Ajouter en ami", async () => { msg.textContent = (await FB.ok("PUT", `amis_demandes/${uid}/${FB.uid}`, { pseudo: pseudo(), t: SV })) ? "Demande envoyée ✓" : PAS_DE_RESEAU; }, { largeur: 180 }));
-  o = superposition(h("div.fiche", {}, avatar(nom, 64, 3), h("div.titre", { style: { fontSize: "26px" } }, nom, flamme(Number((cm || {}).actuelle) || 0, ".grande")),  // 9.12 h("div.t2", {}, depuis ? `Joueur depuis ${depuis}` : "Ancienneté inconnue"),
+  o = superposition(h("div.fiche", {}, avatar(nom, 64, 3), h("div.titre", { style: { fontSize: "26px" } }, nom, flamme(Number((cm || {}).actuelle) || 0, ".grande")), h("div.t2", {}, depuis ? `Joueur depuis ${depuis}` : "Ancienneté inconnue"),
     h("div.stats2", {}, stat("Mots du jour", String((cm || {}).trouves || 0), "#4CC9F0", 28), stat("Moyenne", typeof (cm || {}).moyenne === "number" ? cm.moyenne.toFixed(1).replace(".", ",") : "–", "var(--succes)", 28), stat("Record marathon", nombre((cr || {}).score || 0), "var(--mal)", 28)), msg,
     h("div.ligne", { style: { gap: "10px", justifyContent: "center" } }, btns)), 420);
   o.classList.add("fiche-joueur"); o.montrer();

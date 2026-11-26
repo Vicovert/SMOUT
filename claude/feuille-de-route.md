@@ -3,7 +3,7 @@
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
 ## 9.12
-- Série actuelle du mot du jour en petite pastille 🔥 à droite du pseudo : classement, fiche joueur, et à côté de mon avatar sur l'accueil (pas dans « Ton pseudo », demande de Victor). PC et web.
+- Série actuelle du mot du jour en petite pastille 🔥 à droite du pseudo : classement, fiche joueur, et juste à gauche de mon avatar sur l'accueil, sans le chevaucher (pas dans « Ton pseudo », demandes de Victor). PC et web.
 - Classement du mot du jour : en-têtes « Mots » (pastille bleue, couleur de la carte Mot du jour) et « Moyenne » ; plus de colonne « série ».
 - Fiche joueur : Mots du jour, Moyenne, Record marathon.
 
