@@ -84,9 +84,8 @@ class PanneauClassement(tk.Frame):
         if self.deux:
             etiq = t.winfo_children()[-1]; etiq.pack_forget()
             tt = tk.Frame(self.p.interieur, bg=P["panneau"]); tt.pack(fill="x", pady=(4, 0))
-            etiquette(tt, "série", "texte", 11, P["texte2"], True, width=7, anchor="e").pack(side="right", padx=(0, 4))  # 9.11
-            etiquette(tt, "moy. essais", "texte", 11, P["texte2"], True, width=11, anchor="e").pack(side="right")
-            etiquette(tt, "trouvés", "texte", 11, P["texte2"], True, width=8, anchor="e").pack(side="right")
+            etiquette(tt, "Moyenne", "texte", 11, P["texte2"], True, width=9, anchor="e").pack(side="right", padx=(0, 4))  # 9.12
+            etiquette(tt, "Mots", "texte", 11, P["texte2"], True, width=7, anchor="e").pack(side="right")
         self.mar = type_ == "marathon" and live is None  # 9.10 : 2 lignes (pseudo puis réglages), colonnes « mots » et « meilleur »
         if self.mar:
             t.winfo_children()[-1].pack_forget()
@@ -129,7 +128,9 @@ class PanneauClassement(tk.Frame):
             Avatar(f, e["pseudo"], 22, index=k).pack(side="left")
             if self.mar or self.deux:  # 2 lignes : pseudo, puis réglages (marathon) ou « Aujourd'hui » (mot du jour, 9.11)
                 nm = tk.Frame(f, bg=f["bg"]); nm.pack(side="left", padx=8)
-                etiquette(nm, str(e["pseudo"]).capitalize(), "texte", 13, P["texte"], True).pack(anchor="w")
+                l1 = tk.Frame(nm, bg=f["bg"]); l1.pack(anchor="w")
+                etiquette(l1, str(e["pseudo"]).capitalize(), "texte", 13, P["texte"], True).pack(side="left")
+                if self.deux: pastille_flamme(l1, e.get("actuelle") or 0).pack(side="left", padx=(6, 0))  # 9.12 : série à droite du pseudo
                 if self.mar: etiquette(nm, texte_reglages(e.get("det")), "texte", 10, P["texte2"], True).pack(anchor="w")
                 else:
                     j = e.get("jour")
@@ -137,12 +138,10 @@ class PanneauClassement(tk.Frame):
                     etiquette(nm, "Aujourd'hui : " + txt, "texte", 10, coul, True).pack(anchor="w")
             else: etiquette(f, "Toi" if (est_moi and self.live is not None) else str(e["pseudo"]).capitalize(), "texte", 13, P["texte"], True).pack(side="left", padx=8)
             if self.deux:
-                a = e.get("actuelle") or 0  # 9.11 : série actuelle, moyenne, mots trouvés
-                puce(f, str(a), P["mal"] if a else P["texte2"], 56, flamme=bool(a)).pack(side="right", padx=(4, 2))
-                m = e.get("moy")  # 9.8 : vert ≤ 3,5, jaune ≤ 4,5, rouge au-delà
+                m = e.get("moy")  # 9.12 : mots trouvés (bleu) et moyenne  # 9.8 : vert ≤ 3,5, jaune ≤ 4,5, rouge au-delà
                 mc = P["texte2"] if m is None else P["succes"] if m <= 3.5 else P["mal"] if m <= 4.5 else P["danger"]
-                puce(f, "–" if m is None else f"{m:.1f}".replace(".", ","), mc, 64, gras=m is not None).pack(side="right", padx=4)
-                puce(f, str(e["valeur"]), P["texte"], 56).pack(side="right", padx=4)
+                puce(f, "–" if m is None else f"{m:.1f}".replace(".", ","), mc, 64, gras=m is not None).pack(side="right", padx=(4, 2))
+                puce(f, str(e["valeur"]), BLEU_MDJ, 56).pack(side="right", padx=4)
             elif self.mar:
                 puce(f, design.nombre(e["valeur"]), P["mal"], 78).pack(side="right", padx=(4, 2))
                 puce(f, str(e["det"]["mots"]) if e.get("det") else "–", P["texte"], 48).pack(side="right", padx=4)
@@ -190,6 +189,22 @@ def image_flamme():
     return _FLAMME["img"]
 
 
+BLEU_MDJ = "#4CC9F0"  # couleur de la carte Mot du jour (« Mots » trouvés)
+
+
+def pastille_flamme(parent, n, grande=False):
+    """9.12 : série actuelle en petite pastille 🔥 (ajustée à son contenu), à droite d'un pseudo."""
+    import tkinter.font as tkfont
+    f = police("chiffres", 16 if grande else 12, True); txt = str(n); img = image_flamme() if n else None
+    w = tkfont.Font(font=f).measure(txt) + (34 if img else 18); h = 30 if grande else 20
+    c = tk.Canvas(parent, width=w, height=h, bg=parent["bg"], highlightthickness=0, bd=0)
+    coul = P["mal"] if n else P["texte2"]
+    arrondi(c, 0, 0, w, h, h / 2, fill=melanger(parent["bg"], coul, 0.18), outline="")
+    if img: c.create_image(7, h / 2, image=img, anchor="w"); c.create_text(w - 8, h / 2, text=txt, font=f, fill=coul, anchor="e")
+    else: c.create_text(w / 2, h / 2, text=txt, font=f, fill=coul)
+    return c
+
+
 def puce(parent, texte, couleur, largeur, gras=True, flamme=False):
     """9.6 : pastille arrondie (fond teinté de la couleur, texte de la couleur), calée à droite dans une colonne de largeur fixe."""
     import tkinter.font as tkfont
@@ -213,13 +228,17 @@ def fiche_joueur(fenetre, uid):
     depuis = None
     if pr.get("cree"):
         d = datetime.datetime.fromtimestamp(pr["cree"] / 1000); depuis = f"{mois[d.month - 1]} {d.year}"
-    o = design.Superposition(getattr(fenetre, "container", fenetre), largeur=420); i = o.interieur  # (dans la page : fermée avec elle)
+    o = design.Superposition(getattr(fenetre, "container", fenetre), largeur=480); i = o.interieur  # (dans la page : fermée avec elle)
     Avatar(i, nom, 64, index=3).pack()
-    etiquette(i, nom, "titre", 26).pack(pady=(8, 0))
+    tl = tk.Frame(i, bg=i["bg"]); tl.pack(pady=(8, 0))
+    etiquette(tl, nom, "titre", 26).pack(side="left")
+    pastille_flamme(tl, int(cm.get("actuelle") or 0), grande=True).pack(side="left", padx=(8, 0))  # 9.12
     etiquette(i, f"Joueur depuis {depuis}" if depuis else "Ancienneté inconnue", "texte", 14, P["texte2"]).pack()
     st = tk.Frame(i, bg=i["bg"]); st.pack(pady=(10, 6))
-    design.Stat(st, "Meilleure série", str(cm.get("meilleure") or 0), P["mal"], 28).pack(side="left", padx=14)
-    design.Stat(st, "Record marathon", design.nombre(cr.get("score") or 0), P["mal"], 28).pack(side="left", padx=14)
+    design.Stat(st, "Mots du jour", str(cm.get("trouves") or 0), BLEU_MDJ, 28).pack(side="left", padx=8)
+    mo = cm.get("moyenne")
+    design.Stat(st, "Moyenne", f"{mo:.1f}".replace(".", ",") if isinstance(mo, (int, float)) else "–", P["succes"], 28).pack(side="left", padx=8)
+    design.Stat(st, "Record marathon", design.nombre(cr.get("score") or 0), P["mal"], 28).pack(side="left", padx=8)
     msg = etiquette(i, "", "texte", 13, P["succes"], True); msg.pack()
     bf = tk.Frame(i, bg=i["bg"]); bf.pack(pady=(8, 0))
     design.Bouton(bf, "Fermer", o.destroy, largeur=120, hauteur=44, variante="discret", taille=14).pack(side="left")

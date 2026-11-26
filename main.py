@@ -503,6 +503,8 @@ class MenuPrincipal(tk.Tk):
         haut = tk.Frame(page, bg=P["fond"]); haut.pack(fill="x", padx=28, pady=(22, 0))
         etiquette(haut, f"v{design.VERSION_APP}", "texte", 14, P["texte2"]).pack(side="left")  # 9.9 : numéro de version en haut à gauche
         self.avatar = Avatar(haut, self.pseudo(), 46, self.changer_pseudo); self.avatar.pack(side="right", padx=(10, 0))
+        if design.serie_mot_du_jour()[0]:  # 9.12 : ma série du mot du jour à côté de l'avatar
+            self.after(50, lambda: classements.pastille_flamme(page, design.serie_mot_du_jour()[0]).place(in_=self.avatar, relx=1.0, rely=1.0, x=12, y=8, anchor="se") if self.avatar.winfo_exists() else None)
         Icone(haut, "stats", self.ouvrir_stats).pack(side="right", padx=8)
         Icone(haut, "palette", self.show_skins).pack(side="right", padx=8)
         self.bouton_amis(haut).pack(side="right", padx=8)
