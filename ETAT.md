@@ -2,10 +2,10 @@
 
 _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travail »). Historique détaillé des versions : `claude/feuille-de-route.md`._
 
-**Dernière mise à jour : 25/11/2026**
+**Dernière mise à jour : 26/11/2026**
 
 ## En ligne
-- Version : **9.10** (release Windows seule `SMOUT.9.10.exe`, 25/11/2026 ; site https://vicovert.github.io/SMOUT/ à jour). Classement du marathon sur 2 lignes (mots, réglages de la meilleure partie), pseudos de 10 caractères. 9.9 : classements sous les cartes sur grand écran, version en haut à gauche ; 9.8 : mot du jour (série, moyenne, aujourd'hui), classements défilants.
+- Version : **9.11** (release Windows seule `SMOUT.9.11.exe`, 26/11/2026 ; site https://vicovert.github.io/SMOUT/ à jour). Mot du jour classé par mots trouvés puis moyenne d'essais, « Aujourd'hui » sous le pseudo. 9.10 : marathon sur 2 lignes, pseudos de 10 caractères ; 9.9 : classements sous les cartes.
 - Protocole multi : `VERSION_JEU` 9.1, données sous `/v7` (spectateurs, demandes)
 
 ## À faire par Victor
