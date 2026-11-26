@@ -5,7 +5,7 @@ _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travai
 **Dernière mise à jour : 26/11/2026**
 
 ## En ligne
-- Version : **9.11** (release Windows seule `SMOUT.9.11.exe`, 26/11/2026 ; site https://vicovert.github.io/SMOUT/ à jour). Mot du jour classé par mots trouvés puis moyenne d'essais, « Aujourd'hui » sous le pseudo. 9.10 : marathon sur 2 lignes, pseudos de 10 caractères ; 9.9 : classements sous les cartes.
+- Version : **9.13** (release Windows seule `SMOUT.9.13.exe`, 26/11/2026 ; site https://vicovert.github.io/SMOUT/ à jour). Panneau latéral profil + amis ouvert par l'avatar (onglets), plus de bouton Amis. 9.12 : série 🔥 à droite du pseudo, colonnes Mots / Moyenne ; 9.11 : mot du jour classé par mots trouvés.
 - Protocole multi : `VERSION_JEU` 9.1, données sous `/v7` (spectateurs, demandes)
 
 ## À faire par Victor
@@ -19,6 +19,7 @@ _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travai
 - [x] Copine de Victor (PC) : 9.5 installée, classement du mot du jour vérifié par Victor.
 - [x] Fenêtre « Version obsolète » et « Mettre à jour » vérifiées par Victor (9.7, 25/11/2026) ; classement marathon en points vérifié.
 - [ ] Vérifier sur téléphone le défilement des classements au doigt et la ligne épinglée (9.8), et le classement du marathon (9.10).
+- [ ] 9.13 : essayer le panneau profil + amis (téléphone et PC), dont une demande d'ami reçue (pastille rouge sur l'avatar).
 - [ ] Tester à plusieurs : spectateurs et demandes (9.1), amis et invitations (9.2, avec deux comptes), classements et profil sur téléphone (9.4).
 - [x] Branches inutiles supprimées (24/11/2026).
 
