@@ -502,7 +502,8 @@ class MenuPrincipal(tk.Tk):
         page = tk.Frame(self.container, bg=P["fond"]); page.pack(fill="both", expand=True)
         haut = tk.Frame(page, bg=P["fond"]); haut.pack(fill="x", padx=28, pady=(22, 0))
         etiquette(haut, f"v{design.VERSION_APP}", "texte", 14, P["texte2"]).pack(side="left")  # 9.9 : numéro de version en haut à gauche
-        self.avatar = Avatar(haut, self.pseudo(), 46, self.changer_pseudo); self.avatar.pack(side="right", padx=(10, 0))
+        # 9.12 : ma série du mot du jour en pastille 🔥 posée sur l'avatar
+        self.avatar = Avatar(haut, self.pseudo(), 46, self.changer_pseudo, serie=design.serie_mot_du_jour()[0]); self.avatar.pack(side="right", padx=(10, 0))
         Icone(haut, "stats", self.ouvrir_stats).pack(side="right", padx=8)
         Icone(haut, "palette", self.show_skins).pack(side="right", padx=8)
         self.bouton_amis(haut).pack(side="right", padx=8)

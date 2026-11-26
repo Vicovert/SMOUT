@@ -554,7 +554,7 @@ function accueil() {
   ecran(
     h("div.ligne", { style: { justifyContent: "flex-end", gap: "16px", padding: "22px 28px 0" } },
       h("div.t2.version", { style: { marginRight: "auto", fontSize: "14px" } }, `v${VERSION_APP}`),  // 9.9 : numéro de version en haut à gauche
-      boutonAmis(accueil), icone("palette", () => themes(), true, "Thèmes"), icone("stats", () => statistiques(), true, "Statistiques"), avatar(pseudo(), 46, 0, () => changerPseudo())),
+      boutonAmis(accueil), icone("palette", () => themes(), true, "Thèmes"), icone("stats", () => statistiques(), true, "Statistiques"), h("div.avatar-accueil", {}, avatar(pseudo(), 46, 0, () => changerPseudo()), serieMotDuJour()[0] ? flamme(serieMotDuJour()[0], ".sur-avatar") : null)),  // 9.12 : ma série à côté de l'avatar
     h("div.centre", { style: { flex: 1, justifyContent: "safe center", gap: "12px", padding: "16px 0 28px" } },
       logo(Math.min(88, Math.floor((window.innerWidth - 80) / 5.8)), 14),
       h("div.t2", { style: { fontSize: "19px", margin: "0 0 22px" } }, "Trouvez le mot caché."),
@@ -1407,6 +1407,8 @@ function detailMarathon(d) {
   return { mots: n(d.mots, 0, 500), essais: n(d.essais, 4, 8), lmin: n(d.lmin, 6, 10), lmax: n(d.lmax, 6, 10), difficile: !!d.difficile };
 }
 const texteReglages = d => !d ? "" : `${d.essais} essais · ${d.lmin === d.lmax ? d.lmin : d.lmin + "–" + d.lmax} lettres` + (d.difficile ? " · difficile" : "");
+// 9.12 : série actuelle du mot du jour en petite pastille 🔥, à droite d'un pseudo (classement, fiche joueur, avatar de l'accueil)
+const flamme = (n, cls = "") => h("span.flamme" + cls + (n ? "" : ".zero"), {}, n ? "🔥 " + n : "0");
 const Classements = {
   envoye: {},
   async lire(type) {
@@ -1440,7 +1442,7 @@ const Classements = {
 function classementBloc(type, live = null) {
   const titre = type === "mdj" ? "Mot du jour" : "Marathon", sous = live ? "en direct" : type === "mdj" ? "meilleure série" : "meilleur score";
   const corps = h("div.cl-corps", {}, h("div.t2", { style: { fontSize: "13px", padding: "6px 8px" } }, "Chargement…")), note = h("div.cl-note");
-  const tete = type === "mdj" && !live ? h("div.cl-tete", {}, h("span.n", {}), h("span.cl-tr", {}, "trouvés"), h("span.cl-cm", {}, "moy. essais"), h("span.cl-se", {}, "série"))  // 9.11
+  const tete = type === "mdj" && !live ? h("div.cl-tete", {}, h("span.n", {}), h("span.cl-tr", {}, "Mots"), h("span.cl-cm", {}, "Moyenne"))  // 9.12
     : !live ? h("div.cl-tete", {}, h("span.n", {}), h("span.cl-mots", {}, "mots"), h("span.cl-meil", {}, "meilleur")) : null;  // 9.10 : marathon
   const moyTxt = m => m === null || m === undefined ? ["–", "pas"] : [m.toFixed(1).replace(".", ","), m <= 3.5 ? "ok" : m <= 4.5 ? "moyen" : "rate"];  // 9.8 : vert ≤ 3,5, jaune ≤ 4,5, rouge au-delà
   const b = h("div.classement.classement-" + type, {}, h("div.tt", {}, h("span", { html: svg(type === "mdj" ? "stats" : "infini", 18) }), titre, tete ? null : h("span.s", {}, sous)), tete, corps, note);
@@ -1450,9 +1452,8 @@ function classementBloc(type, live = null) {
     h("span.r", {}, String(rang)), avatar(e.pseudo, 24, rang - 1), h("div.nm", {}, h("span.n", {}, capitaliser(e.pseudo)), h("span.det", {}, texteReglages(e.det))),
     h("span.cl-mots", {}, h("span.puce.p-neutre", {}, e.det ? String(e.det.mots) : "–")), h("span.cl-meil", {}, h("span.puce.p-serie", {}, nombre(e.valeur))));
   const ligneMdj = (e, rang, moi) => h("div.cl-l.cl-2l" + (rang === 1 ? ".top1" : "") + (moi ? ".moi" : ""), { onclick: () => e.uid && ficheJoueur(e.uid) },  // 9.11 : « Aujourd'hui » sous le pseudo
-    h("span.r", {}, String(rang)), avatar(e.pseudo, 24, rang - 1), h("div.nm", {}, h("span.n", {}, capitaliser(e.pseudo)), h("span.det.j-" + jourTxt(e)[1], {}, "Aujourd'hui : " + jourTxt(e)[0])),
-    h("span.cl-tr", {}, h("span.puce.p-neutre", {}, String(e.valeur))), h("span.cl-cm", {}, h("span.puce.p-" + moyTxt(e.moy)[1], {}, moyTxt(e.moy)[0])),
-    h("span.cl-se", {}, h("span.puce." + (e.actuelle ? "p-serie" : "p-pas"), {}, e.actuelle ? "🔥 " + e.actuelle : "0")));
+    h("span.r", {}, String(rang)), avatar(e.pseudo, 24, rang - 1), h("div.nm", {}, h("span.n", {}, capitaliser(e.pseudo), flamme(e.actuelle)), h("span.det.j-" + jourTxt(e)[1], {}, "Aujourd'hui : " + jourTxt(e)[0])),
+    h("span.cl-tr", {}, h("span.puce.p-mots", {}, String(e.valeur))), h("span.cl-cm", {}, h("span.puce.p-" + moyTxt(e.moy)[1], {}, moyTxt(e.moy)[0])));  // 9.12 : série 🔥 à droite du pseudo
   const ligne = (e, rang, moi) => mdj ? ligneMdj(e, rang, moi) : type === "marathon" && !live ? ligneMarathon(e, rang, moi) : h("div.cl-l" + (rang === 1 ? ".top1" : "") + (moi ? ".moi" : ""), { onclick: () => e.uid && ficheJoueur(e.uid) },
     h("span.r", {}, String(rang)), avatar(e.pseudo, 24, rang - 1), h("span.n", {}, moi && live ? "Toi" : capitaliser(e.pseudo)),
     ...(mdj ? [h("span.cl-c1", {}, h("span.puce.p-serie", {}, "🔥 " + e.valeur)), h("span.cl-cm", {}, h("span.puce.p-" + moyTxt(e.moy)[1], {}, moyTxt(e.moy)[0])), h("span.cl-c2", {}, h("span.puce.p-" + jourTxt(e)[1], {}, jourTxt(e)[0]))] : [h("span.v", {}, nombre(e.valeur))]));
@@ -1482,8 +1483,8 @@ async function ficheJoueur(uid) {
   let o;
   const btns = [bouton("Fermer", () => o.remove(), { variante: "discret", largeur: 120 })];
   if (!moi && Compte.email() && !ami) btns.push(bouton("Ajouter en ami", async () => { msg.textContent = (await FB.ok("PUT", `amis_demandes/${uid}/${FB.uid}`, { pseudo: pseudo(), t: SV })) ? "Demande envoyée ✓" : PAS_DE_RESEAU; }, { largeur: 180 }));
-  o = superposition(h("div.fiche", {}, avatar(nom, 64, 3), h("div.titre", { style: { fontSize: "26px" } }, nom), h("div.t2", {}, depuis ? `Joueur depuis ${depuis}` : "Ancienneté inconnue"),
-    h("div.stats2", {}, stat("Meilleure série", String((cm || {}).meilleure || 0), "var(--mal)", 28), stat("Record marathon", nombre((cr || {}).score || 0), "var(--mal)", 28)), msg,
+  o = superposition(h("div.fiche", {}, avatar(nom, 64, 3), h("div.titre", { style: { fontSize: "26px" } }, nom, flamme(Number((cm || {}).actuelle) || 0, ".grande")), h("div.t2", {}, depuis ? `Joueur depuis ${depuis}` : "Ancienneté inconnue"),
+    h("div.stats2", {}, stat("Mots du jour", String((cm || {}).trouves || 0), "#4CC9F0", 28), stat("Moyenne", typeof (cm || {}).moyenne === "number" ? cm.moyenne.toFixed(1).replace(".", ",") : "–", "var(--succes)", 28), stat("Record marathon", nombre((cr || {}).score || 0), "var(--mal)", 28)), msg,
     h("div.ligne", { style: { gap: "10px", justifyContent: "center" } }, btns)), 420);
   o.classList.add("fiche-joueur"); o.montrer();
 }

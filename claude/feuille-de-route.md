@@ -2,7 +2,11 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
-## 9.11
+## 9.12
+- Série actuelle du mot du jour en petite pastille 🔥 à droite du pseudo : classement, fiche joueur, et posée sur mon avatar de l'accueil (dessinée dans le même canevas sur PC : pas de cadre) (pas dans « Ton pseudo », demandes de Victor). PC et web.
+- Classement du mot du jour : en-têtes « Mots » (pastille bleue, couleur de la carte Mot du jour) et « Moyenne » ; plus de colonne « série ».
+- Fiche joueur : Mots du jour, Moyenne, Record marathon.
+
 - Classement du mot du jour (maquette validée par Victor sur pages complètes) : tri par nombre total de mots du jour trouvés, puis moyenne d'essais (pour ne pas « tout perdre » le jour où le mot est raté) ; colonnes « trouvés » · « moy. essais » · « série » (série actuelle, 🔥) ; « Aujourd'hui : 3 essais / raté / pas joué » sous le pseudo. PC et web. Base : `classements/mdj/<uid>/trouves` (règles publiées automatiquement). Un joueur encore sur une ancienne version n'apparaît qu'une fois passé en 9.11.
 - Tests : règles 140/140, `classements_web.js` (14), `test_classements_pc.py` (7).
 
