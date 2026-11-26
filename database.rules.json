@@ -415,6 +415,9 @@
             "moyenne": {
               ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 8"
             },
+            "trouves": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000"
+            },
             "$autre": {
               ".validate": false
             }

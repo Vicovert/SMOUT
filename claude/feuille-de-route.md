@@ -2,7 +2,10 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
-## 9.10
+## 9.11
+- Classement du mot du jour (maquette validée par Victor sur pages complètes) : tri par nombre total de mots du jour trouvés, puis moyenne d'essais (pour ne pas « tout perdre » le jour où le mot est raté) ; colonnes « trouvés » · « moy. essais » · « série » (série actuelle, 🔥) ; « Aujourd'hui : 3 essais / raté / pas joué » sous le pseudo. PC et web. Base : `classements/mdj/<uid>/trouves` (règles publiées automatiquement). Un joueur encore sur une ancienne version n'apparaît qu'une fois passé en 9.11.
+- Tests : règles 140/140, `classements_web.js` (14), `test_classements_pc.py` (7).
+
 - Classement du marathon (maquette validée par Victor sur pages complètes) : 2 lignes par joueur (pseudo, puis réglages de la meilleure partie : essais, longueur des mots, difficile), colonnes « mots » (de cette partie) et « meilleur » ; PC et web. Nouvelle stat `marathon.meilleur_detail` ; base `classements/marathon/<uid>` : `mots`, `essais`, `lmin`, `lmax`, `difficile` (règles publiées automatiquement). Records antérieurs : « – » et pas de réglages jusqu'à la prochaine meilleure partie.
 - Pseudos limités à 10 caractères partout (au lieu de 15) ; les plus longs sont coupés à 10.
 - Tests : règles 138/138, `classements_web.js` (14), `solo_web.js` (pseudo de 10 caractères).
