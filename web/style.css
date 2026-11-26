@@ -463,3 +463,11 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 .cl-mots .puce, .cl-meil .puce { display: inline-block; }
 .p-neutre { background: var(--tuile); color: var(--texte); }
 .classement-marathon .cl-corps { max-height: calc(5 * 46px); }
+/* 9.11 : mot du jour classé par mots trouvés ; « Aujourd'hui » sous le pseudo, colonnes trouvés · moy. essais · série */
+.cl-tr { width: 50px; text-align: right; flex: none; } .cl-se { width: 56px; text-align: right; flex: none; }
+.cl-tr .puce, .cl-se .puce { display: inline-block; }
+.cl-l .det.j-ok { color: var(--succes); } .cl-l .det.j-rate { color: var(--danger); }
+.classement-mdj .cl-corps { max-height: calc(5 * 46px); }
+@media (max-width: 760px) { .cl-tr { width: 36px; } .classement-mdj .cl-cm { width: 42px; } .cl-se { width: 44px; } .classement-mdj .cl-l, .classement-mdj .cl-tete { gap: 5px; } }
+.classement-mdj .det { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 760px) { .classement-mdj .cl-tete { white-space: normal; align-items: flex-end; line-height: 1.15; font-size: 10.5px; } }

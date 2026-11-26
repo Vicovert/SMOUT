@@ -201,7 +201,7 @@ def valider(N, cible):
     if len(cible) >= 4 and cible[1] == "classements":  # 9.4
         n, d = lire(N, cible[:4]), lire(D := DATA, cible[:4])
         if existe(n):
-            cles = {"mdj": ({"pseudo", "meilleure", "maj"}, {"actuelle", "jour", "essais", "moyenne"}), "marathon": ({"pseudo", "record", "maj"}, {"score", "mots", "essais", "lmin", "lmax", "difficile"})}.get(cible[2])
+            cles = {"mdj": ({"pseudo", "meilleure", "maj"}, {"actuelle", "jour", "essais", "moyenne", "trouves"}), "marathon": ({"pseudo", "record", "maj"}, {"score", "mots", "essais", "lmin", "lmax", "difficile"})}.get(cible[2])
             if not cles or not isinstance(n, dict) or not cles[0] <= set(n) or set(n) - cles[0] - cles[1]: return False
             if not isinstance(n["pseudo"], str) or len(n["pseudo"]) > 30 or not isinstance(n["maj"], (int, float)) or n["maj"] > maintenant() + 5000: return False
             if cible[2] == "marathon" and not (isinstance(n["record"], (int, float)) and 0 <= n["record"] <= 500): return False
@@ -220,6 +220,7 @@ def valider(N, cible):
                 if "jour" in n and not (isinstance(n["jour"], str) and len(n["jour"]) <= 10): return False  # 9.6
                 if "essais" in n and not (isinstance(n["essais"], (int, float)) and 0 <= n["essais"] <= 8): return False
                 if "moyenne" in n and not (isinstance(n["moyenne"], (int, float)) and 1 <= n["moyenne"] <= 8): return False  # 9.8
+                if "trouves" in n and not (isinstance(n["trouves"], (int, float)) and 0 <= n["trouves"] <= 100000): return False  # 9.11
     if len(cible) >= 4 and cible[1] == "amis":
         n = lire(N, cible[:4])
         if existe(n) and (n is not True or cible[2] == cible[3]): return False

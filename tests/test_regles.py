@@ -161,6 +161,8 @@ t("classement : série en cours > meilleure refusée", req("PATCH", f"v7/classem
 t("classement : création au-delà de 365 refusée", req("PUT", f"v7/classements/mdj/{uh}", Hh, {"pseudo": "H", "meilleure": 900, "maj": SV}), 401)
 t("classement : résultat du jour (9.6)", req("PATCH", f"v7/classements/mdj/{ug}", G, {"jour": "2026-11-25", "essais": 3, "maj": SV}), 200)
 t("classement : moyenne d'essais (9.8)", req("PATCH", f"v7/classements/mdj/{ug}", G, {"moyenne": 3.67}), 200)
+t("classement : mots du jour trouvés (9.11)", req("PATCH", f"v7/classements/mdj/{ug}", G, {"trouves": 42}), 200)
+t("classement : trouvés absurdes refusés", req("PATCH", f"v7/classements/mdj/{ug}", G, {"trouves": -3}), 401)
 t("classement : moyenne absurde refusée", req("PATCH", f"v7/classements/mdj/{ug}", G, {"moyenne": 12}), 401)
 t("classement : essais absurdes refusés", req("PATCH", f"v7/classements/mdj/{ug}", G, {"essais": 50}), 401)
 t("classement : record marathon", req("PUT", f"v7/classements/marathon/{ug}", G, {"pseudo": "GAEL", "record": 31, "maj": SV}), 200)
