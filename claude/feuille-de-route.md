@@ -2,7 +2,10 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
-## 9.12
+## 9.13
+- Panneau sur le côté (à droite) qui réunit le profil et les amis (version A validée par Victor : onglets « Profil » / « Amis »), ouvert par l'avatar seul : plus d'écran Amis ni de bouton Amis, plus de fenêtre « Ton pseudo ». S'ouvre sur « Amis » s'il y a des demandes ; pastille rouge des demandes sur l'avatar (accueil) ; multijoueur : le pseudo (site) ou l'avatar (PC) ouvre le panneau. PC et web (`panneauProfil` / `panneau_profil`). Sur PC, pas de voile assombri (Tk ne sait pas faire de transparence) : le panneau se ferme par la croix ou Échap.
+- Tests adaptés : `amis_web.js` (17), `compte_web.js` (16), `test_amis_pc.py` (15).
+
 - Série actuelle du mot du jour en petite pastille 🔥 à droite du pseudo : classement, fiche joueur, et posée sur mon avatar de l'accueil (dessinée dans le même canevas sur PC : pas de cadre) (pas dans « Ton pseudo », demandes de Victor). PC et web.
 - Classement du mot du jour : en-têtes « Mots » (pastille bleue, couleur de la carte Mot du jour) et « Moyenne » ; plus de colonne « série ».
 - Fiche joueur : Mots du jour, Moyenne, Record marathon.

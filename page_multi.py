@@ -496,7 +496,8 @@ class PageAccueil(tk.Frame):
         Icone(h, "retour", lambda: self.controller.controller.creer_menu_accueil()).pack(side="left")
         etiquette(h, "Multijoueur", "texte", 19, gras=True).pack(side="left", padx=16)
         lp = tk.Frame(h, bg=P["fond"]); lp.pack(side="right")
-        Icone(lp, "amis", lambda: self.controller.controller.ecran_amis(self.controller.controller.ouvrir_multi)).pack(side="left", padx=(0, 14))  # 9.2
+        # 9.13 : plus de bouton Amis : l'avatar ouvre le panneau profil + amis
+        Avatar(lp, self.controller.pseudo or "?", 36, lambda: self.controller.controller.panneau_profil()).pack(side="left", padx=(0, 14))
         etiquette(lp, "Pseudo", "texte", 14, P["texte2"]).pack(side="left", padx=(0, 10))
         self.champ_pseudo = Champ(lp, largeur=200, hauteur=42, mono=True, taille=16)
         self.champ_pseudo.set(self.controller.pseudo if self.controller.pseudo != "ANONYME" else "")

@@ -38,10 +38,10 @@ const db = async () => (await (await fetch(BASE + "/__admin.json")).json()) || {
   ok("bandeau partout : « veut être ton ami » (sur l'accueil)", await attendre(A, () => /veut être ton ami/.test(document.querySelector(".bandeau-inv")?.textContent || "")));
   ok("pastille sur le bouton Amis de l'accueil : 2", await attendre(A, () => document.querySelector(".bouton-amis .badge")?.textContent === "2"));
   await clic(A, ".bandeau-inv .inv-oui"); await sleep(1000);
-  for (let i = 0; i < 2; i++) { await ev(A, () => [...document.querySelectorAll(".ami button")].find(x => x.textContent === "Accepter")?.click()); await sleep(900); }
+  for (let i = 0; i < 2; i++) { await ev(A, () => [...document.querySelectorAll(".ti-ami button")].find(x => x.textContent === "Accepter")?.click()); await sleep(900); }
   const dA = await db(), uA = await ev(A, () => FB.uid), uB = await ev(B, () => FB.uid), uC = await ev(C, () => FB.uid);
   ok("acceptées : amis des deux côtés", dA.v7.amis[uA][uB] && dA.v7.amis[uB][uA] && dA.v7.amis[uA][uC] && dA.v7.amis[uC][uA]);
-  ok("liste : Bob et Chloe « En ligne »", await attendre(A, () => [...document.querySelectorAll(".ami")].filter(x => /En ligne/.test(x.textContent)).length === 2, 12000));
+  ok("liste : Bob et Chloe « En ligne »", await attendre(A, () => [...document.querySelectorAll(".ti-ami")].filter(x => /En ligne/.test(x.textContent)).length === 2, 12000));
   // A crée un salon protégé et invite B
   await ev(A, () => multiAccueil()); await sleep(400); await ev(A, () => document.querySelector("button.a-creer").click()); await sleep(400);
   await ev(A, () => { [...document.querySelectorAll(".case")].find(x => x.textContent.includes("Mot de passe")).click(); document.querySelector("input[placeholder='Mot de passe']").value = "chat"; [...document.querySelectorAll("button")].find(x => x.textContent === "Créer le salon").click(); }); await sleep(1500);

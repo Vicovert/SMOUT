@@ -554,14 +554,14 @@ function accueil() {
   ecran(
     h("div.ligne", { style: { justifyContent: "flex-end", gap: "16px", padding: "22px 28px 0" } },
       h("div.t2.version", { style: { marginRight: "auto", fontSize: "14px" } }, `v${VERSION_APP}`),  // 9.9 : numéro de version en haut à gauche
-      boutonAmis(accueil), icone("palette", () => themes(), true, "Thèmes"), icone("stats", () => statistiques(), true, "Statistiques"), h("div.avatar-accueil", {}, avatar(pseudo(), 46, 0, () => changerPseudo()), serieMotDuJour()[0] ? flamme(serieMotDuJour()[0], ".sur-avatar") : null)),  // 9.12 : ma série à côté de l'avatar
+      icone("palette", () => themes(), true, "Thèmes"), icone("stats", () => statistiques(), true, "Statistiques"), h("div.avatar-accueil.bouton-amis", {}, avatar(pseudo(), 46, 0, () => panneauProfil()), serieMotDuJour()[0] ? flamme(serieMotDuJour()[0], ".sur-avatar") : null, h("span.badge.cache"))),  // 9.13 : l'avatar ouvre le panneau profil + amis (pastille rouge : demandes d'amis)  // 9.12 : ma série à côté de l'avatar
     h("div.centre", { style: { flex: 1, justifyContent: "safe center", gap: "12px", padding: "16px 0 28px" } },
       logo(Math.min(88, Math.floor((window.innerWidth - 80) / 5.8)), 14),
       h("div.t2", { style: { fontSize: "19px", margin: "0 0 22px" } }, "Trouvez le mot caché."),
       // Solo et Multijoueur côte à côte, chacun de sa couleur ; le Mot du jour, à part, dessous, d'une troisième couleur
       h("div.menu-ligne", {}, carte("Solo", "Normal, marathon, réglages", menuSolo, null, ".solo"), carte("Multijoueur", "Salons publics ou entre amis", multiAccueil, null, ".multi")),
       h("div.menu-ligne.mdj", {}, carte("Mot du jour", "Un mot, une partie par jour", () => solo("mdj"), badge, ".mdj")), h("div.cl-place")));
-  enAccueil = true; setTimeout(() => MiseAJour.proposer(), 300);
+  enAccueil = true; setTimeout(() => MiseAJour.proposer(), 300); majPastilleAmis();
   placerClassement(classementBloc("mdj"), "droite");  // 9.4
 }
 /* page intermédiaire du solo : titre en tuiles, grand bouton « Jouer », puis Marathon et Paramètres (chacun avec son icône) */
@@ -591,27 +591,76 @@ function placerClassement(b, cote, surLeCote = false) {
   if (surLeCote && window.innerWidth >= 1180 && page) { b.classList.add("cl-cote", "cl-" + cote); page.classList.add("avec-cl", "cl-a-" + cote); page.append(b); }
   else if (place) { b.classList.add("cl-dessous"); place.replaceWith(b); }
 }
-function changerPseudo(apres) {
-  if (typeof apres !== "function") apres = accueil;  // appelée aussi comme gestionnaire de clic
-  const ch = h("input.champ.mono", { maxlength: 10, style: { width: "400px", maxWidth: "80vw" }, value: nettoyerPseudo(lireConfig().pseudo) });
-  // 9.4 : enregistré tout seul à chaque modification (pas de bouton « Enregistrer ») ; la croix ou Entrée ferme
-  const enreg = h("div.t2", { style: { fontSize: "13px", minHeight: "18px", marginTop: "6px" } });
-  ch.addEventListener("input", () => { const v = nettoyerPseudo(ch.value); if (v !== ch.value) ch.value = v; const t = v.trim(); if (t) { majConfig({ pseudo: t }); enreg.textContent = "Enregistré ✓"; } });
-  const ok = () => { o.cacher(); apres(); };
-  ch.addEventListener("keydown", e => e.key === "Enter" && ok());
-  // compte : retrouver son avancement sur tous ses appareils
-  const cfg = lireConfig(), em = cfg.compte_email;
-  const zoneCompte = em
-    ? h("div.col", {}, h("div", { style: { marginTop: "4px" } }, `Connecté : ${em}`),
-        h("div.t2", { style: { fontSize: "13px", margin: "2px 0 12px" } }, "Ton avancement est enregistré sur ce compte et suit sur tous tes appareils."),
-        bouton("Se déconnecter", async () => { if (await confirmer("Se déconnecter ?", "Tu quittes le compte sur cet appareil. Ton avancement reste enregistré sur le compte.", "Se déconnecter")) { Compte.deconnecter(); o.cacher(); apres(); } }, { variante: "discret", largeur: 200, hauteur: 42 }))
-    : h("div.col", {}, cfg.compte_expire ? h("div.gras", { style: { color: "var(--danger)", marginTop: "4px" } }, "Ta session a expiré : reconnecte-toi.") : null,
-        h("div.t2", { style: { fontSize: "13px", margin: "4px 0 12px" } }, "Crée un compte pour retrouver ton avancement (statistiques, série, thèmes, partie en cours) sur tous tes appareils."),
-        bouton("Se connecter ou créer un compte", () => { o.cacher(); ouvrirCompte(apres); }, { variante: "secondaire", largeur: 300, hauteur: 44 }));
-  const o = superposition(h("div.col", {}, h("div.ligne", { style: { justifyContent: "space-between", alignItems: "center" } }, h("div.titre", { style: { fontSize: "28px" } }, "Ton pseudo"), icone("fermer", ok, false, "Fermer")),
-    h("div.t2", { style: { margin: "4px 0 16px" } }, "Il s'affiche pour les autres joueurs en multijoueur."), ch, enreg,
-    h("div", { style: { height: "1px", background: "var(--bordure)", margin: "16px 0 14px" } }), h("div.gras", { style: { fontSize: "17px" } }, "Compte"), zoneCompte), 460);
-  o.montrer();  // 9.4 : pas de focus automatique (le clavier du téléphone ne s'ouvre pas tout seul)
+// 9.13 : panneau sur le côté qui réunit le profil (pseudo, compte) et les amis, ouvert par l'avatar (plus d'écran Amis ni de fenêtre « Ton pseudo »)
+function changerPseudo(apres) { panneauProfil("profil", typeof apres === "function" ? apres : null); }  // (appelée aussi comme gestionnaire de clic)
+function ecranAmis(retour) { panneauProfil("amis", typeof retour === "function" ? retour : null); }
+function panneauProfil(onglet = null, apres = null) {
+  document.querySelector(".tiroir-profil")?.remove();
+  if (!onglet) onglet = Compte.email() && Object.keys(Amis.demandes || {}).length ? "amis" : "profil";
+  let ouvert = true;
+  const fermer = () => { if (!ouvert) return; ouvert = false; v.remove(); clearInterval(minuteur); if (apres) apres(); else if (enAccueil) accueil(); };
+  const corps = h("div.ti-corps");
+  const nomTete = h("div.nom"), sousTete = h("div.s");
+  const tete = h("div.ti-tete", {}, avatar(pseudo(), 52, 0), h("div", { style: { minWidth: 0 } }, nomTete, sousTete), h("span.ti-x", {}, icone("fermer", fermer, false, "Fermer")));
+  const majTete = () => { nomTete.textContent = capitaliser(pseudo()); tete.firstChild.replaceWith(avatar(pseudo(), 52, 0)); };
+  const bProfil = h("button.ti-onglet", { onclick: () => montrer("profil") }, "Profil"), badge = h("span.bd.cache");
+  const bAmis = h("button.ti-onglet", { onclick: () => montrer("amis") }, "Amis", badge);
+  const v = h("div.voile.tiroir-profil", { onclick: e => { if (e.target === v) fermer(); } }, h("div.ti", {}, tete, h("div.ti-onglets", {}, bProfil, bAmis), corps));
+  document.body.append(v); nettoyageEcran.push(() => { ouvert = false; v.remove(); clearInterval(minuteur); });
+  nomTete.textContent = capitaliser(pseudo());
+  if (Compte.email() && FB.uid) FB.get(`profils/${FB.uid}`).then(pr => { const c = pr && pr.cree; if (c && ouvert) sousTete.textContent = "Joueur depuis " + new Date(c).toLocaleDateString("fr-FR", { month: "long", year: "numeric" }); }).catch(() => {});
+  const majBadge = () => { const n = Compte.email() ? Object.keys(Amis.demandes || {}).length : 0; badge.textContent = String(n); badge.classList.toggle("cache", !n); };
+  let dessinerAmis = null;
+  function montrer(o) {
+    onglet = o; bProfil.classList.toggle("on", o === "profil"); bAmis.classList.toggle("on", o === "amis"); majBadge(); dessinerAmis = null;
+    corps.replaceChildren(...(o === "profil" ? contenuProfil() : contenuAmis()).filter(Boolean));
+  }
+  function contenuProfil() {
+    const ch = h("input.champ.mono", { maxlength: 10, style: { width: "100%", height: "48px" }, value: nettoyerPseudo(lireConfig().pseudo) });
+    const enreg = h("div.t2", { style: { fontSize: "12px", minHeight: "16px" } }, "Enregistré automatiquement · 10 caractères au plus");
+    ch.addEventListener("input", () => { const x = nettoyerPseudo(ch.value); if (x !== ch.value) ch.value = x; const t = x.trim(); if (t) { majConfig({ pseudo: t }); enreg.textContent = "Enregistré ✓"; majTete(); } });
+    ch.addEventListener("keydown", e => e.key === "Enter" && fermer());
+    const cfg = lireConfig(), em = cfg.compte_email;
+    const compte = em
+      ? [h("div", { style: { fontSize: "14px" } }, `Connecté : ${em}`), h("div.t2", { style: { fontSize: "12.5px" } }, "Ton avancement est enregistré sur ce compte et suit sur tous tes appareils."),
+         bouton("Se déconnecter", async () => { if (await confirmer("Se déconnecter ?", "Tu quittes le compte sur cet appareil. Ton avancement reste enregistré sur le compte.", "Se déconnecter")) { Compte.deconnecter(); montrer("profil"); } }, { variante: "discret", largeur: 180, hauteur: 40 })]
+      : [cfg.compte_expire ? h("div.gras", { style: { color: "var(--danger)", fontSize: "14px" } }, "Ta session a expiré : reconnecte-toi.") : null,
+         h("div.t2", { style: { fontSize: "12.5px" } }, "Crée un compte pour retrouver ton avancement (statistiques, série, thèmes, partie en cours) sur tous tes appareils, et pour avoir des amis."),
+         bouton("Se connecter ou créer un compte", () => { fermer(); ouvrirCompte(apres || accueil); }, { variante: "secondaire", largeur: 290, hauteur: 42 })];
+    return [h("div.ti-sect", {}, "Pseudo"), ch, enreg, h("div.t2", { style: { fontSize: "12.5px" } }, "Il s'affiche pour les autres joueurs en multijoueur."), h("div.ti-sect", {}, "Compte"), ...compte];
+  }
+  function contenuAmis() {
+    if (!Compte.email()) return [h("div.titre", { style: { fontSize: "20px", marginTop: "6px" } }, "Crée un compte pour avoir des amis"),
+      h("div.t2", { style: { fontSize: "13px" } }, "Les amis suivent ton compte : tu les retrouves sur tous tes appareils."),
+      bouton("Se connecter ou créer un compte", () => { fermer(); ouvrirCompte(apres || accueil); }, { largeur: 290, hauteur: 42 })];
+    const lblCode = h("div.c", {}, Amis.code || "······"), champ = h("input.champ.mono", { placeholder: "CODE AMI", maxlength: 6, style: { flex: 1, minWidth: 0, height: "44px" } });
+    const msg = h("div.gras", { style: { minHeight: "18px", fontSize: "13px" } }), zoneDem = h("div.col", { style: { gap: "4px" } }), zoneAmis = h("div.col", { style: { gap: "4px" } });
+    champ.addEventListener("input", () => { champ.value = champ.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6); });
+    const ajouter = async () => { if (!champ.value) return; msg.style.color = "var(--danger)"; const e = await Amis.ajouter(champ.value);
+      if (e) msg.textContent = e; else { msg.style.color = "var(--succes)"; msg.textContent = "Demande envoyée ✓"; champ.value = ""; dessiner(); } };
+    champ.addEventListener("keydown", e => e.key === "Enter" && ajouter());
+    const ligne = (n, i, st, cls, act) => h("div.ti-ami", {}, avatar(n, 34, i), h("div", { style: { minWidth: 0 } }, h("div.n", {}, capitaliser(n)), h("div.st", {}, h("span.pt." + cls), st)), h("div.act", {}, act));
+    async function dessiner() {
+      if (!Amis.code) await Amis.assurerProfil(); lblCode.textContent = Amis.code || "······";
+      await Amis.charger(); Amis.demandes = await FB.get(`amis_demandes/${FB.uid}`) || {}; majPastilleAmis(); majBadge();
+      if (!ouvert || dessinerAmis !== dessiner) return;
+      const dem = Object.entries(Amis.demandes);
+      zoneDem.replaceChildren(...(dem.length ? [h("div.ti-sect", {}, `Demandes reçues (${dem.length})`), ...dem.map(([u, x], i) => ligne(x.pseudo || "?", i + 2, "veut être ton ami", "off",
+        [bouton("Accepter", async () => { await Amis.accepter(u); dessiner(); }, { largeur: 92 }), bouton("Refuser", async () => { await Amis.refuser(u); dessiner(); }, { variante: "discret", largeur: 86 })]))] : []));
+      const ids = Object.keys(Amis.liste).sort((a, b) => Number(Amis.statut(Amis.profils[b])[2]) - Number(Amis.statut(Amis.profils[a])[2]));
+      zoneAmis.replaceChildren(h("div.ti-sect", {}, `Mes amis (${ids.length})`), ...(ids.length ? ids.map((u, i) => { const p = Amis.profils[u] || {}, [st, cls] = Amis.statut(p);
+        const act = cls === "jeu" ? bouton("Rejoindre", () => { fermer(); rejoindreSalonAmi(p.salon); }, { variante: "discret", largeur: 100 })
+          : M.lobby && cls === "on" ? bouton("Inviter", () => Amis.inviter(u), { largeur: 90 })
+          : h("button.lien.retirer-ami", { style: { color: "var(--texte2)", fontSize: "13px" }, onclick: async () => { if (await confirmer("Retirer cet ami ?", `${capitaliser(p.pseudo || "?")} ne sera plus dans ta liste (et toi plus dans la sienne).`, "Retirer")) { await Amis.retirer(u); dessiner(); } } }, "Retirer");
+        const l = ligne(p.pseudo || "?", i, st, cls, act); l.style.cursor = "pointer"; l.addEventListener("click", e => { if (!e.target.closest("button")) ficheJoueur(u); }); return l; }) : [h("div.t2", { style: { fontSize: "13px" } }, "Pas encore d'amis : donne ton code ou entre le leur.")]));
+    }
+    dessinerAmis = dessiner; dessiner();
+    return [h("div.ti-code.code-ami", {}, h("div", { style: { flex: 1 } }, h("div.ti-sect", { style: { margin: 0 } }, "Mon code ami"), lblCode, h("div.t2", { style: { fontSize: "12px" } }, "Donne-le pour ajouter des amis.")),
+        icone("copier", () => { navigator.clipboard?.writeText(Amis.code); msg.style.color = "var(--succes)"; msg.textContent = "Code copié ✓"; }, true, "Copier")),
+      h("div.ligne.ecran-amis", { style: { gap: "8px" } }, champ, bouton("Ajouter", ajouter, { largeur: 96, hauteur: 44 })), msg, zoneDem, zoneAmis];
+  }
+  const minuteur = setInterval(() => { if (ouvert && dessinerAmis) dessinerAmis(); }, 8000);
+  montrer(onglet);
 }
 // connexion à un compte existant, création d'un compte (le joueur de cet appareil y est rattaché) ou mot de passe oublié
 function ouvrirCompte(apres) {
@@ -1251,8 +1300,8 @@ async function rejoindre(c, motDePasse, silencieux = false, score = null) {
 }
 async function multiAccueil() {
   M.gen++;
-  const puce = h("button.puce-pseudo", { onclick: () => changerPseudo(multiAccueil), title: "Changer de pseudo" },
-    pseudoDefini() ? avatar(pseudo(), 30, 0) : null, h("span", {}, pseudoDefini() ? capitaliser(pseudo()) : "Choisir un pseudo"), h("span.crayon", { html: svg("crayon", 16) }));
+  const puce = h("button.puce-pseudo.bouton-amis", { onclick: () => panneauProfil(null, multiAccueil), title: "Profil et amis" },
+    pseudoDefini() ? avatar(pseudo(), 30, 0) : null, h("span", {}, pseudoDefini() ? capitaliser(pseudo()) : "Choisir un pseudo"), h("span.crayon", { html: svg("crayon", 16) }), h("span.badge.cache"));
   const zoneReprise = h("div");
   function afficherReprise() {
     zoneReprise.innerHTML = ""; const pe = lireConfig().partie_en_cours;
@@ -1266,7 +1315,7 @@ async function multiAccueil() {
     if (!(await rejoindre(pe.code, pe.mdp || "", true, Number(pe.score) || 0))) { M.oublier(); afficherReprise(); informer("Cette partie est terminée ou le salon n'existe plus.", "Partie terminée"); }
   }
   const tuileAction = (cls, t, st, f) => h("button.action." + cls, { onclick: f }, h("div.t", {}, t), h("div.s", {}, st));
-  ecran(h("div.entete", {}, icone("retour", accueil, false, "Retour"), h("div.milieu", { style: { color: "var(--texte)", fontWeight: 600, fontSize: "18px" } }, "Multijoueur"), h("div.ligne", { style: { gap: "10px" } }, boutonAmis(multiAccueil), puce)),
+  ecran(h("div.entete", {}, icone("retour", accueil, false, "Retour"), h("div.milieu", { style: { color: "var(--texte)", fontWeight: 600, fontSize: "18px" } }, "Multijoueur"), h("div.ligne", { style: { gap: "10px" } }, puce)),  // 9.13 : plus de bouton Amis (le pseudo ouvre le panneau profil + amis)
     h("div.centre", { style: { flex: 1, justifyContent: "center", paddingBottom: "60px" } }, h("div", { style: { width: "min(800px, 94vw)" } },
       zoneReprise,
       h("div.actions", {},
@@ -1492,10 +1541,6 @@ function majPastilleAmis() {
   const n = Object.keys(Amis.demandes).length;
   document.querySelectorAll(".bouton-amis .badge").forEach(e => { e.textContent = String(n); e.classList.toggle("cache", !n); });
 }
-function boutonAmis(retour) {
-  const b = h("button.icone.cadre.bouton-amis.cloche", { type: "button", title: "Amis", "aria-label": "Amis", html: svg("amis", 22), onclick: () => ecranAmis(retour) });
-  b.append(h("span.badge.cache")); setTimeout(majPastilleAmis, 0); return b;
-}
 async function demanderMotDePasse(code) {
   return new Promise(fin => {
     const ch = h("input.champ", { type: "password", style: { width: "100%" } }), err = h("div.gras", { style: { color: "var(--danger)", minHeight: "20px", marginTop: "6px", fontSize: "14px" } });
@@ -1526,43 +1571,6 @@ async function rejoindreInvitation(code) {
   }
 }
 // écran Amis : mon code, ajouter par code, demandes reçues, liste avec statut
-async function ecranAmis(retour = accueil) {
-  const gen = ++M.gen;
-  const entete = h("div.entete", {}, icone("retour", () => retour(), false, "Retour"), h("div.milieu", { style: { color: "var(--texte)", fontWeight: 600, fontSize: "18px" } }, "Amis"), h("div", { style: { width: "40px" } }));
-  if (!Compte.email()) {
-    ecran(entete, h("div.centre", {}, h("div.panneau", { style: { width: "min(520px, 92vw)", padding: "26px", marginTop: "30px", textAlign: "center" } }, h("div.titre", { style: { fontSize: "24px" } }, "Crée un compte pour avoir des amis"),
-      h("div.t2", { style: { margin: "8px 0 18px" } }, "Les amis suivent ton compte : tu les retrouves sur tous tes appareils."), bouton("Se connecter ou créer un compte", () => ouvrirCompte(() => ecranAmis(retour)), { largeur: 320 }))));
-    return;
-  }
-  const lblCode = h("div.c", {}, Amis.code || "······"), champ = h("input.champ.mono", { placeholder: "CODE AMI", maxlength: 6, style: { flex: 1, minWidth: 0, height: "48px" } });
-  const msg = h("div.gras", { style: { minHeight: "20px", fontSize: "14px", marginTop: "6px" } }), zoneDem = h("div"), zoneAmis = h("div");
-  champ.addEventListener("input", () => { champ.value = champ.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6); });
-  const ajouter = async () => { if (!champ.value) return; msg.style.color = "var(--danger)"; const e = await Amis.ajouter(champ.value);
-    if (e) msg.textContent = e; else { msg.style.color = "var(--succes)"; msg.textContent = "Demande envoyée ✓"; champ.value = ""; dessiner(); } };
-  champ.addEventListener("keydown", e => e.key === "Enter" && ajouter());
-  ecran(entete, h("div.centre", {}, h("div.ecran-amis", { style: { width: "min(640px, 94vw)", paddingBottom: "30px" } },
-    h("div.code-ami", {}, h("div", { style: { flex: 1 } }, h("div.caps", {}, "Mon code ami"), lblCode, h("div.t2", { style: { fontSize: "13px" } }, "Donne-le pour ajouter des amis.")),
-      icone("copier", () => { navigator.clipboard?.writeText(Amis.code); msg.style.color = "var(--succes)"; msg.textContent = "Code copié ✓"; }, true, "Copier")),
-    h("div.sect", {}, "Ajouter un ami"), h("div.ligne", { style: { gap: "10px" } }, champ, bouton("Ajouter", ajouter, { largeur: 120, hauteur: 48 })), msg,
-    zoneDem, zoneAmis)));
-  const ligne = (n, i, st, cls, act) => h("div.ami", {}, avatar(n, 36, i), h("div", { style: { minWidth: 0 } }, h("div.n", {}, capitaliser(n)), h("div.st", {}, h("span.pt." + cls), st)), h("div.act", {}, act));
-  async function dessiner() {
-    if (!Amis.code) await Amis.assurerProfil(); lblCode.textContent = Amis.code || "······";
-    await Amis.charger(); Amis.demandes = await FB.get(`amis_demandes/${FB.uid}`) || {}; majPastilleAmis();
-    if (gen !== M.gen) return;
-    const dem = Object.entries(Amis.demandes);
-    zoneDem.replaceChildren(...(dem.length ? [h("div.sect", {}, `Demandes reçues (${dem.length})`), ...dem.map(([u, v], i) => ligne(v.pseudo || "?", i + 2, "veut être ton ami", "off",
-      [bouton("Accepter", async () => { await Amis.accepter(u); dessiner(); }, { largeur: 104 }), bouton("Refuser", async () => { await Amis.refuser(u); dessiner(); }, { variante: "discret", largeur: 96 })]))] : []));
-    const ids = Object.keys(Amis.liste).sort((a, b) => Number(Amis.statut(Amis.profils[b])[2]) - Number(Amis.statut(Amis.profils[a])[2]));
-    zoneAmis.replaceChildren(h("div.sect", {}, `Mes amis (${ids.length})`), ...(ids.length ? ids.map((u, i) => { const p = Amis.profils[u] || {}, [st, cls] = Amis.statut(p);
-      const act = cls === "jeu" ? bouton("Rejoindre", () => rejoindreSalonAmi(p.salon), { variante: "discret", largeur: 110 })
-        : M.lobby && cls === "on" ? bouton("Inviter", () => Amis.inviter(u), { largeur: 100 })
-        : h("button.lien.retirer-ami", { style: { color: "var(--texte2)", fontSize: "14px" }, onclick: async () => { if (await confirmer("Retirer cet ami ?", `${capitaliser(p.pseudo || "?")} ne sera plus dans ta liste (et toi plus dans la sienne).`, "Retirer")) { await Amis.retirer(u); dessiner(); } } }, "Retirer");
-      const l = ligne(p.pseudo || "?", i, st, cls, act); l.style.cursor = "pointer"; l.addEventListener("click", e => { if (!e.target.closest("button")) ficheJoueur(u); }); return l; }) : [h("div.t2", { style: { fontSize: "14px" } }, "Pas encore d'amis : donne ton code ou entre le leur.")]));
-  }
-  await dessiner();
-  const t = setInterval(() => { if (gen === M.gen) dessiner(); }, 8000); nettoyageEcran.push(() => clearInterval(t));
-}
 async function rejoindreSalonAmi(code) {  // salon d'un ami : comme avec le code (demande à l'hôte si la partie a commencé)
   if (!code) return; const idx = await FB.get(`index/${code}`) || {};
   let mdp = ""; if (idx.prive) { mdp = await demanderMotDePasse(code); if (mdp === null) return; }
