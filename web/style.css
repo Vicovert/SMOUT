@@ -476,6 +476,6 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 .flamme.zero { color: var(--texte2); background: var(--tuile); font-weight: 600; }
 .flamme.grande { font-size: 16px; padding: 2px 10px; margin-left: 8px; vertical-align: 4px; }
 
-.avatar-accueil { display: flex; align-items: center; gap: 8px; flex-direction: row-reverse; }
-.flamme.sur-avatar { margin: 0; }
+.avatar-accueil { position: relative; }
+.flamme.sur-avatar { position: absolute; right: -12px; bottom: -8px; margin: 0; background: var(--panneau); border: 1.5px solid var(--mal); padding: 0 6px; pointer-events: none; }
 .p-mots { background: color-mix(in srgb, #4CC9F0 20%, transparent); color: #4CC9F0; }

@@ -434,10 +434,15 @@ class Icone(tk.Canvas):
             if self.nom == "plus": self.create_line(m, m - 8*k, m, m + 8*k, fill=c, width=w * 1.2, capstyle="round")
 
 
+_IMAGES = {}
+
+
 class Avatar(tk.Canvas):
     COULEURS = ["#F5B83D", "#8FB3FF", "#7ED6A8", "#F2A1C5", "#C4A7FF", "#FFB38A", "#7FD8F0", "#D6E58A"]
-    def __init__(self, parent, nom, taille=44, commande=None, index=0, vide=False):
-        super().__init__(parent, width=taille, height=taille, bg=fond_parent(parent), highlightthickness=0, cursor="hand2" if commande else "")
+    def __init__(self, parent, nom, taille=44, commande=None, index=0, vide=False, serie=0):
+        # 9.12 : serie > 0 → pastille 🔥 posée sur le rond, en bas à droite (dessinée dans le même canevas : pas de cadre autour)
+        self.serie = serie; self.marge = (16, 10) if serie else (0, 0)
+        super().__init__(parent, width=taille + self.marge[0], height=taille + self.marge[1], bg=fond_parent(parent), highlightthickness=0, cursor="hand2" if commande else "")
         self.t, self.vide = taille, vide
         if commande: self.bind("<ButtonRelease-1>", lambda e: commande())
         self.set_nom(nom, index)
@@ -448,6 +453,18 @@ class Avatar(tk.Canvas):
         coul = self.COULEURS[index % len(self.COULEURS)]
         self.create_oval(1, 1, t - 1, t - 1, fill=coul, outline="")
         self.create_text(t / 2, t / 2, text=(nom or "?")[:1].upper(), fill="#16130a", font=police("texte", t * 0.42, True))
+        if self.serie:
+            import tkinter.font as tkfont
+            f = police("chiffres", 12, True); txt = str(self.serie)
+            try:
+                if "flamme" not in _IMAGES: _IMAGES["flamme"] = tk.PhotoImage(file=resource_path(os.path.join("fichiers", "flamme14.png")))
+                img = _IMAGES["flamme"]
+            except Exception: img = None
+            w = tkfont.Font(font=f).measure(txt) + (32 if img else 18); h = 20
+            x2, y2 = t + self.marge[0] - 1, t + self.marge[1] - 1; x1, y1 = x2 - w, y2 - h
+            arrondi(self, x1, y1, x2, y2, h / 2, fill=P["panneau"], outline=P["mal"], width=1.5)
+            if img: self.create_image(x1 + 7, (y1 + y2) / 2, image=img, anchor="w"); self.create_text(x2 - 7, (y1 + y2) / 2, text=txt, font=f, fill=P["mal"], anchor="e")
+            else: self.create_text((x1 + x2) / 2, (y1 + y2) / 2, text="🔥 " + txt, font=f, fill=P["mal"])
 
 
 class Logo(tk.Canvas):
