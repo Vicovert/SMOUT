@@ -70,7 +70,7 @@ const res = []; const ok = (nom, c, info = "") => { res.push(!!c); console.log((
   await p.evaluate(() => [...document.querySelectorAll(".carte-theme")].find(x => x.textContent.includes("Sakura")).click()); await sleep(300);
   ok("téléphone : choisir un thème ne ramène pas en haut", await p.evaluate(() => window.scrollY > 800 && /sakura/i.test(document.querySelector(".theme-apercu").innerText)));
   await p.evaluate(() => accueil()); await sleep(100);
-  await p.tap(".avatar"); await sleep(200); ok("téléphone : l'avatar ouvre le pseudo", (await texte(p)).includes("Ton pseudo"));
+  await p.tap(".avatar"); await sleep(200); ok("téléphone : l'avatar ouvre le panneau profil (9.13)", await p.evaluate(() => !!document.querySelector(".tiroir-profil input.champ")));
   // téléphone : nouveaux écrans
   for (const [l, hh] of [[360, 640], [390, 844]]) {
     await p.setViewport({ width: l, height: hh, isMobile: true, hasTouch: true });
