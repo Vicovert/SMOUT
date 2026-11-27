@@ -115,7 +115,7 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 .touche.mal { background: var(--mal); color: var(--sur-mal); }
 .touche.absent { background: var(--vide); color: var(--texte-absent); }
 .touche.large { flex: 2 1 0; font-family: var(--f-texte); font-weight: 600; font-size: calc(22px * var(--kz, 1)); }
-.touche.valider { background: var(--mal); color: var(--sur-mal); }
+.touche.valider { background: var(--valider); color: var(--sur-valider); }  /* 9.14 : couleur adaptée au thème, jamais celle d'une lettre */
 
 /* Formulaires */
 .champ { height: 52px; border-radius: 12px; background: var(--panneau); border: 1px solid var(--bordure); color: var(--texte); padding: 0 18px; font-size: 17px; font-family: var(--f-texte); outline: none; }
@@ -501,3 +501,13 @@ svg { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; 
 .ti-ami { display: flex; align-items: center; gap: 10px; padding: 6px 0; } .ti-ami .n { font-weight: 600; color: var(--texte); font-size: 14px; } .ti-ami .st { font-size: 12px; color: var(--texte2); }
 .ti-ami .act { margin-left: auto; display: flex; gap: 6px; align-items: center; } .ti .btn { height: 34px; font-size: 13px; }
 .ti-ami .pt { display: inline-block; width: 8px; height: 8px; border-radius: 4px; margin-right: 5px; } .ti-ami .pt.on { background: var(--succes); } .ti-ami .pt.jeu { background: var(--mal); } .ti-ami .pt.off { background: var(--texte2); }
+/* 9.14 : pseudo enregistré par un petit bouton ; bulle « déjà pris » dans la zone du pseudo ; déconnexion en icône rouge */
+.zone-pseudo { position: relative; }
+.btn-enr-pseudo { width: 48px; height: 48px; flex: none; border: 0; border-radius: 12px; background: var(--mal); color: var(--sur-mal); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.btn-enr-pseudo svg, .btn-deconnexion svg { stroke: currentColor; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.btn-enr-pseudo:disabled { opacity: .5; }
+.bulle-pseudo { position: absolute; left: 10px; top: calc(100% + 8px); z-index: 2; background: var(--danger); color: #fff; font: 700 12.5px var(--f-texte); padding: 5px 10px; border-radius: 8px; white-space: nowrap; box-shadow: 0 6px 18px rgba(0,0,0,.35); pointer-events: none; }
+.bulle-pseudo::after { content: ""; position: absolute; left: 16px; top: -6px; border: 6px solid transparent; border-top: 0; border-bottom-color: var(--danger); }
+.bulle-pseudo.ok { background: var(--succes); color: #0b1a10; } .bulle-pseudo.ok::after { border-bottom-color: var(--succes); }
+.bulle-pseudo.cache { display: none; }
+.btn-deconnexion { width: 40px; height: 40px; flex: none; border: 1.5px solid color-mix(in srgb, var(--danger) 50%, transparent); border-radius: 10px; background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); display: flex; align-items: center; justify-content: center; cursor: pointer; }

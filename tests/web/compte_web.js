@@ -41,7 +41,7 @@ const db = async () => (await (await fetch(BASE + "/__admin.json")).json()) || {
   const enr = JSON.parse((((await db()).v7.comptes || {})[uidA] || {}).donnees || "{}");
   ok("avancement envoyé au compte", enr.pseudo === "ALICE" && enr.stats && enr.stats.solo.parties === 5, JSON.stringify(enr).slice(0, 160));
   await ev(a, () => changerPseudo()); await sleep(200);
-  ok("pseudo : « Connecté : adresse » et « Se déconnecter »", await ev(a, m => document.body.innerText.includes("Connecté : " + m), MAIL) && await ev(a, () => [...document.querySelectorAll("button")].some(x => x.textContent === "Se déconnecter")));
+  ok("pseudo : « Connecté : adresse » et l'icône « Se déconnecter »", await ev(a, m => document.body.innerText.includes("Connecté : " + m), MAIL) && await ev(a, () => !!document.querySelector('button[aria-label="Se déconnecter"]')));
   await ev(a, () => document.querySelector('.voile:not(.cache) button[aria-label="Fermer"]')?.click());
 
   // appareil B : erreurs, puis connexion

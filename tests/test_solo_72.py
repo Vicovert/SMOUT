@@ -91,13 +91,11 @@ ok("mot du jour terminé : plus rien à reprendre", not D.lire_config().get("mdj
 D.maj_config(last_mdj="")
 app.ouvrir_solo(True); pump(); j = jeu(); taper(j, j.mot); pump(0.3)
 app.ouvrir_stats(); pump(); capture("stats"); ok("écran statistiques", True)
-# --- daltonien
+# --- 9.14 : plus de mode daltonien (option retirée ; un ancien réglage n'a plus d'effet)
+D.maj_config(daltonien=True); app.apply_theme(app.current_theme_name, save=False)
 app.ouvrir_parametres(); pump(); p = app.container.winfo_children()[0]
-p.i_dalt.basculer(); p.save(); pump()
-ok("daltonien : couleurs orange/bleu", D.P["bien"].upper() == "#F5793A" and D.P["mal"].upper() == "#85C0F9", D.P["bien"])
-app.ouvrir_solo(False); pump(); j = jeu(); taper(j, [m for m in sorted(j.controller.banque_verif) if len(m) == len(j.mot) and m[0] == j.mot[0] and m != j.mot][0]); capture("daltonien")
-app.ouvrir_parametres(); pump(); p = app.container.winfo_children()[0]; p.i_dalt.basculer(); p.save(); pump()
-ok("daltonien désactivé", D.P["bien"].upper() != "#F5793A")
+ok("plus d'option daltonien dans les paramètres", not hasattr(p, "i_dalt") and D.P["bien"].upper() != "#F5793A", D.P["bien"])
+p.save(); pump(); ok("ancien réglage daltonien remis à zéro", not D.lire_config().get("daltonien"))
 # fenêtre plus petite
 app.geometry("1000x700"); pump(0.5); app.creer_menu_accueil(); pump(0.5); capture("accueil_petit")
 print(f"{sum(res)}/{len(res)} conformes"); app.destroy()

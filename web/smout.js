@@ -75,12 +75,22 @@ function calculerPalette(t) {
   p.danger = sombre ? "#F28B8B" : "#B42318"; p.succes = sombre ? "#4ADE80" : "#15803D";
   p.ombre_bien = eclaircir(p.bien, 0.72); p.ombre_mal = eclaircir(p.mal, 0.72);
   p.survol = melanger(p.panneau, texte, 0.06); p.sombre = sombre;
+  p.valider = couleurValider(p); p.sur_valider = contraste(p.valider);
   return p;
+}
+// 9.14 : couleur de la touche « Valider » du clavier, adaptée au thème : la teinte la plus éloignée de celles des lettres bien placées,
+// mal placées et absentes, bien visible sur le fond (identique à couleur_valider de design.py)
+function couleurValider(p) {
+  const evitees = [];
+  for (const k of ["bien", "mal", "absent"]) { const [h, l, s] = rgbToHls(...hexRgb(p[k]).map(v => v / 255)); if (s > 0.25 && l > 0.12 && l < 0.92) evitees.push(h * 360); }
+  let meilleure = 0, ecart = -1;
+  for (let t = 0; t < 360; t += 5) { const d = evitees.length ? Math.min(...evitees.map(e => Math.min(Math.abs(t - e), 360 - Math.abs(t - e)))) : 180; if (d > ecart) { meilleure = t; ecart = d; } }
+  return rgbHex(hlsToRgb(meilleure / 360, p.sombre ? 0.6 : 0.42, 0.7).map(v => v * 255));
 }
 let P = {};
 const PALETTE_DALTONIEN = ["#F5793A", "#85C0F9"];  // orange = bien placée, bleu = mal placée (identique à design.py)
 function appliquerTheme(nom) {
-  let t = THEMES[nom]; if (lireConfig().daltonien) t = Object.assign({}, t, { accent1: PALETTE_DALTONIEN[0], accent2: PALETTE_DALTONIEN[1] });
+  let t = THEMES[nom];  // 9.14 : plus de mode daltonien
   P = calculerPalette(t);
   const r = document.documentElement.style;
   for (const [k, v] of Object.entries(P)) if (typeof v === "string") r.setProperty("--" + k.replace(/_/g, "-"), v);
@@ -338,7 +348,7 @@ const SVG = {
   rafraichir: '<path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/>',
   plus: '<path d="M12 5v14M5 12h14"/>', moins: '<path d="M5 12h14"/>',
   engrenage: '<circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>', jouer: '<path d="M8 5l11 7-11 7z"/>', infini: '<path d="M5 12c0-2.5 1.8-4 3.8-4 3.5 0 3.5 8 7.2 8 2 0 3-1.7 3-4s-1-4-3-4c-3.7 0-3.7 8-7.2 8-2 0-3.8-1.5-3.8-4z"/>',
-  chevron: '<path d="M9 6l6 6-6 6"/>', check: '<path d="M5 12l5 5 9-10"/>',
+  chevron: '<path d="M9 6l6 6-6 6"/>', check: '<path d="M5 12l5 5 9-10"/>', deconnexion: '<path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4"/><path d="M15 16l4-4-4-4"/><path d="M19 12H9"/>',
   couronne: '<path d="M3 18h18l-2-10-5 5-2-7-2 7-5-5z"/>',
   cloche: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>', fermer: '<path d="M6 6l12 12M18 6L6 18"/>',
   amis: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.2c2.8.3 5 2.7 5 5.8"/>',
@@ -596,7 +606,7 @@ function changerPseudo(apres) { panneauProfil("profil", typeof apres === "functi
 function ecranAmis(retour) { panneauProfil("amis", typeof retour === "function" ? retour : null); }
 function panneauProfil(onglet = null, apres = null) {
   document.querySelector(".tiroir-profil")?.remove();
-  if (!onglet) onglet = Compte.email() && Object.keys(Amis.demandes || {}).length ? "amis" : "profil";
+  if (!onglet) onglet = "amis";  // 9.14 : le panneau s'ouvre sur les amis
   let ouvert = true;
   const fermer = () => { if (!ouvert) return; ouvert = false; v.remove(); clearInterval(minuteur); if (apres) apres(); else if (enAccueil) accueil(); };
   const corps = h("div.ti-corps");
@@ -605,45 +615,63 @@ function panneauProfil(onglet = null, apres = null) {
   const majTete = () => { nomTete.textContent = capitaliser(pseudo()); tete.firstChild.replaceWith(avatar(pseudo(), 52, 0)); };
   const bProfil = h("button.ti-onglet", { onclick: () => montrer("profil") }, "Profil"), badge = h("span.bd.cache");
   const bAmis = h("button.ti-onglet", { onclick: () => montrer("amis") }, "Amis", badge);
-  const v = h("div.voile.tiroir-profil", { onclick: e => { if (e.target === v) fermer(); } }, h("div.ti", {}, tete, h("div.ti-onglets", {}, bProfil, bAmis), corps));
+  const v = h("div.voile.tiroir-profil", { onclick: e => { if (e.target === v) fermer(); } }, h("div.ti", {}, tete, h("div.ti-onglets", {}, bAmis, bProfil), corps));
   document.body.append(v); nettoyageEcran.push(() => { ouvert = false; v.remove(); clearInterval(minuteur); });
   nomTete.textContent = capitaliser(pseudo());
   if (Compte.email() && FB.uid) FB.get(`profils/${FB.uid}`).then(pr => { const c = pr && pr.cree; if (c && ouvert) sousTete.textContent = "Joueur depuis " + new Date(c).toLocaleDateString("fr-FR", { month: "long", year: "numeric" }); }).catch(() => {});
-  const majBadge = () => { const n = Compte.email() ? Object.keys(Amis.demandes || {}).length : 0; badge.textContent = String(n); badge.classList.toggle("cache", !n); };
+  const majBadge = () => { const n = notificationsAmis(); badge.textContent = String(n); badge.classList.toggle("cache", !n); };
   let dessinerAmis = null;
   function montrer(o) {
     onglet = o; bProfil.classList.toggle("on", o === "profil"); bAmis.classList.toggle("on", o === "amis"); majBadge(); dessinerAmis = null;
     corps.replaceChildren(...(o === "profil" ? contenuProfil() : contenuAmis()).filter(Boolean));
   }
   function contenuProfil() {
-    const ch = h("input.champ.mono", { maxlength: 10, style: { width: "100%", height: "48px" }, value: nettoyerPseudo(lireConfig().pseudo) });
-    const enreg = h("div.t2", { style: { fontSize: "12px", minHeight: "16px" } }, "Enregistré automatiquement · 10 caractères au plus");
-    ch.addEventListener("input", () => { const x = nettoyerPseudo(ch.value); if (x !== ch.value) ch.value = x; const t = x.trim(); if (t) { majConfig({ pseudo: t }); enreg.textContent = "Enregistré ✓"; majTete(); } });
-    ch.addEventListener("keydown", e => e.key === "Enter" && fermer());
+    // 9.14 : petit bouton pour enregistrer le pseudo (plus d'enregistrement automatique) ; deux joueurs ne peuvent pas avoir le même pseudo
+    const ch = h("input.champ.mono", { maxlength: 10, style: { flex: 1, minWidth: 0, height: "48px" }, value: nettoyerPseudo(lireConfig().pseudo) });
+    const bulle = h("div.bulle-pseudo.cache");
+    const dire = (t, ok) => { bulle.textContent = t; bulle.classList.toggle("ok", !!ok); bulle.classList.remove("cache"); clearTimeout(dire.t); dire.t = setTimeout(() => bulle.classList.add("cache"), ok ? 1600 : 3500); };
+    const enregistrer = async () => {
+      const t = nettoyerPseudo(ch.value).trim(); if (!t) return dire("Choisis un pseudo.");
+      if (t === pseudo() && lireConfig().pseudo_reserve === t) return dire("Enregistré ✓", true);
+      bEnr.disabled = true; const err = await Pseudos.reserver(t); bEnr.disabled = false;
+      if (err) return dire(err);
+      majTete(); dire("Enregistré ✓", true);
+    };
+    ch.addEventListener("input", () => { const x = nettoyerPseudo(ch.value); if (x !== ch.value) ch.value = x; bulle.classList.add("cache"); });
+    ch.addEventListener("keydown", e => e.key === "Enter" && enregistrer());
+    const bEnr = h("button.btn-enr-pseudo", { onclick: enregistrer, title: "Enregistrer le pseudo", "aria-label": "Enregistrer le pseudo", html: svg("check", 22) });
     const cfg = lireConfig(), em = cfg.compte_email;
     const compte = em
-      ? [h("div", { style: { fontSize: "14px" } }, `Connecté : ${em}`), h("div.t2", { style: { fontSize: "12.5px" } }, "Ton avancement est enregistré sur ce compte et suit sur tous tes appareils."),
-         bouton("Se déconnecter", async () => { if (await confirmer("Se déconnecter ?", "Tu quittes le compte sur cet appareil. Ton avancement reste enregistré sur le compte.", "Se déconnecter")) { Compte.deconnecter(); montrer("profil"); } }, { variante: "discret", largeur: 180, hauteur: 40 })]
+      ? [h("div.ligne", { style: { gap: "10px", alignItems: "center" } }, h("div", { style: { fontSize: "14px", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" } }, `Connecté : ${em}`),
+          h("button.btn-deconnexion", { title: "Se déconnecter", "aria-label": "Se déconnecter", html: svg("deconnexion", 22),
+            onclick: async () => { if (await confirmer("Se déconnecter ?", "Tu quittes le compte sur cet appareil. Ton avancement reste enregistré sur le compte.", "Se déconnecter")) { Compte.deconnecter(); montrer("profil"); } } }))]
       : [cfg.compte_expire ? h("div.gras", { style: { color: "var(--danger)", fontSize: "14px" } }, "Ta session a expiré : reconnecte-toi.") : null,
          h("div.t2", { style: { fontSize: "12.5px" } }, "Crée un compte pour retrouver ton avancement (statistiques, série, thèmes, partie en cours) sur tous tes appareils, et pour avoir des amis."),
          bouton("Se connecter ou créer un compte", () => { fermer(); ouvrirCompte(apres || accueil); }, { variante: "secondaire", largeur: 290, hauteur: 42 })];
-    return [h("div.ti-sect", {}, "Pseudo"), ch, enreg, h("div.t2", { style: { fontSize: "12.5px" } }, "Il s'affiche pour les autres joueurs en multijoueur."), h("div.ti-sect", {}, "Compte"), ...compte];
+    return [h("div.ti-sect", {}, "Pseudo"), h("div.zone-pseudo", {}, h("div.ligne", { style: { gap: "8px" } }, ch, bEnr), bulle), h("div.ti-sect", {}, "Compte"), ...compte];
   }
   function contenuAmis() {
     if (!Compte.email()) return [h("div.titre", { style: { fontSize: "20px", marginTop: "6px" } }, "Crée un compte pour avoir des amis"),
       h("div.t2", { style: { fontSize: "13px" } }, "Les amis suivent ton compte : tu les retrouves sur tous tes appareils."),
       bouton("Se connecter ou créer un compte", () => { fermer(); ouvrirCompte(apres || accueil); }, { largeur: 290, hauteur: 42 })];
     const lblCode = h("div.c", {}, Amis.code || "······"), champ = h("input.champ.mono", { placeholder: "CODE AMI", maxlength: 6, style: { flex: 1, minWidth: 0, height: "44px" } });
-    const msg = h("div.gras", { style: { minHeight: "18px", fontSize: "13px" } }), zoneDem = h("div.col", { style: { gap: "4px" } }), zoneAmis = h("div.col", { style: { gap: "4px" } });
+    const msg = h("div.gras", { style: { minHeight: "18px", fontSize: "13px" } }), zoneInv = h("div.col", { style: { gap: "4px" } }), zoneDem = h("div.col", { style: { gap: "4px" } }), zoneAmis = h("div.col", { style: { gap: "4px" } });
     champ.addEventListener("input", () => { champ.value = champ.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6); });
     const ajouter = async () => { if (!champ.value) return; msg.style.color = "var(--danger)"; const e = await Amis.ajouter(champ.value);
       if (e) msg.textContent = e; else { msg.style.color = "var(--succes)"; msg.textContent = "Demande envoyée ✓"; champ.value = ""; dessiner(); } };
     champ.addEventListener("keydown", e => e.key === "Enter" && ajouter());
-    const ligne = (n, i, st, cls, act) => h("div.ti-ami", {}, avatar(n, 34, i), h("div", { style: { minWidth: 0 } }, h("div.n", {}, capitaliser(n)), h("div.st", {}, h("span.pt." + cls), st)), h("div.act", {}, act));
+    let series = {};  // 9.14 : série du mot du jour de chaque ami (🔥 à côté du pseudo)
+    const ligne = (n, i, st, cls, act, u) => h("div.ti-ami", {}, avatar(n, 34, i), h("div", { style: { minWidth: 0 } }, h("div.n", {}, capitaliser(n), u && series[u] ? flamme(series[u]) : null), h("div.st", {}, h("span.pt." + cls), st)), h("div.act", {}, act));
     async function dessiner() {
       if (!Amis.code) await Amis.assurerProfil(); lblCode.textContent = Amis.code || "······";
-      await Amis.charger(); Amis.demandes = await FB.get(`amis_demandes/${FB.uid}`) || {}; majPastilleAmis(); majBadge();
+      await Amis.charger(); Amis.demandes = await FB.get(`amis_demandes/${FB.uid}`) || {};
+      { const iv = await FB.get(`invitations/${FB.uid}`) || {}, now = FB.maintenant() * 1000; Amis.invitations = Object.fromEntries(Object.entries(iv).filter(([, x]) => x && now - (x.t || 0) < 10 * 60000)); }
+      majPastilleAmis(); majBadge();
+      try { series = Object.fromEntries((await Classements.lire("mdj")).map(e => [e.uid, e.actuelle])); } catch (e) {}
       if (!ouvert || dessinerAmis !== dessiner) return;
+      const inv = invitationsRecues();  // 9.14 : invitations à rejoindre une partie
+      zoneInv.replaceChildren(...(inv.length ? [h("div.ti-sect", {}, `Invitations (${inv.length})`), ...inv.map(([c, x], i) => ligne(x.pseudo || "?", i + 4, `t'invite · salon ${c}`, "jeu",
+        [bouton("Rejoindre", () => { fermer(); rejoindreInvitation(c); }, { largeur: 92 }), bouton("Ignorer", () => { Amis.vues.add("i" + c); delete Amis.invitations[c]; FB.ok("DELETE", `invitations/${FB.uid}/${c}`); majPastilleAmis(); dessiner(); }, { variante: "discret", largeur: 86 })]))] : []));
       const dem = Object.entries(Amis.demandes);
       zoneDem.replaceChildren(...(dem.length ? [h("div.ti-sect", {}, `Demandes reçues (${dem.length})`), ...dem.map(([u, x], i) => ligne(x.pseudo || "?", i + 2, "veut être ton ami", "off",
         [bouton("Accepter", async () => { await Amis.accepter(u); dessiner(); }, { largeur: 92 }), bouton("Refuser", async () => { await Amis.refuser(u); dessiner(); }, { variante: "discret", largeur: 86 })]))] : []));
@@ -652,12 +680,12 @@ function panneauProfil(onglet = null, apres = null) {
         const act = cls === "jeu" ? bouton("Rejoindre", () => { fermer(); rejoindreSalonAmi(p.salon); }, { variante: "discret", largeur: 100 })
           : M.lobby && cls === "on" ? bouton("Inviter", () => Amis.inviter(u), { largeur: 90 })
           : h("button.lien.retirer-ami", { style: { color: "var(--texte2)", fontSize: "13px" }, onclick: async () => { if (await confirmer("Retirer cet ami ?", `${capitaliser(p.pseudo || "?")} ne sera plus dans ta liste (et toi plus dans la sienne).`, "Retirer")) { await Amis.retirer(u); dessiner(); } } }, "Retirer");
-        const l = ligne(p.pseudo || "?", i, st, cls, act); l.style.cursor = "pointer"; l.addEventListener("click", e => { if (!e.target.closest("button")) ficheJoueur(u); }); return l; }) : [h("div.t2", { style: { fontSize: "13px" } }, "Pas encore d'amis : donne ton code ou entre le leur.")]));
+        const l = ligne(p.pseudo || "?", i, st, cls, act, u); l.style.cursor = "pointer"; l.addEventListener("click", e => { if (!e.target.closest("button")) ficheJoueur(u); }); return l; }) : [h("div.t2", { style: { fontSize: "13px" } }, "Pas encore d'amis : donne ton code ou entre le leur.")]));
     }
     dessinerAmis = dessiner; dessiner();
-    return [h("div.ti-code.code-ami", {}, h("div", { style: { flex: 1 } }, h("div.ti-sect", { style: { margin: 0 } }, "Mon code ami"), lblCode, h("div.t2", { style: { fontSize: "12px" } }, "Donne-le pour ajouter des amis.")),
+    return [h("div.ti-code.code-ami", {}, h("div", { style: { flex: 1 } }, h("div.ti-sect", { style: { margin: 0 } }, "Mon code ami"), lblCode),
         icone("copier", () => { navigator.clipboard?.writeText(Amis.code); msg.style.color = "var(--succes)"; msg.textContent = "Code copié ✓"; }, true, "Copier")),
-      h("div.ligne.ecran-amis", { style: { gap: "8px" } }, champ, bouton("Ajouter", ajouter, { largeur: 96, hauteur: 44 })), msg, zoneDem, zoneAmis];
+      h("div.ligne.ecran-amis", { style: { gap: "8px" } }, champ, bouton("Ajouter", ajouter, { largeur: 96, hauteur: 44 })), msg, zoneInv, zoneDem, zoneAmis];
   }
   const minuteur = setInterval(() => { if (ouvert && dessinerAmis) dessinerAmis(); }, 8000);
   montrer(onglet);
@@ -936,15 +964,15 @@ function parametres() {
   const c = configSolo(), cf = lireConfig();
   const cE = tuileReglage("Essais", 4, 8, c.nb_essais, null), cL = tuileReglage("Longueur des mots", 6, 10, [c.nb_lettres_min, c.nb_lettres_max], null, { plage: true });
   const cZ = tuileReglage("Taille de la grille", 60, 160, Math.round(lireZoom() * 100), null, { pas: 10, fmt: v => `${v} %` });
-  const cDiff = caseACocher("Mode difficile (lettres trouvées obligatoires)", !!c.difficile), cDalt = caseACocher("Mode daltonien (orange et bleu)", !!cf.daltonien);
+  const cDiff = caseACocher("Mode difficile (lettres trouvées obligatoires)", !!c.difficile);  // 9.14 : plus de mode daltonien
   ecran(entete("", menuSolo), h("div.centre.page-parametres", {},
     h("div.titre", { style: { fontSize: "46px", textAlign: "center" } }, "Paramètres"),
-    h("div.t2", { style: { fontSize: "16px", margin: "4px 0 20px", textAlign: "center" } }, "Parties normales et marathon · le mot du jour se joue toujours en 7 essais."),
+    h("div", { style: { height: "16px" } }),  // 9.14 : plus de « le mot du jour se joue toujours en 7 essais »
     h("div.panneau", { style: { padding: "26px", width: "min(652px, 100%)" } },
       h("div.caps.section", {}, "Partie"), h("div.grille-reglages.deux", {}, cE, cZ, cL),
-      h("div.caps.section", { style: { marginTop: "20px" } }, "Options"), cDiff, h("div", { style: { height: "10px" } }), cDalt,
+      h("div.caps.section", { style: { marginTop: "20px" } }, "Options"), cDiff,
       h("div", { style: { height: "22px" } }), bouton("Enregistrer", () => {
-        majConfig({ nb_essais: cE.valeur, nb_lettres_min: cL.vmin, nb_lettres_max: cL.vmax, difficile: cDiff.valeur, daltonien: cDalt.valeur, user_zoom: cZ.valeur / 100 });
+        majConfig({ nb_essais: cE.valeur, nb_lettres_min: cL.vmin, nb_lettres_max: cL.vmax, difficile: cDiff.valeur, daltonien: false, user_zoom: cZ.valeur / 100 });
         appliquerTheme(themeActuel); menuSolo(); }, { grand: true, largeur: 600 }))));
 }
 // taille de la grille choisie par le joueur (commune au solo et au multijoueur)
@@ -1089,7 +1117,7 @@ const FB = {
     try {
       const t = await this.jeton(); if (!t) return { ok: false };
       // 9.1 : un spectateur n'écrit rien dans la partie (seulement sa fiche de spectateur, ses demandes, son horloge, son compte)
-      if (method !== "GET" && typeof M !== "undefined" && M.spectateur && !/^(horloge|comptes|demandes|profils|amis|amis_demandes|invitations|codes_amis)\/|\/spectateurs\//.test(path)) return { ok: false };
+      if (method !== "GET" && typeof M !== "undefined" && M.spectateur && !/^(horloge|comptes|demandes|profils|amis|amis_demandes|invitations|codes_amis|pseudos)\/|\/spectateurs\//.test(path)) return { ok: false };
       const avant = Date.now();
       const r = await fetch(`${FIREBASE_URL}${RACINE}/${path}.json?auth=${t}`, { method, keepalive, headers: { "Content-Type": "application/json" }, body: data === undefined ? undefined : JSON.stringify(data) });
       let j = null; try { j = await r.json(); } catch (e) {}
@@ -1282,6 +1310,11 @@ function barreHaut(onRetour, droite = "") {
 /* ---------- Multijoueur : créer ou rejoindre */
 const pseudoDefini = () => pseudo() && pseudo() !== "ANONYME";
 const pseudoOk = retour => { if (pseudoDefini()) return true; changerPseudo(retour); return false; };
+// 9.14 : avant de créer ou rejoindre un salon, le pseudo ne doit pas être réservé par un autre joueur
+async function pseudoLibreOuProfil(retour) {
+  if (await Pseudos.libre(pseudo())) return true;
+  await informer(`Le pseudo « ${capitaliser(pseudo())} » est déjà pris : choisis-en un autre dans ton profil.`, "Pseudo déjà pris"); changerPseudo(retour); return false;
+}
 async function rejoindre(c, motDePasse, silencieux = false, score = null) {
   const joueur = { name: pseudo(), score: score || 0, last_seen: SV, arrivee: SV }; const preuve = await preuveSalon(c, motDePasse);
   if (preuve) joueur.preuve = preuve;
@@ -1319,8 +1352,8 @@ async function multiAccueil() {
     h("div.centre", { style: { flex: 1, justifyContent: "center", paddingBottom: "60px" } }, h("div", { style: { width: "min(800px, 94vw)" } },
       zoneReprise,
       h("div.actions", {},
-        tuileAction("a-creer", "Créer un salon", "Choisis le mode et invite tes amis", () => pseudoOk(multiAccueil) && creerSalon()),
-        tuileAction("a-rejoindre", "Rejoindre un salon", "Avec un code ou depuis la liste", () => pseudoOk(multiAccueil) && rejoindreSalon())))));
+        tuileAction("a-creer", "Créer un salon", "Choisis le mode et invite tes amis", async () => pseudoOk(multiAccueil) && await pseudoLibreOuProfil(multiAccueil) && creerSalon()),
+        tuileAction("a-rejoindre", "Rejoindre un salon", "Avec un code ou depuis la liste", async () => pseudoOk(multiAccueil) && await pseudoLibreOuProfil(multiAccueil) && rejoindreSalon())))));
   afficherReprise();
 }
 
@@ -1458,6 +1491,25 @@ function detailMarathon(d) {
 const texteReglages = d => !d ? "" : `${d.essais} essais · ${d.lmin === d.lmax ? d.lmin : d.lmin + "–" + d.lmax} lettres` + (d.difficile ? " · difficile" : "");
 // 9.12 : série actuelle du mot du jour en petite pastille 🔥, à droite d'un pseudo (classement, fiche joueur, avatar de l'accueil)
 const flamme = (n, cls = "") => h("span.flamme" + cls + (n ? "" : ".zero"), {}, n ? "🔥 " + n : "0");
+/* 9.14 : pseudos uniques. pseudos/<PSEUDO> = uid de celui qui l'a réservé (en l'enregistrant dans le profil) ;
+   au multijoueur, un pseudo réservé par quelqu'un d'autre est refusé (identique à reserver_pseudo / pseudo_libre de amis.py) */
+const Pseudos = {
+  async libre(p) {
+    const k = nettoyerPseudo(p).trim(); if (!k || k === "ANONYME") return true;
+    if (!(await FB.jeton())) return true;  // hors ligne : on ne bloque pas
+    const v = await FB.get(`pseudos/${encodeURIComponent(k)}`); return !v || v === FB.uid;
+  },
+  async reserver(p) {
+    const k = nettoyerPseudo(p).trim(); if (!k) return "Choisis un pseudo.";
+    if (!(await FB.jeton())) return PAS_DE_RESEAU;
+    const v = await FB.get(`pseudos/${encodeURIComponent(k)}`);
+    if (v && v !== FB.uid) return "Ce pseudo est déjà pris.";
+    if (!(await FB.ok("PUT", `pseudos/${encodeURIComponent(k)}`, FB.uid))) return "Ce pseudo est déjà pris.";
+    const ancien = lireConfig().pseudo_reserve;
+    if (ancien && ancien !== k) FB.ok("DELETE", `pseudos/${encodeURIComponent(ancien)}`);
+    majConfig({ pseudo: k, pseudo_reserve: k }); return null;
+  },
+};
 const Classements = {
   envoye: {},
   async lire(type) {
@@ -1537,8 +1589,11 @@ async function ficheJoueur(uid) {
     h("div.ligne", { style: { gap: "10px", justifyContent: "center" } }, btns)), 420);
   o.classList.add("fiche-joueur"); o.montrer();
 }
+// 9.14 : notifications du profil = demandes d'amis + invitations à rejoindre une partie (sauf le salon où l'on est déjà)
+const invitationsRecues = () => Compte.email() ? Object.entries(Amis.invitations || {}).filter(([c]) => c !== M.lobby) : [];
+const notificationsAmis = () => Compte.email() ? Object.keys(Amis.demandes || {}).length + invitationsRecues().length : 0;
 function majPastilleAmis() {
-  const n = Object.keys(Amis.demandes).length;
+  const n = notificationsAmis();
   document.querySelectorAll(".bouton-amis .badge").forEach(e => { e.textContent = String(n); e.classList.toggle("cache", !n); });
 }
 async function demanderMotDePasse(code) {
@@ -1579,7 +1634,7 @@ async function rejoindreSalonAmi(code) {  // salon d'un ami : comme avec le code
 // panneau « Inviter des amis » (salon et partie) : amis en ligne d'abord
 function panneauInviter() {
   const liste = h("div.liste-inv"), t = h("div.tiroir.tiroir-inviter.cache", {}, h("div.tete-tiroir", {}, h("span", {}, "Inviter des amis"), icone("fermer", () => t.classList.add("cache"), false, "Fermer")), liste,
-    h("div.t2", { style: { fontSize: "12px", marginTop: "auto" } }, "Ils rejoignent sans taper le code (le mot de passe du salon reste demandé)."));
+    );  // 9.14 : plus de « Ils rejoignent sans taper le code… »
   const invites = new Set();
   t.ouvrir = async () => {
     t.classList.remove("cache"); await Amis.charger();
@@ -1728,7 +1783,8 @@ function salon() {
     sTemps.libelle(rush ? "Temps de jeu" : modeActif === "PIEGE" ? "Temps pour deviner" : "Temps par manche");
     cRounds.libelle(modeActif === "ELIMINATION" ? "Manches max" : "Manches");
     noteChoix.classList.toggle("cache", modeActif !== "PIEGE"); cCache.classList.toggle("cache", modeActif !== "PIEGE" || !M.estHote);
-    noteChoix.textContent = "Choix du mot : sans limite de temps (l'hôte peut forcer le départ)." + (M.estHote ? "" : cCache.valeur ? " La cible est cachée : tu ne sauras pas pour qui tu choisis." : " La cible est visible : tu sais pour qui tu choisis.");
+    noteChoix.classList.toggle("cache", modeActif !== "PIEGE" || M.estHote);  // 9.14 : plus de « Choix du mot : sans limite de temps… »
+    noteChoix.textContent = M.estHote ? "" : cCache.valeur ? "La cible est cachée : tu ne sauras pas pour qui tu choisis." : "La cible est visible : tu sais pour qui tu choisis.";
     if (M.estHote) lancer.textContent = M.nbJoueurs > 1 ? `Lancer · ${NOM_MODE[modeActif]}` : "En attente d'un 2e joueur…";
   }
   function valeurs() { return { rounds: cRounds.valeur, essais: sEssais.valeur, min: cLettres.vmin, max: cLettres.vmax, timer: sTemps.valeur, piege_cache: cCache.valeur && modeActif === "PIEGE" }; }

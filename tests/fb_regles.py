@@ -3,7 +3,7 @@
 Admin : POST /__vieillir?ms=N recule tous les horodatages ; GET /__admin.json lit tout ; POST /__reset vide."""
 import json, threading, time, sys, itertools, copy, re
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, unquote
 
 DATA, LOCK, UIDS = {}, threading.Lock(), itertools.count(1)
 COMPTES = {}  # comptes e-mail / mot de passe : e-mail -> [mot de passe, uid] (comme Firebase Authentication)
@@ -56,7 +56,7 @@ def peut_lire(uid, p):
         if len(p) >= 4 and p[3] == uid: return True
         return lire(DATA, ["v7", "lobbies", p[2], "settings", "host_id"]) == uid
     if len(p) >= 3 and p[1] == "comptes": return p[2] == uid  # compte : lisible par son seul propriétaire
-    if p[1:2] in (["codes_amis"], ["classements"]) or (len(p) >= 3 and p[1] == "profils"): return True  # 9.4 : classements publics  # 9.2 : codes amis et profils publics
+    if p[1:2] in (["codes_amis"], ["classements"], ["pseudos"]) or (len(p) >= 3 and p[1] == "profils"): return True  # 9.4 : classements publics  # 9.2 : codes amis et profils publics
     if len(p) >= 3 and p[1] in ("amis", "amis_demandes", "invitations"): return p[2] == uid  # 9.2 : sa liste, ses demandes, ses invitations
     if len(p) >= 5 and p[1] == "pieges":  # mot piégé : lisible par les participants de la manche, sauf par celui qui doit le deviner
         return (uid != p[4] and participant(DATA, p[2], uid)) or existe(lire(DATA, ["v7", "lobbies", p[2], "spectateurs", uid]))  # les spectateurs voient tout
@@ -85,6 +85,9 @@ def regle_ecriture(uid, niveau, D, N):
     if len(niveau) == 3 and niveau[1] == "codes_amis":  # 9.2 : code ami → joueur (créé ou effacé par son propriétaire)
         d, n = lire(D, niveau), lire(N, niveau)
         return (not existe(d) and n == uid) or (not existe(n) and d == uid)
+    if len(niveau) == 3 and niveau[1] == "pseudos":  # 9.14 : pseudo réservé → joueur (pris par un seul, libéré par lui seul)
+        d, n = lire(D, niveau), lire(N, niveau)
+        return (not existe(d) and n == uid) or (not existe(n) and d == uid) or (d == uid and n == uid)
     if len(niveau) == 3 and niveau[1] == "profils": return niveau[2] == uid
     if len(niveau) == 4 and niveau[1] == "classements" and niveau[2] in ("mdj", "marathon"): return niveau[3] == uid  # 9.4
     if len(niveau) == 4 and niveau[1] == "amis":
@@ -157,6 +160,9 @@ def regle_ecriture(uid, niveau, D, N):
 
 def valider(N, cible):
     """Règles .validate touchées par l'écriture."""
+    if len(cible) >= 3 and cible[1] == "pseudos":  # 9.14
+        n = lire(N, cible[:3])
+        if existe(n) and not (isinstance(n, str) and len(cible[2]) <= 10): return False
     if len(cible) >= 3 and cible[1] == "horloge" and not isinstance(lire(N, cible[:3]), (int, float)): return False
     if len(cible) >= 3 and cible[1] == "index":
         n = lire(N, cible[:3])
@@ -268,7 +274,7 @@ class H(BaseHTTPRequestHandler):
         u = urlparse(self.path); q = parse_qs(u.query)
         tok = (q.get("auth") or [""])[0]
         uid = tok[4:] if tok.startswith("tok-") else None
-        return [x for x in u.path.rsplit(".json", 1)[0].split("/") if x], uid
+        return [unquote(x) for x in u.path.rsplit(".json", 1)[0].split("/") if x], uid  # (comme Firebase : clés décodées)
     def refus(self, m, p, uid):
         JOURNAL.write(f"{time.strftime('%H:%M:%S')} REFUS {m} /{'/'.join(p)} uid={uid}\n"); JOURNAL.flush(); self.rep(401, {"error": "Permission denied"})
     def do_OPTIONS(self):

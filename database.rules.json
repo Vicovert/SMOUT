@@ -459,6 +459,13 @@
             }
           }
         }
+      },
+      "pseudos": {
+        ".read": "auth != null",
+        "$p": {
+          ".write": "auth != null && ((!data.exists() && newData.val() === auth.uid) || (!newData.exists() && data.val() === auth.uid) || (data.val() === auth.uid && newData.val() === auth.uid))",
+          ".validate": "newData.isString() && $p.length <= 10"
+        }
       }
     }
   }
