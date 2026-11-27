@@ -167,7 +167,58 @@ THEMES = {
         "bg": "#070509", "accent1": "#3b0764", "accent2": "#a130c9", "muted": "#030204",
         "btn1": "#1a1221", "btn2": "#3b0764", "btn3": "#4d3a61",
         "txt1": "#b38ef3", "txt2": "#ffffff", "txt3": "#c862ff", "type": "LUXE"
-    }
+    },
+    # --- 9.14 : 10 nouveaux thèmes (40 au total), validés par Victor ---
+    "GLACIER": {
+        "bg": "#EAF4FA", "accent1": "#0F766E", "accent2": "#F59E0B", "muted": "#D5E6F0",
+        "btn1": "#0F766E", "btn2": "#CFE2EE", "btn3": "#B8D3E4",
+        "txt1": "#0B2A3C", "txt2": "#FFFFFF", "txt3": "#4B6B80", "type": "NATURE",
+    },
+    "LAGON": {
+        "bg": "#0E4C5A", "accent1": "#FF6B6B", "accent2": "#FFE66D", "muted": "#135E6E",
+        "btn1": "#FFE66D", "btn2": "#17697A", "btn3": "#1E7C8F",
+        "txt1": "#EFFFFC", "txt2": "#0E4C5A", "txt3": "#A6DCE0", "type": "NATURE",
+    },
+    "BÉTON": {
+        "bg": "#3A3D42", "accent1": "#F43F5E", "accent2": "#FACC15", "muted": "#45484E",
+        "btn1": "#FACC15", "btn2": "#4E5258", "btn3": "#5D6168",
+        "txt1": "#F3F4F6", "txt2": "#16130A", "txt3": "#B4B8BF", "type": "CLASSIQUE",
+    },
+    "NUIT POLAIRE": {
+        "bg": "#05070D", "accent1": "#E5E7EB", "accent2": "#F59E0B", "muted": "#10131C",
+        "btn1": "#E5E7EB", "btn2": "#1A1E2A", "btn3": "#272C3B",
+        "txt1": "#F9FAFB", "txt2": "#05070D", "txt3": "#8A93A6", "type": "CLASSIQUE",
+    },
+    "BONBON": {
+        "bg": "#F7E8FF", "accent1": "#7C3AED", "accent2": "#F472B6", "muted": "#EDD9FA",
+        "btn1": "#7C3AED", "btn2": "#E6CCF7", "btn3": "#D9B8F0",
+        "txt1": "#3B0764", "txt2": "#FFFFFF", "txt3": "#7E5A9B", "type": "DOUCEUR",
+    },
+    "AGRUMES": {
+        "bg": "#FFF7D6", "accent1": "#16A34A", "accent2": "#F97316", "muted": "#F6ECC2",
+        "btn1": "#16A34A", "btn2": "#F0E3B0", "btn3": "#E5D597",
+        "txt1": "#2D2A12", "txt2": "#FFFFFF", "txt3": "#7A7340", "type": "DOUCEUR",
+    },
+    "COBALT": {
+        "bg": "#1E3A8A", "accent1": "#F97316", "accent2": "#FDE047", "muted": "#25459E",
+        "btn1": "#FDE047", "btn2": "#2B4FB0", "btn3": "#3A5FC4",
+        "txt1": "#EEF3FF", "txt2": "#1E3A8A", "txt3": "#AFC2F5", "type": "RÉTRO",
+    },
+    "TERRE CUITE": {
+        "bg": "#3B1D14", "accent1": "#84CC16", "accent2": "#FBBF24", "muted": "#4A261B",
+        "btn1": "#FBBF24", "btn2": "#5A3022", "btn3": "#6E3C2B",
+        "txt1": "#FDEEE5", "txt2": "#16130A", "txt3": "#D2A895", "type": "RÉTRO",
+    },
+    "BORDEAUX": {
+        "bg": "#2A0A12", "accent1": "#EAB308", "accent2": "#F9A8D4", "muted": "#3A111C",
+        "btn1": "#EAB308", "btn2": "#4A1624", "btn3": "#5E1D2E",
+        "txt1": "#FFF1F4", "txt2": "#16130A", "txt3": "#D99AAA", "type": "LUXE",
+    },
+    "SABLE": {
+        "bg": "#F2E6D0", "accent1": "#C2410C", "accent2": "#0E7490", "muted": "#E8D9BD",
+        "btn1": "#C2410C", "btn2": "#E3D2B2", "btn3": "#D6C29C",
+        "txt1": "#3A2A18", "txt2": "#FFFFFF", "txt3": "#7D6647", "type": "LUXE",
+    },
 }
 
 
@@ -267,7 +318,7 @@ class PageSkins(tk.Frame):
         self.choix = controller.current_theme_name
         tk.Frame(self, bg=P["fond"], height=4).pack()
         h = tk.Frame(self, bg=P["fond"]); h.pack(fill="x", padx=28, pady=(14, 0))
-        Icone(h, "retour", controller.creer_menu_accueil).pack(side="left")
+        design.BoutonRetour(h, "Accueil", controller.creer_menu_accueil).pack(side="left")
         corps = tk.Frame(self, bg=P["fond"]); corps.pack(fill="both", expand=True, padx=60, pady=(4, 20))
         etiquette(corps, "Thèmes", "titre", 46).pack(anchor="w", pady=(0, 22))
         ligne = tk.Frame(corps, bg=P["fond"]); ligne.pack(fill="both", expand=True)
@@ -357,7 +408,7 @@ class PageCustomTheme(tk.Frame):
         for k in ("panel", "vide", "bordure"): self.current_custom.pop(k, None)  # recalculés à partir du fond
         self.current_custom["type"] = "PERSO"
         h = tk.Frame(self, bg=P["fond"]); h.pack(fill="x", padx=28, pady=(18, 0))
-        Icone(h, "retour", controller.show_skins).pack(side="left")
+        design.BoutonRetour(h, "Thèmes", controller.show_skins).pack(side="left")
         corps = tk.Frame(self, bg=P["fond"]); corps.pack(fill="both", expand=True, padx=90)
         etiquette(corps, "Créer mon thème", "titre", 46).pack(anchor="w", pady=(0, 20))
         ligne = tk.Frame(corps, bg=P["fond"]); ligne.pack(anchor="w")
@@ -504,7 +555,7 @@ class MenuPrincipal(tk.Tk):
         etiquette(haut, f"v{design.VERSION_APP}", "texte", 14, P["texte2"]).pack(side="left")  # 9.9 : numéro de version en haut à gauche
         # 9.12 : ma série du mot du jour en pastille 🔥 posée sur l'avatar
         self.avatar = Avatar(haut, self.pseudo(), 46, lambda: self.panneau_profil(), serie=design.serie_mot_du_jour()[0]); self.avatar.pack(side="right", padx=(10, 0))
-        n = len(amis.E["demandes"]) if compte.email() else 0  # 9.13 : demandes d'amis en pastille rouge sur l'avatar
+        n = self.notifications_amis()  # 9.14 : demandes d'amis + invitations en pastille rouge sur l'avatar
         if n: self.after(60, lambda: tk.Label(page, text=str(n), bg=P["danger"], fg="#ffffff", font=police("texte", 10, True), padx=4).place(in_=self.avatar, relx=0.0, rely=0.0, x=34, y=-4, anchor="nw") if self.avatar.winfo_exists() else None)
         Icone(haut, "stats", self.ouvrir_stats).pack(side="right", padx=8)
         Icone(haut, "palette", self.show_skins).pack(side="right", padx=8)
@@ -584,7 +635,7 @@ class MenuPrincipal(tk.Tk):
     def fiche_joueur(self, uid): return classements.fiche_joueur(self, uid)
 
     def salon_actuel(self):
-        m = self._multi
+        m = getattr(self, "_multi", None)  # (9.14 : appelé dès la création de l'accueil, au démarrage)
         try: return m.lobby_code if (m is not None and m.winfo_exists()) else ""
         except Exception: return ""
 
@@ -675,7 +726,7 @@ class MenuPrincipal(tk.Tk):
         try:
             if ancien is not None and ancien.winfo_exists(): ancien.destroy()
         except tk.TclError: pass
-        if not onglet: onglet = "amis" if (compte.email() and amis.E["demandes"]) else "profil"
+        if not onglet: onglet = "amis"  # 9.14 : le panneau s'ouvre sur les amis
         L = 400
         t = tk.Frame(self, bg=P["panneau"], highlightthickness=1, highlightbackground=P["bordure"]); self.tiroir_profil = t
         t.place(relx=1.0, rely=0, anchor="ne", width=L, relheight=1.0); t.tk.call("raise", t._w)
@@ -707,14 +758,14 @@ class MenuPrincipal(tk.Tk):
             threading.Thread(target=anciennete, daemon=True).start()
         og = tk.Frame(t, bg=P["panneau"]); og.pack(fill="x", padx=18, pady=(0, 10))
         boutons = {}
-        for cle, txt in (("profil", "Profil"), ("amis", "Amis")):
+        for cle, txt in (("amis", "Amis"), ("profil", "Profil")):  # 9.14 : Amis en premier
             b = tk.Label(og, text=txt, font=police("texte", 14, True), bg=P["panneau"], fg=P["texte2"], pady=8, cursor="hand2")
             b.pack(side="left", fill="x", expand=True, padx=3); b.bind("<Button-1>", lambda e, c=cle: montrer(c)); boutons[cle] = b
         tk.Frame(t, bg=P["bordure"], height=1).pack(fill="x")
         corps_zone = Defilant(t, largeur=L - 4, hauteur=600); corps_zone.pack(fill="both", expand=True)
         def montrer(o):
             for cle, b in boutons.items():
-                n = len(amis.E["demandes"]) if (cle == "amis" and compte.email()) else 0
+                n = self.notifications_amis() if cle == "amis" else 0
                 b.config(text=("Amis" + (f"  ({n})" if n else "")) if cle == "amis" else "Profil", bg=P["tuile"] if cle == o else P["panneau"], fg=P["texte"] if cle == o else P["texte2"])
             for w in corps_zone.interieur.winfo_children(): w.destroy()
             c = tk.Frame(corps_zone.interieur, bg=P["panneau"]); c.pack(fill="both", expand=True, padx=18, pady=(12, 24))
@@ -726,32 +777,53 @@ class MenuPrincipal(tk.Tk):
     def _contenu_profil(self, i, fermer, lbl_nom, av):
         def sect(txt): etiquette(i, design.espacer(txt), "texte", 11, P["texte2"], True).pack(anchor="w", pady=(10, 6))
         sect("Pseudo")
-        ch = Champ(i, largeur=356, hauteur=48, mono=True, taille=18); ch.pack(anchor="w")
+        # 9.14 : petit bouton pour enregistrer (plus d'enregistrement automatique) ; deux joueurs ne peuvent pas avoir le même pseudo
+        zp = tk.Frame(i, bg=P["panneau"]); zp.pack(anchor="w", fill="x")
+        ch = Champ(zp, largeur=300, hauteur=48, mono=True, taille=18); ch.pack(side="left")
         ch.set(design.nettoyer_pseudo(design.lire_config().get("pseudo", "")))
-        enreg = etiquette(i, "Enregistré automatiquement · 10 caractères au plus", "texte", 12, P["texte2"]); enreg.pack(anchor="w", pady=(6, 0))
-        def filtrer(*a):  # 9.4 : enregistré tout seul à chaque modification
+        bulle = tk.Label(i, text="", font=police("texte", 12, True), fg="#ffffff", bg=P["danger"], padx=10, pady=4)
+        def dire(txt, bon=False):
+            bulle.config(text=txt, bg=P["succes"] if bon else P["danger"], fg="#0b1a10" if bon else "#ffffff")
+            bulle.place(in_=ch, x=10, rely=1.0, y=6); bulle.tkraise()
+            gen = getattr(dire, "gen", 0) + 1; dire.gen = gen
+            self.after(1600 if bon else 3500, lambda: bulle.place_forget() if getattr(dire, "gen", 0) == gen and bulle.winfo_exists() else None)
+        def filtrer(*a):
             v = design.nettoyer_pseudo(ch.get())
             if v != ch.get(): ch.set(v)  # (Tk ne relance pas la trace pendant son propre rappel)
-            if v.strip():
-                design.maj_config(pseudo=v.strip()); enreg.config(text="Enregistré ✓")
-                lbl_nom.config(text=v.strip().capitalize()); av.set_nom(v.strip())
+            bulle.place_forget()
         ch.var.trace_add("write", filtrer); self.champ_pseudo_profil = ch
-        ch.bind_entree(fermer)
-        etiquette(i, "Il s'affiche pour les autres joueurs en multijoueur.", "texte", 12, P["texte2"]).pack(anchor="w", pady=(4, 0))
+        def enregistrer():
+            t = design.nettoyer_pseudo(ch.get()).strip()
+            if not t: return dire("Choisis un pseudo.")
+            err = amis.reserver_pseudo(t)
+            if err: return dire(err)
+            lbl_nom.config(text=t.capitalize()); av.set_nom(t); dire("Enregistré ✓", True)
+        self.enregistrer_pseudo = enregistrer
+        Bouton(zp, "✓", enregistrer, largeur=48, hauteur=48, taille=18).pack(side="left", padx=(8, 0))
+        ch.bind_entree(enregistrer)
         sect("Compte")
         cfg = design.lire_config(); em = cfg.get("compte_email")
         if em:
-            etiquette(i, f"Connecté : {em}", "texte", 14).pack(anchor="w")
-            etiquette(i, "Ton avancement est enregistré sur ce compte et suit sur tous tes appareils.", "texte", 12, P["texte2"], wraplength=356, justify="left").pack(anchor="w", pady=(2, 10))
+            lc = tk.Frame(i, bg=P["panneau"]); lc.pack(anchor="w", fill="x")
+            etiquette(lc, f"Connecté : {em}", "texte", 14).pack(side="left")
             def sortir():
                 if design.confirmer(self, "Se déconnecter ?", "Tu quittes le compte sur cet appareil. Ton avancement reste enregistré sur le compte.", "Se déconnecter"):
                     compte.deconnecter(); self.panneau_profil("profil")
-            Bouton(i, "Se déconnecter", sortir, largeur=180, hauteur=40, variante="discret", taille=13).pack(anchor="w")
+            Icone(lc, "deconnexion", sortir, 40, couleur=P["danger"]).pack(side="right")  # 9.14 : icône rouge à droite de l'adresse
         else:
             if cfg.get("compte_expire"):
                 etiquette(i, "Ta session a expiré : reconnecte-toi.", "texte", 13, P["danger"], True).pack(anchor="w")
             etiquette(i, "Crée un compte pour retrouver ton avancement (statistiques, série, thèmes, partie en cours) sur tous tes appareils, et pour avoir des amis.", "texte", 12, P["texte2"], wraplength=356, justify="left").pack(anchor="w", pady=(2, 10))
             Bouton(i, "Se connecter ou créer un compte", lambda: (fermer(), self.ouvrir_compte()), largeur=290, hauteur=42, variante="secondaire", taille=13).pack(anchor="w")
+
+    def invitations_recues(self):
+        """9.14 : invitations à rejoindre une partie (sauf le salon où l'on est déjà)."""
+        if not compte.email(): return []
+        s = self.salon_actuel()
+        return [(c, v) for c, v in amis.E["invitations"].items() if c != s]
+
+    def notifications_amis(self):
+        return (len(amis.E["demandes"]) + len(self.invitations_recues())) if compte.email() else 0
 
     def _contenu_amis(self, c, actif, L, fermer):
         """Mon code, ajouter par code, demandes reçues, liste avec statut (comme contenuAmis du site)."""
@@ -763,7 +835,6 @@ class MenuPrincipal(tk.Tk):
         pc = Panneau(c, padding=12, rayon=12, contour=P["bordure"], couleur=P["fond"], largeur=L); pc.pack(anchor="w")
         etiquette(pc.interieur, design.espacer("Mon code ami"), "texte", 11, P["texte2"], True).pack(anchor="w")
         self.lbl_code_ami = etiquette(pc.interieur, amis.E["code"] or "······", "chiffres", 24, P["texte"]); self.lbl_code_ami.pack(anchor="w")
-        etiquette(pc.interieur, "Donne-le pour ajouter des amis.", "texte", 12, P["texte2"]).pack(anchor="w")
         la = tk.Frame(c, bg=P["panneau"]); la.pack(anchor="w", pady=(10, 0))
         self.champ_ami = Champ(la, largeur=L - 106, hauteur=44, mono=True, taille=15, texte_aide="CODE AMI"); self.champ_ami.pack(side="left")
         self.msg_amis = etiquette(c, "", "texte", 13, P["danger"], True); self.msg_amis.pack(anchor="w", pady=(4, 0))
@@ -772,14 +843,17 @@ class MenuPrincipal(tk.Tk):
             if err: self.msg_amis.config(text=err, fg=P["danger"])
             else: self.msg_amis.config(text="Demande envoyée ✓", fg=P["succes"]); self.champ_ami.set(""); dessiner()
         Bouton(la, "Ajouter", ajouter, largeur=96, hauteur=44, taille=13).pack(side="left", padx=(10, 0)); self.champ_ami.bind_entree(ajouter)
-        self.zone_dem, self.zone_liste = tk.Frame(c, bg=P["panneau"]), tk.Frame(c, bg=P["panneau"])
-        self.zone_dem.pack(anchor="w", fill="x"); self.zone_liste.pack(anchor="w", fill="x")
+        self.zone_inv, self.zone_dem, self.zone_liste = tk.Frame(c, bg=P["panneau"]), tk.Frame(c, bg=P["panneau"]), tk.Frame(c, bg=P["panneau"])
+        self.zone_inv.pack(anchor="w", fill="x"); self.zone_dem.pack(anchor="w", fill="x"); self.zone_liste.pack(anchor="w", fill="x")
+        series = {}  # 9.14 : série du mot du jour de chaque ami (🔥 à côté du pseudo)
         def ligne(parent, nom, i, st, etat, actions, uid=None):
             p = tk.Frame(parent, bg=P["panneau"]); p.pack(fill="x", pady=4)
             if uid: p.bind("<Button-1>", lambda e, u=uid: self.fiche_joueur(u)); p.config(cursor="hand2")
             Avatar(p, nom, 34, index=i).pack(side="left")
             tt = tk.Frame(p, bg=P["panneau"]); tt.pack(side="left", padx=10)
-            etiquette(tt, str(nom).capitalize(), "texte", 14, P["texte"], True).pack(anchor="w")
+            ln = tk.Frame(tt, bg=P["panneau"]); ln.pack(anchor="w")
+            etiquette(ln, str(nom).capitalize(), "texte", 14, P["texte"], True).pack(side="left")
+            if uid and series.get(uid): classements.pastille_flamme(ln, series[uid]).pack(side="left", padx=(6, 0))
             coul = {"on": P["succes"], "jeu": P["mal"]}.get(etat, P["texte_absent"])
             etiquette(tt, "● " + st, "texte", 12, coul).pack(anchor="w")
             if uid:
@@ -790,11 +864,22 @@ class MenuPrincipal(tk.Tk):
             if not compte.email() or not actif(): return
             if not amis.E["code"] or amis.E["uid_code"] != amis.uid(): amis.assurer_profil(self.salon_actuel())
             amis.charger()
+            try: series.clear(); series.update({e["uid"]: e.get("actuelle") or 0 for e in classements.lire("mdj")})
+            except Exception: pass
             try:
                 if not actif(): return
             except Exception: return
             self.lbl_code_ami.config(text=amis.E["code"] or "······")
-            for w in self.zone_dem.winfo_children() + self.zone_liste.winfo_children(): w.destroy()
+            for w in self.zone_inv.winfo_children() + self.zone_dem.winfo_children() + self.zone_liste.winfo_children(): w.destroy()
+            inv = self.invitations_recues()  # 9.14 : invitations à rejoindre une partie
+            if inv:
+                section(self.zone_inv, f"Invitations ({len(inv)})")
+                for k, (code, v) in enumerate(inv):
+                    def ignorer(code=code):
+                        amis.E["vues"].add("i" + code); amis.E["invitations"].pop(code, None)
+                        threading.Thread(target=lambda: amis.effacer_invitation(code), daemon=True).start(); dessiner()
+                    ligne(self.zone_inv, v.get("pseudo", "?"), k + 4, f"t'invite · salon {code}", "jeu",
+                          [("Rejoindre", lambda code=code: (fermer(), self.rejoindre_invitation(code)), "principal"), ("Ignorer", ignorer, "discret")])
             dem = list(amis.E["demandes"].items())
             if dem:
                 section(self.zone_dem, f"Demandes reçues ({len(dem)})")

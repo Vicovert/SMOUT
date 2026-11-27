@@ -23,7 +23,7 @@ from compte import AuthFirebase  # connexion Firebase partagée avec le compte (
 
 # ===================================================================== thème
 import design
-from design import (Curseur, P, police, etiquette, espacer, Tuile, Bouton, BoutonLobby, confirmer, informer, Panneau, Icone, Avatar, Clavier, Stat, Chips, CarteChoix,
+from design import (BoutonRetour, Curseur, P, police, etiquette, espacer, Tuile, Bouton, BoutonLobby, confirmer, informer, Panneau, Icone, Avatar, Clavier, Stat, Chips, CarteChoix,
                     Champ, TuileAction, Interrupteur, Superposition, Stepper, TuileReglage, CarteSalon, Defilant, arrondi, melanger, fenetre_aide)
 
 BG = ACCENT1 = ACCENT2 = MUTED = KEY_BG = TXT1 = None
@@ -481,7 +481,7 @@ class PageMulti(tk.Frame):
 # ===================================================================== écrans
 def barre_haut(parent, on_retour, droite_texte=""):
     h = tk.Frame(parent, bg=P["fond"]); h.pack(fill="x", padx=28, pady=(18, 0))
-    Icone(h, "retour", on_retour, 46, cadre=True).pack(side="left")
+    BoutonRetour(h, "Quitter", on_retour, 46).pack(side="left")  # 9.14
     etiquette(h, "SMOUT", "titre", 24).pack(side="left", padx=18)
     lbl = etiquette(h, droite_texte, "texte", 16, P["texte2"]); lbl.pack(side="right")
     tk.Frame(parent, bg=P["bordure"], height=1).pack(fill="x", pady=(16, 0))
@@ -493,7 +493,7 @@ class PageAccueil(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg=P["fond"]); self.controller = controller
         h = tk.Frame(self, bg=P["fond"]); h.pack(fill="x", padx=28, pady=(18, 0))
-        Icone(h, "retour", lambda: self.controller.controller.creer_menu_accueil()).pack(side="left")
+        BoutonRetour(h, "Accueil", lambda: self.controller.controller.creer_menu_accueil()).pack(side="left")
         etiquette(h, "Multijoueur", "texte", 19, gras=True).pack(side="left", padx=16)
         lp = tk.Frame(h, bg=P["fond"]); lp.pack(side="right")
         # 9.13 : plus de bouton Amis : l'avatar ouvre le panneau profil + amis
@@ -522,11 +522,18 @@ class PageAccueil(tk.Frame):
         if self.sv_pseudo.get().strip(): return True
         self.champ_pseudo.focus(); self.champ_pseudo.c.itemconfig(1, outline=P["danger"]); return False
 
+    def pseudo_libre(self):
+        """9.14 : un pseudo réservé par un autre joueur est refusé."""
+        import amis
+        if amis.pseudo_libre(self.sv_pseudo.get()): return True
+        informer(self, f"Le pseudo « {self.sv_pseudo.get().strip().capitalize()} » est déjà pris : choisis-en un autre dans ton profil.", "Pseudo déjà pris")
+        self.controller.controller.panneau_profil("profil"); return False
+
     def creer(self):
-        if self.pseudo_ok() and self.connecte(): self.controller.show_frame("PageHostSetup")
+        if self.pseudo_ok() and self.connecte() and self.pseudo_libre(): self.controller.show_frame("PageHostSetup")
 
     def rejoindre_page(self):
-        if self.pseudo_ok(): self.controller.show_frame("PageRejoindre")
+        if self.pseudo_ok() and self.pseudo_libre(): self.controller.show_frame("PageRejoindre")
 
     def afficher_reprise(self):
         for w in self.zone_reprise.winfo_children(): w.destroy()
@@ -550,7 +557,7 @@ class PageRejoindre(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg=P["fond"]); self.controller = controller
         h = tk.Frame(self, bg=P["fond"]); h.pack(fill="x", padx=28, pady=(18, 0))
-        Icone(h, "retour", lambda: controller.show_frame("PageAccueil")).pack(side="left")
+        BoutonRetour(h, "Multijoueur", lambda: controller.show_frame("PageAccueil")).pack(side="left")
         c = tk.Frame(self, bg=P["fond"]); c.pack(pady=(6, 0))
         etiquette(c, "Rejoindre un salon", "titre", 46).pack(anchor="w", pady=(8, 20))
         rj = Panneau(c, padding=14, largeur=748); rj.pack(anchor="w"); ri = rj.interieur
@@ -718,7 +725,7 @@ class PageHostSetup(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg=P["fond"]); self.controller = controller
         h = tk.Frame(self, bg=P["fond"]); h.pack(fill="x", padx=28, pady=(18, 0))
-        Icone(h, "retour", lambda: controller.show_frame("PageAccueil")).pack(side="left")
+        BoutonRetour(h, "Multijoueur", lambda: controller.show_frame("PageAccueil")).pack(side="left")
         c = tk.Frame(self, bg=P["fond"]); c.pack()
         etiquette(c, "Créer un salon", "titre", 46).pack(anchor="w", pady=(14, 24))
         p = Panneau(c, padding=30, largeur=700); p.pack()
@@ -848,11 +855,11 @@ class PageLobby(tk.Frame):
         for w in (self.c_rounds, self.s_time, self.s_essais, self.c_lettres): w.set_couleur(mc)
         if mode == "PIEGE":
             hote = self.controller.is_host
-            self.lbl_choix.config(text="Choix du mot : sans limite de temps (l'hôte peut forcer le départ)." + ("" if hote else
-                (" La cible est cachée : tu ne sauras pas pour qui tu choisis." if v.get("piege_cache") else " La cible est visible : tu sais pour qui tu choisis.")))
+            self.lbl_choix.config(text="" if hote else  # 9.14 : plus de « Choix du mot : sans limite de temps… »
+                ("La cible est cachée : tu ne sauras pas pour qui tu choisis." if v.get("piege_cache") else "La cible est visible : tu sais pour qui tu choisis."))
             self.lbl_choix.pack_forget(); self.i_cache.pack_forget()
             if hote: self.i_cache.pack(anchor="w", pady=(10, 0))
-            self.lbl_choix.pack(anchor="w", pady=(6 if hote else 10, 0))
+            if not hote: self.lbl_choix.pack(anchor="w", pady=(10, 0))
         else: self.lbl_choix.pack_forget(); self.i_cache.pack_forget()
         self.btn_lancer.set_couleur(mc)
         b = self.bandeau; b.delete("all"); W, H = LARGEUR_REGLAGES, 86
@@ -1140,7 +1147,7 @@ class PageJeu(tk.Frame):
         # En-tête
         h = tk.Frame(self, bg=P["fond"]); h.pack(fill="x", padx=28, pady=(18, 0))
         gf = tk.Frame(h, bg=P["fond"]); gf.pack(side="left")
-        Icone(gf, "retour", self.quitter_jeu).pack(side="left")
+        BoutonRetour(gf, "Quitter", self.quitter_jeu).pack(side="left")
         # 9.0 : bouton de l'hôte « Lobby » en haut à gauche (ramène tous les joueurs au salon, après confirmation)
         self.btn_salon = BoutonLobby(gf, self.retour_salon_hote); self.btn_salon_visible = False
         zf = tk.Frame(h, bg=P["fond"]); zf.pack(side="right")
@@ -2241,7 +2248,7 @@ class PanneauInviter(tk.Frame):
         etiquette(t, "Inviter des amis", "texte", 17, P["texte"], True).pack(side="left")
         Icone(t, "fermer", self.fermer, 32).pack(side="right")
         self.liste = tk.Frame(self, bg=P["panneau"]); self.liste.pack(fill="x", padx=16)
-        etiquette(self, "Ils rejoignent sans taper le code (le mot de passe du salon reste demandé).", "texte", 11, P["texte2"], wraplength=290, justify="left").pack(side="bottom", anchor="w", padx=16, pady=14)
+        # 9.14 : plus de « Ils rejoignent sans taper le code… »
     def fermer(self): self.ouvert = False; self.place_forget()
     def ouvrir(self):
         self.ouvert = True; self.place(relx=1, rely=0, anchor="ne", relheight=1, width=340); self.lift()

@@ -111,7 +111,8 @@ const res = []; const ok = (nom, c, info = "") => { res.push(!!c); console.log((
   ok("thème perso conservé après rechargement", await p.evaluate(() => themeActuel === "MON BLEU" && !!THEMES["MON BLEU"]));
   await p.evaluate(() => supprimerTheme("MON BLEU")); ok("suppression du thème perso → thème par défaut", await p.evaluate(() => !THEMES["MON BLEU"] && themeActuel === D.theme_defaut));
   // pseudo
-  await p.evaluate(() => accueil()); await p.evaluate(() => changerPseudo()); await sleep(100);
+  // (9.14 : le pseudo s'enregistre par le bouton ou Entrée et se réserve en ligne ; ici sans serveur, on simule la réservation)
+  await p.evaluate(() => { Pseudos.reserver = async x => { majConfig({ pseudo: nettoyerPseudo(x).trim() }); return null; }; accueil(); }); await p.evaluate(() => changerPseudo()); await sleep(100);
   await p.evaluate(() => { const c = document.querySelector(".voile:not(.cache) input"); c.value = ""; }); await p.type(".voile:not(.cache) input", "  léa-marie  2! "); await p.keyboard.press("Enter"); await sleep(100);
   ok("pseudo nettoyé (lettres avec accents, chiffres, espaces simples, en majuscules)", (await p.evaluate(() => lireConfig().pseudo)) === "LÉAMARIE 2", await p.evaluate(() => lireConfig().pseudo));
   await p.close();

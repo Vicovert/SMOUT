@@ -35,6 +35,37 @@ def pseudo(): return design.nettoyer_pseudo(design.lire_config().get("pseudo", "
 def actif(): return bool(compte.email()) and bool(uid())
 
 
+# 9.14 : pseudos uniques (comme l'objet Pseudos du site). pseudos/<PSEUDO> = uid de celui qui l'a réservé en l'enregistrant dans son profil
+PAS_DE_RESEAU = "Connexion au serveur impossible. Vérifie ta connexion internet."
+
+
+def _cle_pseudo(p):
+    from urllib.parse import quote
+    return quote(design.nettoyer_pseudo(p).strip(), safe="")
+
+
+def pseudo_libre(p):
+    """True si personne d'autre n'a réservé ce pseudo (hors ligne : on ne bloque pas)."""
+    k = design.nettoyer_pseudo(p).strip()
+    if not k or k == "ANONYME" or not compte.auth().jeton(): return True
+    v = lire(f"pseudos/{_cle_pseudo(k)}")
+    return not v or v == uid()
+
+
+def reserver_pseudo(p):
+    """Réserve le pseudo pour ce joueur et libère l'ancien ; renvoie un message d'erreur ou None."""
+    k = design.nettoyer_pseudo(p).strip()
+    if not k: return "Choisis un pseudo."
+    if not compte.auth().jeton(): return PAS_DE_RESEAU
+    okl, v = _req("get", f"pseudos/{_cle_pseudo(k)}")
+    if not okl: return PAS_DE_RESEAU
+    if v and v != uid(): return "Ce pseudo est déjà pris."
+    if not ok("put", f"pseudos/{_cle_pseudo(k)}", uid()): return "Ce pseudo est déjà pris."
+    ancien = design.lire_config().get("pseudo_reserve")
+    if ancien and ancien != k: ok("delete", f"pseudos/{_cle_pseudo(ancien)}")
+    design.maj_config(pseudo=k, pseudo_reserve=k); return None
+
+
 def assurer_profil(salon=""):
     u = uid(); pr = lire(f"profils/{u}") or {}
     code = pr.get("code") or ""

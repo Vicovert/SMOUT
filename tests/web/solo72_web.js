@@ -50,18 +50,15 @@ const res = []; const ok = (nom, c, info = "") => { res.push(!!c); console.log((
   const ts = await texte(p);
   ok("écran statistiques", ts.includes("Statistiques") && ts.includes("Marathon") && ts.includes("Dernières parties") && ts.includes(premier));
   await p.screenshot({ path: "/tmp/w_stats.png" });
-  // daltonien
-  await p.evaluate(() => parametres()); await sleep(100);
-  await p.evaluate(() => { [...document.querySelectorAll(".case")].find(x => x.textContent.includes("daltonien")).click(); [...document.querySelectorAll("button")].find(x => x.textContent === "Enregistrer").click(); });
-  ok("daltonien : orange / bleu", await p.evaluate(() => P.bien.toUpperCase() === "#F5793A" && getComputedStyle(document.documentElement).getPropertyValue("--bien").trim().toUpperCase() === "#F5793A"));
-  await p.reload({ waitUntil: "networkidle0" });
-  ok("daltonien conservé après rechargement", await p.evaluate(() => P.bien.toUpperCase() === "#F5793A"));
+  // 9.14 : plus de mode daltonien
+  await p.evaluate(() => { majConfig({ daltonien: true }); parametres(); }); await sleep(100);
+  ok("plus d'option daltonien dans les paramètres", await p.evaluate(() => ![...document.querySelectorAll(".case")].some(x => /daltonien/i.test(x.textContent)) && P.bien.toUpperCase() !== "#F5793A"));
   await p.close();
   p = await page(390, 844);
   // thèmes sur téléphone : le bouton de l'accueil ouvre la liste complète et un thème s'applique
   await p.evaluate(() => accueil()); await sleep(200);
   await p.tap('[title="Thèmes"]'); await sleep(400);
-  ok("téléphone : bouton Thèmes ouvre la liste (30 thèmes)", await p.evaluate(() => document.querySelectorAll(".carte-theme").length >= 30), String(await p.evaluate(() => document.querySelectorAll(".carte-theme").length)));
+  ok("téléphone : bouton Thèmes ouvre la liste (40 thèmes)", await p.evaluate(() => document.querySelectorAll(".carte-theme").length >= 40), String(await p.evaluate(() => document.querySelectorAll(".carte-theme").length)));
   await p.evaluate(() => [...document.querySelectorAll(".carte-theme")].find(x => x.textContent.includes("Ocean")).click()); await sleep(200);
   await p.evaluate(() => [...document.querySelectorAll("button")].find(x => x.textContent === "Appliquer ce thème").click()); await sleep(200);
   ok("téléphone : thème appliqué et mémorisé", await p.evaluate(() => themeActuel === "OCEAN" || lireConfig().theme === "OCEAN" || /ocean/i.test(lireConfig().theme)), await p.evaluate(() => lireConfig().theme));
@@ -70,7 +67,7 @@ const res = []; const ok = (nom, c, info = "") => { res.push(!!c); console.log((
   await p.evaluate(() => [...document.querySelectorAll(".carte-theme")].find(x => x.textContent.includes("Sakura")).click()); await sleep(300);
   ok("téléphone : choisir un thème ne ramène pas en haut", await p.evaluate(() => window.scrollY > 800 && /sakura/i.test(document.querySelector(".theme-apercu").innerText)));
   await p.evaluate(() => accueil()); await sleep(100);
-  await p.tap(".avatar"); await sleep(200); ok("téléphone : l'avatar ouvre le panneau profil (9.13)", await p.evaluate(() => !!document.querySelector(".tiroir-profil input.champ")));
+  await p.tap(".avatar"); await sleep(200); ok("téléphone : l'avatar ouvre le panneau profil et amis (9.14 : onglet Amis)", await p.evaluate(() => !!document.querySelector(".tiroir-profil .ti-onglet.on") && document.querySelector(".tiroir-profil .ti-onglet.on").textContent.startsWith("Amis")));
   // téléphone : nouveaux écrans
   for (const [l, hh] of [[360, 640], [390, 844]]) {
     await p.setViewport({ width: l, height: hh, isMobile: true, hasTouch: true });

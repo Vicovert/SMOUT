@@ -30,7 +30,7 @@ const db = async () => (await (await fetch(BASE + "/__admin.json")).json()) || {
   await ev(A, () => ecranAmis()); await sleep(800);
   const codeA = await ev(A, () => Amis.code);
   ok("écran Amis : mon code ami (6 caractères)", /^[A-Z2-9]{6}$/.test(codeA || "") && (await ev(A, () => document.querySelector(".code-ami .c").textContent)) === codeA, codeA);
-  ok("texte sous le code", await ev(A, () => document.body.innerText.includes("Donne-le pour ajouter des amis.")));
+  ok("plus de texte sous le code (9.14)", await ev(A, () => !document.body.innerText.includes("Donne-le pour ajouter des amis.")));
   // B et C ajoutent A
   for (const p of [B, C]) { await ev(p, () => ecranAmis()); await sleep(500); await p.type(".ecran-amis input", codeA); await ev(p, () => [...document.querySelectorAll("button")].find(x => x.textContent === "Ajouter").click()); }
   ok("demande envoyée", await attendre(B, () => document.body.innerText.includes("Demande envoyée")));

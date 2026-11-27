@@ -136,7 +136,7 @@ class PageJeu(tk.Frame):
         auj = datetime.date.today().isoformat()
         if mode == "mdj":
             if conf.get("last_mdj") == auj:
-                entete(self, "Mot du jour", ctl.retour_accueil)
+                entete(self, "Mot du jour", ctl.retour_accueil, retour_nom="Accueil")
                 c = tk.Frame(self, bg=P["fond"]); c.place(relx=0.5, rely=0.45, anchor="center")
                 etiquette(c, "Déjà joué aujourd'hui", "titre", 44).pack()
                 serie, _ = design.serie_mot_du_jour()
@@ -161,7 +161,7 @@ class PageJeu(tk.Frame):
             Icone(f, "plus", lambda: self.zoomer(0.1), 32).pack(side="left", padx=(0, 14))
             Icone(f, "aide", lambda: self.aide.montrer()).pack(side="left")
             return f
-        entete(self, titre, ctl.retour_accueil, droite=droite)
+        entete(self, titre, ctl.retour_accueil, droite=droite, retour_nom="Accueil" if mode == "mdj" else "Solo")
 
         stats = tk.Frame(self, bg=P["fond"]); stats.pack(pady=(10, 0))
         self.s_temps = Stat(stats, "Temps", "00:00"); self.s_temps.pack(side="left", padx=40)
@@ -367,7 +367,7 @@ class PageMenuSolo(tk.Frame):
     """Page intermédiaire du solo : titre en tuiles, grand bouton « Jouer », puis Marathon et Paramètres (chacun avec son icône)."""
     def __init__(self, parent, controller):
         super().__init__(parent, bg=P["fond"]); self.controller = controller
-        entete(self, "", controller.creer_menu_accueil)
+        entete(self, "", controller.creer_menu_accueil, retour_nom="Accueil")
         rec = design.lire_stats()["marathon"].get("meilleur_points", 0)
         centre = tk.Frame(self, bg=P["fond"])
         centre.place(relx=0.5, rely=0.5, anchor="center")
@@ -391,7 +391,7 @@ class PageStats(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg=P["fond"]); self.controller = controller
         st = design.lire_stats()
-        entete(self, "", controller.creer_menu_accueil)
+        entete(self, "", controller.creer_menu_accueil, retour_nom="Accueil")
         c = tk.Frame(self, bg=P["fond"]); c.pack(pady=(0, 0), padx=60, fill="x")
         etiquette(c, "Statistiques", "titre", 46).pack(anchor="w", pady=(0, 16))
         haut = tk.Frame(c, bg=P["fond"]); haut.pack(anchor="w")
@@ -439,10 +439,10 @@ class PageParametres(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg=P["fond"]); self.controller = controller
         self.config = charger_config_solo()
-        entete(self, "", controller.ouvrir_menu_solo)
+        entete(self, "", controller.ouvrir_menu_solo, retour_nom="Solo")
         corps = tk.Frame(self, bg=P["fond"]); corps.place(relx=0.5, rely=0.47, anchor="center")
         etiquette(corps, "Paramètres", "titre", 46).pack()
-        etiquette(corps, "Parties normales et marathon · le mot du jour se joue toujours en 7 essais.", "texte", 16, P["texte2"]).pack(pady=(4, 20))
+        tk.Frame(corps, bg=P["fond"], height=16).pack()  # 9.14 : plus de « le mot du jour se joue toujours en 7 essais »
         L = 600; p = Panneau(corps, padding=26, largeur=L + 52); p.pack()
         i = p.interieur
         def section(t, haut=0): etiquette(i, espacer(t), "texte", 11, P["texte2"], True).pack(anchor="w", pady=(haut, 8))
@@ -454,13 +454,12 @@ class PageParametres(tk.Frame):
         self.c_essais.grid(row=0, column=0, padx=(0, 10), pady=(0, 10)); self.c_zoom.grid(row=0, column=1, pady=(0, 10))
         self.c_lettres.grid(row=1, column=0, columnspan=2)
         section("Options", 20)
-        self.i_diff = Interrupteur(i, "Mode difficile (lettres trouvées obligatoires)", bool(self.config.get("difficile")), largeur=L); self.i_diff.pack(anchor="w", pady=(0, 6))
-        self.i_dalt = Interrupteur(i, "Mode daltonien (orange et bleu)", bool(design.lire_config().get("daltonien")), largeur=L); self.i_dalt.pack(anchor="w", pady=(0, 20))
+        self.i_diff = Interrupteur(i, "Mode difficile (lettres trouvées obligatoires)", bool(self.config.get("difficile")), largeur=L); self.i_diff.pack(anchor="w", pady=(0, 20))  # 9.14 : plus de mode daltonien
         self.btn = Bouton(i, "Enregistrer", self.save, largeur=L, hauteur=54, taille=17); self.btn.pack()
 
     def save(self):
-        changement = bool(design.lire_config().get("daltonien")) != self.i_dalt.valeur
+        changement = bool(design.lire_config().get("daltonien"))
         design.maj_config(nb_essais=self.c_essais.get(), nb_lettres_min=self.c_lettres.get()[0], nb_lettres_max=self.c_lettres.get()[1],
-                          difficile=self.i_diff.valeur, daltonien=self.i_dalt.valeur, user_zoom=self.c_zoom.get() / 100)
+                          difficile=self.i_diff.valeur, daltonien=False, user_zoom=self.c_zoom.get() / 100)
         if changement and hasattr(self.controller, "apply_theme"): self.controller.apply_theme(self.controller.current_theme_name, save=False)
         self.controller.ouvrir_menu_solo()

@@ -2,7 +2,17 @@
 
 Une entrée par version (la plus récente en haut). Voir `CLAUDE.md` pour la procédure de release.
 
-## 9.13
+## 9.14
+- Panneau profil + amis : onglet « Amis » en premier et ouverture sur les amis ; pastille de notifications sur l'avatar = demandes d'amis + invitations à rejoindre une partie (nouvelle section « Invitations » avec Rejoindre / Ignorer) ; 🔥 série à côté du pseudo dans la liste d'amis.
+- Pseudo : petit bouton ✓ pour l'enregistrer (plus d'enregistrement automatique), **pseudos uniques** : `pseudos/<PSEUDO>` = uid (réservé en l'enregistrant ; règles publiées automatiquement) ; bulle « Ce pseudo est déjà pris » sous la zone de texte ; au multijoueur, un pseudo réservé par un autre est refusé (créer / rejoindre). Les pseudos ne sont réservés qu'en les enregistrant dans le profil (les robots de test n'en réservent pas).
+- Compte : « Se déconnecter » devient une icône rouge à droite de l'adresse.
+- Textes retirés : « Enregistré automatiquement… », « Il s'affiche pour les autres joueurs… », « Ton avancement est enregistré… », « Donne-le pour ajouter des amis. », « Choix du mot : sans limite de temps… », « Ils rejoignent sans taper le code… », « …le mot du jour se joue toujours en 7 essais ».
+- Mode daltonien retiré (un ancien réglage n'a plus d'effet).
+- PC : bouton retour bien visible « ‹ nom de la page » (Accueil, Solo, Thèmes, Multijoueur, Quitter) : `design.BoutonRetour`.
+- Touche « Valider » du clavier : couleur calculée selon le thème (teinte la plus éloignée du bien placé, du mal placé et de l'absent), identique PC / web (`couleur_valider` / `couleurValider`, vérifié sur les 40 thèmes).
+- 10 nouveaux thèmes validés par Victor (40 au total) : Glacier, Lagon, Béton, Nuit polaire, Bonbon, Agrumes, Cobalt, Terre cuite, Bordeaux, Sable.
+- Tests : règles 145/145, `amis_web` 17, `compte_web` 16, `solo72_web` 27, `solo_web` 59, `test_amis_pc` 15, `test_solo_72` 16, `test_classements_pc` 7.
+
 - Panneau sur le côté (à droite) qui réunit le profil et les amis (version A validée par Victor : onglets « Profil » / « Amis »), ouvert par l'avatar seul : plus d'écran Amis ni de bouton Amis, plus de fenêtre « Ton pseudo ». S'ouvre sur « Amis » s'il y a des demandes ; pastille rouge des demandes sur l'avatar (accueil) ; multijoueur : le pseudo (site) ou l'avatar (PC) ouvre le panneau. PC et web (`panneauProfil` / `panneau_profil`). Sur PC, pas de voile assombri (Tk ne sait pas faire de transparence) : le panneau se ferme par la croix ou Échap.
 - Tests adaptés : `amis_web.js` (17), `compte_web.js` (16), `test_amis_pc.py` (15).
 

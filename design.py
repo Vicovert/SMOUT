@@ -11,7 +11,7 @@ def _appel_tk_sur(self, *args):
     return _appel_tk(self, *args)
 tk.CallWrapper.__call__ = _appel_tk_sur
 
-VERSION_APP = "9.13"
+VERSION_APP = "9.14"
 URL_WEB = "https://vicovert.github.io/SMOUT/"
 
 def mot_graine(liste_triee, graine, index=0):
@@ -144,12 +144,29 @@ def calculer_palette(t):
     p["ombre_bien"] = eclaircir(p["bien"], 0.72); p["ombre_mal"] = eclaircir(p["mal"], 0.72)
     p["survol"] = melanger(p["panneau"], texte, 0.06)
     p["sombre"] = sombre
+    p["valider"] = couleur_valider(p); p["sur_valider"] = contraste(p["valider"])
     return p
+
+
+def couleur_valider(p):
+    """9.14 : couleur de la touche « Valider » du clavier, adaptée au thème : la teinte la plus éloignée de celles des lettres
+    bien placées, mal placées et absentes (pour ne jamais s'y confondre), bien visible sur le fond (identique à couleurValider du site)."""
+    import colorsys
+    evitees = []
+    for k in ("bien", "mal", "absent"):
+        r, g, b = [x / 255 for x in hex_rgb(p[k])]; h, l, s = colorsys.rgb_to_hls(r, g, b)
+        if s > 0.25 and 0.12 < l < 0.92: evitees.append(h * 360)
+    meilleure, ecart = 0, -1
+    for teinte in range(0, 360, 5):
+        d = min((min(abs(teinte - e), 360 - abs(teinte - e)) for e in evitees), default=180)
+        if d > ecart: meilleure, ecart = teinte, d
+    r, g, b = colorsys.hls_to_rgb(meilleure / 360, 0.6 if p["sombre"] else 0.42, 0.7)
+    return rgb_hex((r * 255, g * 255, b * 255))
 
 PALETTE_DALTONIEN = ("#F5793A", "#85C0F9")  # orange = bien placée, bleu = mal placée (lisible par tous les daltonismes courants)
 
 def appliquer_theme(t):
-    if lire_config().get("daltonien"): t = dict(t, accent1=PALETTE_DALTONIEN[0], accent2=PALETTE_DALTONIEN[1])
+    # 9.14 : plus de mode daltonien
     P.clear(); P.update(calculer_palette(t))
     return P
 
@@ -376,9 +393,9 @@ class CarteMenu(tk.Canvas):
 
 class Icone(tk.Canvas):
     """Petites icônes dessinées : retour, aide, palette, reglages, copier, rafraichir, plus, moins."""
-    def __init__(self, parent, nom, commande, taille=40, cadre=False):
+    def __init__(self, parent, nom, commande, taille=40, cadre=False, couleur=None):
         super().__init__(parent, width=taille, height=taille, bg=fond_parent(parent), highlightthickness=0, cursor="hand2")
-        self.nom, self.commande, self.t, self.cadre, self.survol, self.actif = nom, commande, taille, cadre, False, True
+        self.nom, self.commande, self.t, self.cadre, self.survol, self.actif, self.couleur = nom, commande, taille, cadre, False, True, couleur  # couleur : icône colorée (9.14 : déconnexion en rouge)
         self.bind("<Enter>", lambda e=None: self._s(True)); self.bind("<Leave>", lambda e=None: self._s(False))
         self.bind("<ButtonRelease-1>", lambda e=None: self.commande() if self.actif else None)
         self._dessiner()
@@ -388,7 +405,10 @@ class Icone(tk.Canvas):
         self.delete("all")
         if not self.actif: return
         t, c = self.t, (P["texte"] if self.survol else P["texte2"])
-        if self.cadre or self.survol:
+        if self.couleur:
+            c = self.couleur
+            arrondi(self, 1, 1, t - 1, t - 1, 10, fill=melanger(fond_parent(self), c, 0.22 if self.survol else 0.12), outline=melanger(fond_parent(self), c, 0.5))
+        elif self.cadre or self.survol:
             arrondi(self, 1, 1, t - 1, t - 1, 10, fill=P["panneau"] if self.survol else fond_parent(self), outline=P["bordure"] if self.cadre else "")
         m, k = t / 2, t / 40
         w = max(1.6, 2 * k)
@@ -426,12 +446,38 @@ class Icone(tk.Canvas):
             self.create_arc(m - 12*k, m + 1*k, m + 1*k, m + 14*k, start=0, extent=180, style="arc", outline=c, width=w)
             self.create_oval(m + 3*k, m - 7*k, m + 8*k, m - 2*k, outline=c, width=w)
             self.create_arc(m + 2*k, m + 1*k, m + 12*k, m + 11*k, start=0, extent=180, style="arc", outline=c, width=w)
+        elif self.nom == "deconnexion":  # 9.14 : porte et flèche de sortie
+            self.create_line(m - 2*k, m - 9*k, m - 8*k, m - 9*k, m - 8*k, m + 9*k, m - 2*k, m + 9*k, fill=c, width=w, capstyle="round", joinstyle="round")
+            self.create_line(m - 3*k, m, m + 9*k, m, fill=c, width=w, capstyle="round")
+            self.create_line(m + 5*k, m - 4*k, m + 9*k, m, m + 5*k, m + 4*k, fill=c, width=w, capstyle="round", joinstyle="round")
+        elif self.nom == "check":
+            self.create_line(m - 8*k, m, m - 2*k, m + 6*k, m + 9*k, m - 6*k, fill=c, width=w * 1.3, capstyle="round", joinstyle="round")
         elif self.nom == "fermer":
             self.create_line(m - 7*k, m - 7*k, m + 7*k, m + 7*k, fill=c, width=w * 1.2, capstyle="round")
             self.create_line(m + 7*k, m - 7*k, m - 7*k, m + 7*k, fill=c, width=w * 1.2, capstyle="round")
         elif self.nom in ("plus", "moins"):
             self.create_line(m - 8*k, m, m + 8*k, m, fill=c, width=w * 1.2, capstyle="round")
             if self.nom == "plus": self.create_line(m, m - 8*k, m, m + 8*k, fill=c, width=w * 1.2, capstyle="round")
+
+
+class BoutonRetour(tk.Canvas):
+    """9.14 : bouton retour bien visible sur PC : « ‹ Accueil » (flèche + nom de la page où l'on revient), encadré."""
+    def __init__(self, parent, nom, commande, hauteur=40):
+        import tkinter.font as tkfont
+        self.f = police("texte", 15, True); self.nom, self.commande, self.h = nom, commande, hauteur
+        self.w = tkfont.Font(font=self.f).measure(nom) + 46
+        super().__init__(parent, width=self.w, height=hauteur, bg=fond_parent(parent), highlightthickness=0, cursor="hand2")
+        self.survol = False
+        self.bind("<Enter>", lambda e: self._s(True)); self.bind("<Leave>", lambda e: self._s(False))
+        self.bind("<ButtonRelease-1>", lambda e: self.commande())
+        self._dessiner()
+    def _s(self, v): self.survol = v; self._dessiner()
+    def _dessiner(self):
+        self.delete("all"); w, h = self.w, self.h; c = P["texte"]
+        arrondi(self, 1, 1, w - 1, h - 1, 12, fill=P["survol"] if self.survol else P["panneau"], outline=P["bordure"], width=1.5)
+        m = h / 2
+        self.create_line(24, m - 7, 17, m, 24, m + 7, fill=c, width=2.4, capstyle="round", joinstyle="round")
+        self.create_text(32, m, text=self.nom, font=self.f, fill=c, anchor="w")
 
 
 _IMAGES = {}
@@ -663,7 +709,7 @@ class Clavier(tk.Frame):
             if i == 2: self._speciale(f, "Valider", self.on_valider, "principal")
     def _speciale(self, f, texte, cmd, variante):
         largeur = self.touche * 2 + 8
-        b = Bouton(f, texte, cmd, largeur=largeur, hauteur=self.h, variante=variante, taille=max(9, round(15 * self.zoom)), couleur=P["mal"])
+        b = Bouton(f, texte, cmd, largeur=largeur, hauteur=self.h, variante=variante, taille=max(9, round(15 * self.zoom)), couleur=P["valider"] if texte == "Valider" else P["mal"])  # 9.14
         b.pack(side="left", padx=4)
     def set_couleur(self, ch, couleur):
         if ch in self.canvas and self.etats.get(ch) != couleur: self.etats[ch] = couleur; self._dessiner(ch)
@@ -834,10 +880,10 @@ def informer(parent, texte, titre="SMOUT"):
     dialogue(parent, titre, texte, [("OK", True, "principal")])
 
 
-def entete(parent, titre="", on_retour=None, droite=None):
-    """Barre du haut : bouton retour, titre centré (texte secondaire), widget à droite."""
+def entete(parent, titre="", on_retour=None, droite=None, retour_nom="Retour"):
+    """Barre du haut : bouton retour (9.14 : « ‹ nom de la page »), titre centré (texte secondaire), widget à droite."""
     h = tk.Frame(parent, bg=P["fond"]); h.pack(fill="x", padx=28, pady=(18, 0))
-    if on_retour: Icone(h, "retour", on_retour).pack(side="left")
+    if on_retour: BoutonRetour(h, retour_nom, on_retour).pack(side="left")
     else: tk.Frame(h, width=40, height=40, bg=P["fond"]).pack(side="left")
     if droite: droite(h).pack(side="right")
     else: tk.Frame(h, width=40, height=40, bg=P["fond"]).pack(side="right")
