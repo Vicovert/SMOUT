@@ -2,10 +2,10 @@
 
 _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travail »). Historique détaillé des versions : `claude/feuille-de-route.md`._
 
-**Dernière mise à jour : 26/11/2026**
+**Dernière mise à jour : 27/11/2026**
 
 ## En ligne
-- Version : **9.13** (release Windows seule `SMOUT.9.13.exe`, 26/11/2026 ; site https://vicovert.github.io/SMOUT/ à jour). Panneau latéral profil + amis ouvert par l'avatar (onglets), plus de bouton Amis. 9.12 : série 🔥 à droite du pseudo, colonnes Mots / Moyenne ; 9.11 : mot du jour classé par mots trouvés.
+- Version : **9.14** (release Windows seule `SMOUT.9.14.exe`, 27/11/2026 ; site https://vicovert.github.io/SMOUT/ à jour). Pseudos uniques, profil revu (bouton ✓, déconnexion en icône, Amis d'abord, notifications), retour PC visible, touche Valider adaptée au thème, 40 thèmes, daltonien retiré. 9.13 : panneau profil + amis ; 9.12 : série 🔥 à droite du pseudo.
 - Protocole multi : `VERSION_JEU` 9.1, données sous `/v7` (spectateurs, demandes)
 
 ## À faire par Victor
@@ -19,7 +19,7 @@ _Mis à jour à la fin de chaque tâche (voir `CLAUDE.md`, « Méthode de travai
 - [x] Copine de Victor (PC) : 9.5 installée, classement du mot du jour vérifié par Victor.
 - [x] Fenêtre « Version obsolète » et « Mettre à jour » vérifiées par Victor (9.7, 25/11/2026) ; classement marathon en points vérifié.
 - [ ] Vérifier sur téléphone le défilement des classements au doigt et la ligne épinglée (9.8), et le classement du marathon (9.10).
-- [ ] 9.13 : essayer le panneau profil + amis (téléphone et PC), dont une demande d'ami reçue (pastille rouge sur l'avatar).
+- [ ] 9.14 : réserver son pseudo (bouton ✓), vérifier qu'un 2e appareil ne peut pas prendre le même ; vérifier le bouton « ‹ Accueil » sur PC et la touche ↵ dans plusieurs thèmes.
 - [ ] Tester à plusieurs : spectateurs et demandes (9.1), amis et invitations (9.2, avec deux comptes), classements et profil sur téléphone (9.4).
 - [x] Branches inutiles supprimées (24/11/2026).
 
